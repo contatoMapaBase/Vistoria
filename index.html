@@ -47,6 +47,9 @@ button{font-family:inherit;cursor:pointer;}
 input,select,textarea{font-family:inherit;}
 ::selection{background:var(--accent);color:#fff;}
 
+summary::-webkit-details-marker { display:none; }
+summary { list-style: none; }
+
 /* ---------- TELA DE LOGIN ---------- */
 #login-screen{
   position:fixed;inset:0;background:var(--ink);z-index:9999;
@@ -436,7 +439,9 @@ const state = {
   vistoriasIndex: [],
   ready: false,
   novaVistoria: null,
-  vistoriaAberta: null
+  vistoriaAberta: null,
+  dashFiltroEmp: '', // Filtro por Empreendimento no Painel
+  dashFiltroMes: ''  // Filtro por Data/Mês no Painel
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -1052,34 +1057,88 @@ function render(){
 }
 
 /* ============================================================
-   DASHBOARD CONSOLIDADO
+   DASHBOARD CONSOLIDADO (COM FILTROS POR EMPREENDIMENTO E DATA)
    ============================================================ */
 function viewDashboard(){
-  const total = state.vistoriasIndex.length;
-  const totalItens = state.vistoriasIndex.reduce((s,v)=>s+(v.totalItens||0),0);
-  const totalNC = state.vistoriasIndex.reduce((s,v)=>s+(v.totalNC||0),0);
+  let rows = [...state.vistoriasIndex];
+
+  // Opções únicas para o filtro de Empreendimentos
+  const empOptions = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome || 'Sem Empreendimento'))].sort();
+  
+  // Opções únicas para o filtro de Mês/Ano
+  const mesMap = {};
+  state.vistoriasIndex.forEach(v => {
+    const d = new Date(v.dataHora);
+    if (!isNaN(d)) {
+      const key = d.toISOString().slice(0, 7); // YYYY-MM
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const labelCap = label.charAt(0).toUpperCase() + label.slice(1);
+      mesMap[key] = labelCap;
+    }
+  });
+  const mesKeysSorted = Object.keys(mesMap).sort().reverse();
+
+  // Aplica o Filtro por Empreendimento
+  if (state.dashFiltroEmp) {
+    rows = rows.filter(v => (v.empreendimentoNome || 'Sem Empreendimento') === state.dashFiltroEmp);
+  }
+
+  // Aplica o Filtro por Mês/Ano
+  if (state.dashFiltroMes) {
+    rows = rows.filter(v => {
+      const d = new Date(v.dataHora);
+      return !isNaN(d) && d.toISOString().slice(0, 7) === state.dashFiltroMes;
+    });
+  }
+
+  const total = rows.length;
+  const totalItens = rows.reduce((s,v)=>s+(v.totalItens||0),0);
+  const totalNC = rows.reduce((s,v)=>s+(v.totalNC||0),0);
   const conformidade = totalItens ? Math.round(100*(totalItens-totalNC)/totalItens) : 100;
 
   const porCrit = {baixa:0,media:0,alta:0,critica:0};
-  state.vistoriasIndex.forEach(v=>{ (v.criticidades||[]).forEach(c=>{ if(porCrit[c]!==undefined) porCrit[c]++; }); });
+  rows.forEach(v=>{ (v.criticidades||[]).forEach(c=>{ if(porCrit[c]!==undefined) porCrit[c]++; }); });
   const maxCrit = Math.max(1,...Object.values(porCrit));
 
   const porEstrutura = {};
-  state.vistoriasIndex.forEach(v=>{ porEstrutura[v.estruturaNome] = (porEstrutura[v.estruturaNome]||0) + (v.totalNC||0); });
+  rows.forEach(v=>{ porEstrutura[v.estruturaNome] = (porEstrutura[v.estruturaNome]||0) + (v.totalNC||0); });
   const rankEstrutura = Object.entries(porEstrutura).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxRank = Math.max(1,...rankEstrutura.map(r=>r[1]));
 
-  const recentes = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora)).slice(0,6);
+  const recentes = [...rows].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora)).slice(0,6);
 
   return `
   <div class="view-head">
-    <div><div class="eyebrow">Visão geral</div><h1 class="view-title">Painel de inspeções</h1>
-    <div class="view-sub">Indicadores de vistorias de toda a equipe em tempo real.</div></div>
+    <div>
+      <div class="eyebrow">Visão geral</div>
+      <h1 class="view-title">Painel de inspeções</h1>
+      <div class="view-sub">Indicadores dinâmicos filtrados por empreendimento e período.</div>
+    </div>
     <button class="btn primary" id="btn-nova-topo">+ Nova vistoria</button>
   </div>
 
+  <!-- BARRA DE FILTROS DO PAINEL DE INSPEÇÕES -->
+  <div class="card card-pad" style="margin-bottom:20px; background:var(--surface-2);">
+    <div class="grid cols-2" style="align-items:center;">
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Filtro por Empreendimento</label>
+        <select id="dash-filter-emp">
+          <option value="">🏢 Todos os Empreendimentos (${state.vistoriasIndex.length} vistorias)</option>
+          ${empOptions.map(e => `<option value="${esc(e)}" ${state.dashFiltroEmp===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Filtro por Período / Mês</label>
+        <select id="dash-filter-mes">
+          <option value="">🗓️ Todas as Datas</option>
+          ${mesKeysSorted.map(k => `<option value="${k}" ${state.dashFiltroMes===k?'selected':''}>${esc(mesMap[k])}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div class="grid cols-4" style="margin-bottom:22px;">
-    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias realizadas</div></div>
+    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias filtradas</div></div>
     <div class="card kpi"><div class="num">${totalItens}</div><div class="lbl">Itens avaliados</div></div>
     <div class="card kpi" style="border-color:${totalNC?'var(--nc-bg)':'var(--line)'}"><div class="num" style="color:${totalNC?'var(--nc)':'var(--ink)'}">${totalNC}</div><div class="lbl">Não conformidades</div></div>
     <div class="card kpi"><div class="num">${conformidade}%</div><div class="lbl">Índice de conformidade</div></div>
@@ -1095,7 +1154,7 @@ function viewDashboard(){
             <div style="width:${(porCrit[k]/maxCrit*100)||0}%;height:100%;background:var(--${k});"></div>
           </div>
           <div style="width:24px;text-align:right;font-family:var(--font-mono);font-size:12.5px;">${porCrit[k]}</div>
-        </div>`).join('') || '<div class="hint">Sem dados ainda.</div>'}
+        </div>`).join('') || '<div class="hint">Sem dados para o filtro selecionado.</div>'}
     </div>
     <div class="card card-pad">
       <h3 style="margin:0 0 14px;font-family:var(--font-display);font-size:20px;font-weight:600;">Estruturas com mais não conformidades</h3>
@@ -1106,12 +1165,12 @@ function viewDashboard(){
             <div style="width:${(n/maxRank*100)}%;height:100%;background:var(--accent);"></div>
           </div>
           <div style="width:24px;text-align:right;font-family:var(--font-mono);font-size:12.5px;">${n}</div>
-        </div>`).join('') : '<div class="hint">Sem dados ainda.</div>'}
+        </div>`).join('') : '<div class="hint">Sem dados para o filtro selecionado.</div>'}
     </div>
   </div>
 
   <div class="card" style="margin-top:20px;">
-    <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias recentes da Equipe</h3></div>
+    <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias Recentes (Filtro Ativo)</h3></div>
     ${recentes.length ? `<table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
       ${recentes.map(v=>`
         <tr class="clickable" data-open="${v.id}">
@@ -1122,13 +1181,24 @@ function viewDashboard(){
           <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC} NC</span>`:`<span class="badge conforme">OK</span>`}</td>
           <td>${v.criticidadeMax ? `<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>` : '—'}</td>
         </tr>`).join('')}
-    </tbody></table>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
+    </tbody></table>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria encontrada para os filtros selecionados.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
   </div>`;
 }
 
 function bindDashboard(){
   document.getElementById('btn-nova-topo')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
   document.getElementById('btn-nova-vazio')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
+  
+  document.getElementById('dash-filter-emp')?.addEventListener('change', (e)=>{
+    state.dashFiltroEmp = e.target.value;
+    render();
+  });
+
+  document.getElementById('dash-filter-mes')?.addEventListener('change', (e)=>{
+    state.dashFiltroMes = e.target.value;
+    render();
+  });
+
   document.querySelectorAll('[data-open]').forEach(tr=>{
     tr.addEventListener('click', async ()=>{
       const v = await loadVistoria(tr.dataset.open);
@@ -1312,7 +1382,7 @@ function viewEstruturas(){
 function estruturaModal(existing){
   const isEdit = !!existing;
   let itens = isEdit ? existing.itens.map(i=>({...i})) : [];
-  let modoBulk = false; // Alterna entre lista normal e colar em bloco
+  let modoBulk = false;
   const modal = document.getElementById('modal-root');
 
   function renderModalBody(){
@@ -1825,24 +1895,97 @@ async function finalizarVistoria(){
 }
 
 /* ============================================================
-   LISTA DE VISTORIAS
+   HISTÓRICO DE VISTORIAS (ORGANIZADO POR PASTAS DE EMPREENDIMENTO E DATAS)
    ============================================================ */
 function viewVistorias(){
   const rows = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora));
+  if(!rows.length){
+    return `
+    <div class="view-head"><div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias realizadas</h1></div></div>
+    <div class="empty card"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.</div>`;
+  }
+
+  // Agrupa vistorias por Empreendimento
+  const porEmpreendimento = {};
+  rows.forEach(v => {
+    const emp = v.empreendimentoNome || 'Empreendimento não informado';
+    if(!porEmpreendimento[emp]) porEmpreendimento[emp] = [];
+    porEmpreendimento[emp].push(v);
+  });
+
   return `
-  <div class="view-head"><div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias realizadas</h1></div></div>
-  ${rows.length ? `<div class="card"><table><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>Itens</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
-    ${rows.map(v=>`
-      <tr class="clickable" data-open="${v.id}">
-        <td>${fmtDate(v.dataHora)}</td>
-        <td>${esc(v.empreendimentoNome)}</td>
-        <td>${esc(v.estruturaNome)}</td>
-        <td>${esc(v.responsavel||'—')}</td>
-        <td>${v.totalItens}</td>
-        <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC}</span>`:`<span class="badge conforme">0</span>`}</td>
-        <td>${v.criticidadeMax?`<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>`:'—'}</td>
-      </tr>`).join('')}
-  </tbody></table></div>` : `<div class="empty card"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.</div>`}
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Histórico Organizado</div>
+      <h1 class="view-title">Vistorias por Empreendimento</h1>
+      <div class="view-sub">Inspeções agrupadas por pasta de empreendimento e organizadas por datas.</div>
+    </div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:16px;">
+    ${Object.entries(porEmpreendimento).map(([empNome, vists]) => {
+      // Agrupa por Mês/Ano dentro de cada Empreendimento
+      const porData = {};
+      vists.forEach(v => {
+        const d = new Date(v.dataHora);
+        const mesAno = isNaN(d) ? 'Data não informada' : d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const mesAnoCap = mesAno.charAt(0).toUpperCase() + mesAno.slice(1);
+        if(!porData[mesAnoCap]) porData[mesAnoCap] = [];
+        porData[mesAnoCap].push(v);
+      });
+
+      const totalNcEmp = vists.reduce((acc, curr) => acc + (curr.totalNC || 0), 0);
+
+      return `
+      <details class="card" style="overflow:hidden;" open>
+        <summary style="padding:16px 20px; background:var(--surface); cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; user-select:none; font-family:var(--font-display); font-size:20px; font-weight:600; border-bottom:1px solid var(--line);">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-size:22px;">📁</span>
+            <span style="color:var(--ink);">${esc(empNome)}</span>
+            <span class="badge na" style="font-size:11.5px;">${vists.length} vistoria(s)</span>
+            ${totalNcEmp > 0 ? `<span class="badge nc" style="font-size:11.5px;">${totalNcEmp} NC(s)</span>` : `<span class="badge conforme" style="font-size:11.5px;">100% OK</span>`}
+          </div>
+          <div style="font-size:12px; color:var(--ink-soft); font-weight:500;">Clique para abrir/fechar ▾</div>
+        </summary>
+        <div style="padding:16px 20px; background:var(--bg);">
+          ${Object.entries(porData).map(([mesAno, listaVist]) => `
+            <div style="margin-bottom:18px;">
+              <div style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>🗓️</span> ${esc(mesAno)}
+              </div>
+              <div class="card" style="overflow-x:auto;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data / Hora</th>
+                      <th>Estrutura</th>
+                      <th>Responsável</th>
+                      <th>Itens</th>
+                      <th>NC</th>
+                      <th>Criticidade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${listaVist.map(v => `
+                      <tr class="clickable" data-open="${v.id}">
+                        <td><strong>${fmtDate(v.dataHora)}</strong></td>
+                        <td>${esc(v.estruturaNome)}</td>
+                        <td>${esc(v.responsavel||'—')}</td>
+                        <td>${v.totalItens}</td>
+                        <td>${v.totalNC > 0 ? `<span class="badge nc">${v.totalNC} NC</span>` : `<span class="badge conforme">OK</span>`}</td>
+                        <td>${v.criticidadeMax ? `<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>` : '—'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+      `;
+    }).join('')}
+  </div>
   `;
 }
 
