@@ -392,7 +392,7 @@ label.field-label{
 
 <script>
 /* ============================================================
-   ESTADO E PERSISTÊNCIA
+   ESTADO E PERSISTÊNCIA (RESTAURADO E CORRIGIDO)
    ============================================================ */
 const state = {
   view: 'dashboard',
@@ -400,23 +400,31 @@ const state = {
   estruturas: [],
   vistoriasIndex: [],
   ready: false,
-  novaVistoria: null, // {empreendimentoId, estruturaId, step, respostas, gps, responsavel, dataHora}
-  vistoriaAberta: null // vistoria completa carregada p/ visualização
+  novaVistoria: null,
+  vistoriaAberta: null
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
-async function storageGet(key){
-  try{
-    const r = await window.storage.get(key, false);
-    return r ? JSON.parse(r.value) : null;
-  }catch(e){ return null; }
+async function storageGet(key) {
+  try {
+    const val = localStorage.getItem(key);
+    return val ? JSON.parse(val) : null;
+  } catch(e) {
+    console.error('Erro ao ler dados:', e);
+    return null;
+  }
 }
-async function storageSet(key, value){
-  try{
-    await window.storage.set(key, JSON.stringify(value), false);
+
+async function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
     return true;
-  }catch(e){ console.error('storage set falhou', key, e); return false; }
+  } catch(e) {
+    console.error('Erro ao salvar dados:', e);
+    showToast('Erro de memória: tente reduzir o número de fotos.');
+    return false;
+  }
 }
 
 async function saveEmpreendimentos(){ await storageSet('empreendimentos', state.empreendimentos); }
