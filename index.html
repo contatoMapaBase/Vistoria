@@ -6,6 +6,8 @@
 <title>Vistoria — Gestão de Inspeções Ambientais</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- SDK do Supabase para Banco de Dados na Nuvem -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#F1F3EE;
@@ -45,7 +47,7 @@ button{font-family:inherit;cursor:pointer;}
 input,select,textarea{font-family:inherit;}
 ::selection{background:var(--accent);color:#fff;}
 
-/* ---------- login screen ---------- */
+/* ---------- TELA DE LOGIN (SOBREPOSTA) ---------- */
 #login-screen{
   position:fixed;inset:0;background:var(--ink);z-index:9999;
   display:flex;align-items:center;justify-content:center;padding:20px;
@@ -56,7 +58,7 @@ input,select,textarea{font-family:inherit;}
   text-align:center;
 }
 
-/* ---------- shell layout ---------- */
+/* ---------- SHELL LAYOUT ---------- */
 #shell{
   display:flex;
   min-height:100vh;
@@ -168,7 +170,7 @@ nav.mainnav{
   margin-bottom:4px;
 }
 
-/* ---------- primitives ---------- */
+/* ---------- PRIMITIVES ---------- */
 .btn{
   display:inline-flex;
   align-items:center;
@@ -371,7 +373,7 @@ label.field-label{
 </head>
 <body>
 
-<!-- TELA DE LOGIN (BLOQUEIO) -->
+<!-- TELA DE LOGIN BLOQUEADA -->
 <div id="login-screen">
   <div class="login-box">
     <div class="brand-mark" style="justify-content:center;color:var(--ink);margin-bottom:8px;">
@@ -381,7 +383,7 @@ label.field-label{
     <p style="font-size:13px;color:var(--ink-soft);margin-bottom:20px;">Área Restrita e Confidencial</p>
     <div class="field" style="text-align:left;">
       <label class="field-label">Usuário</label>
-      <input type="text" id="login-user" value="MapaBase" readonly style="background:var(--surface-2);font-weight:600;">
+      <input type="text" id="login-user" placeholder="Digite o usuário">
     </div>
     <div class="field" style="text-align:left;">
       <label class="field-label">Senha de Acesso</label>
@@ -401,7 +403,7 @@ label.field-label{
       <div class="brand-sub">Inspeções ambientais de campo</div>
     </div>
     <nav class="mainnav" id="mainnav"></nav>
-    <div class="sidebar-foot">Dados salvos neste navegador.</div>
+    <div class="sidebar-foot">Dados sincronizados na Nuvem.</div>
   </aside>
 
   <div id="main">
@@ -413,6 +415,13 @@ label.field-label{
 <div id="modal-root"></div>
 
 <script>
+/* ============================================================
+   CONFIGURAÇÃO DO BANCO DE DADOS SUPABASE (COLE SUAS CHAVES AQUI)
+   ============================================================ */
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
 /* ============================================================
    ESTADO E PERSISTÊNCIA
    ============================================================ */
@@ -428,32 +437,120 @@ const state = {
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
+// Retorna Data/Hora no formato local (Fuso Horário do Brasil)
+function getLocalIsoDatetime() {
+  const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+  return (new Date(Date.now() - tzoffset)).toISOString().slice(0, 16);
+}
+
 async function storageGet(key) {
   try {
     const val = localStorage.getItem(key);
     return val ? JSON.parse(val) : null;
-  } catch(e) {
-    console.error('Erro ao ler dados:', e);
-    return null;
-  }
+  } catch(e) { return null; }
 }
 
 async function storageSet(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
     return true;
-  } catch(e) {
-    console.error('Erro ao salvar dados:', e);
-    showToast('Erro de memória: tente reduzir o número de fotos.');
-    return false;
-  }
+  } catch(e) { return false; }
 }
 
 async function saveEmpreendimentos(){ await storageSet('empreendimentos', state.empreendimentos); }
 async function saveEstruturas(){ await storageSet('estruturas', state.estruturas); }
-async function saveVistoriasIndex(){ await storageSet('vistorias:index', state.vistoriasIndex); }
-async function saveVistoria(v){ return await storageSet('vistoria:'+v.id, v); }
-async function loadVistoria(id){ return await storageGet('vistoria:'+id); }
+
+async function saveVistoria(v){
+  if(_supabase){
+    try{
+      const ncItens = v.itens.filter(i=>i.status==='nc');
+      const ordemCrit = {critica:4,alta:3,media:2,baixa:1};
+      const critMax = ncItens.reduce((max,i)=> (ordemCrit[i.criticidade]||0) > (ordemCrit[max]||0) ? i.criticidade : max, null);
+
+      await _supabase.from('vistorias').upsert({
+        id: v.id,
+        empreendimento_nome: v.empreendimentoNome,
+        estrutura_nome: v.estruturaNome,
+        responsavel: v.responsavel,
+        data_hora: v.dataHora,
+        gps: v.gps,
+        itens: v.itens,
+        total_itens: v.itens.length,
+        total_nc: ncItens.length,
+        criticidade_max: critMax
+      });
+    }catch(err){ console.error('Erro nuvem:', err); }
+  }
+  return await storageSet('vistoria:'+v.id, v);
+}
+
+// Busca na nuvem de TODOS os inspetores para atualizar o Painel
+async function loadVistoriasNuvem(){
+  if(_supabase){
+    try{
+      const { data, error } = await _supabase.from('vistorias').select('*').order('data_hora', { ascending: false });
+      if(data && !error){
+        state.vistoriasIndex = data.map(d => ({
+          id: d.id,
+          empreendimentoNome: d.empreendimento_nome,
+          estruturaNome: d.estrutura_nome,
+          responsavel: d.responsavel,
+          dataHora: d.data_hora,
+          totalItens: d.total_itens,
+          totalNC: d.total_nc,
+          criticidadeMax: d.criticidade_max,
+          criticidades: (d.itens||[]).filter(i=>i.status==='nc').map(i=>i.criticidade)
+        }));
+        await storageSet('vistorias:index', state.vistoriasIndex);
+        return;
+      }
+    }catch(e){}
+  }
+  state.vistoriasIndex = (await storageGet('vistorias:index')) || [];
+}
+
+async function loadVistoria(id){ 
+  if(_supabase){
+    try{
+      const { data } = await _supabase.from('vistorias').select('*').eq('id', id).single();
+      if(data) return {
+        id: data.id,
+        empreendimentoNome: data.empreendimento_nome,
+        estruturaNome: data.estrutura_nome,
+        responsavel: data.responsavel,
+        dataHora: data.data_hora,
+        gps: data.gps,
+        itens: data.itens
+      };
+    }catch(e){}
+  }
+  return await storageGet('vistoria:'+id); 
+}
+
+/* ============================================================
+   AUTENTICAÇÃO DE LOGIN
+   ============================================================ */
+function checkAuth(){
+  const loginUser = document.getElementById('login-user');
+  const loginInput = document.getElementById('login-pass');
+  const loginScreen = document.getElementById('login-screen');
+  const btnEntrar = document.getElementById('btn-entrar');
+  
+  function tentarLogin() {
+    if(loginUser.value.trim() === 'MapaBase' && loginInput.value === 'mpbs_1210'){
+      loginScreen.style.display = 'none';
+    } else {
+      alert('Usuário ou Senha incorretos!');
+    }
+  }
+
+  btnEntrar.onclick = tentarLogin;
+  
+  // Permite logar apertando o botão "Enter" no celular
+  loginInput.addEventListener("keyup", function(event) {
+    if (event.key === "Enter") tentarLogin();
+  });
+}
 
 /* ============================================================
    BIBLIOTECA PADRÃO DE ESTRUTURAS
@@ -505,86 +602,20 @@ const DEFAULT_ESTRUTURAS = [
   {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural/Efluentes'},
   {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural/Efluentes'},
 ])},
-{ nome:'Lavador', itens: mkItens([
-  {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
-  {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-  {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
-  {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
-  {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos'},
-  {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos'},
-  {texto:'Há resíduos contaminantes fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
-  {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área?',cat:'Estrutural/Efluentes'},
-  {texto:'Há manchas de óleo no solo?',cat:'Estrutural/Efluentes'},
-  {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
-  {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
-  {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural/Efluentes'},
-  {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
-  {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
-  {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
-  {texto:'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',cat:'Estrutural/Efluentes'},
-  {texto:'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural/Efluentes'},
-  {texto:'O fosso/rampa de lavagem e troca de óleo está desobstruído e sem trincas?',cat:'Estrutural/Efluentes'},
-])},
 { nome:'Outros', itens: [] },
 ].map(e => ({ id: uid(), nome: e.nome, itens: e.itens }));
-
-/* ============================================================
-   SISTEMA DE LOGIN / SENHA (ATUALIZADO)
-   ============================================================ */
-async function checkAuth(){
-  const savedPass = await storageGet('app_password') || 'mpbs_1210';
-  const loginInput = document.getElementById('login-pass');
-  const loginScreen = document.getElementById('login-screen');
-  
-  document.getElementById('btn-entrar').onclick = () => {
-    if(loginInput.value === savedPass){
-      loginScreen.style.display = 'none';
-    } else {
-      alert('Senha incorreta! Tente novamente.');
-    }
-  };
-}
-
-function abrirConfigSenha(){
-  const modal = document.getElementById('modal-root');
-  modal.innerHTML = `
-  <div class="modal-backdrop" id="modal-bg">
-    <div class="modal">
-      <div class="modal-head"><h3>Alterar Senha de Acesso</h3><button class="btn ghost sm" id="modal-close">✕</button></div>
-      <div class="modal-body">
-        <div class="field"><label class="field-label">Nova Senha (para usuário MapaBase)</label>
-          <input type="password" id="nova-senha-input" placeholder="Digite a nova senha"></div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn ghost" id="modal-cancel">Cancelar</button>
-        <button class="btn primary" id="btn-salvar-senha">Salvar Senha</button>
-      </div>
-    </div>
-  </div>`;
-  const close = ()=> modal.innerHTML='';
-  document.getElementById('modal-close').onclick = close;
-  document.getElementById('modal-cancel').onclick = close;
-  document.getElementById('btn-salvar-senha').onclick = async ()=>{
-    const val = document.getElementById('nova-senha-input').value.trim();
-    if(!val){ showToast('Digite uma senha válida.'); return; }
-    await storageSet('app_password', val);
-    close();
-    showToast('Senha de acesso atualizada com sucesso!');
-  };
-}
 
 /* ============================================================
    INICIALIZAÇÃO
    ============================================================ */
 async function init(){
-  await checkAuth();
-  const [emp, est, vidx] = await Promise.all([
-    storageGet('empreendimentos'),
-    storageGet('estruturas'),
-    storageGet('vistorias:index'),
-  ]);
+  checkAuth();
+  const emp = await storageGet('empreendimentos');
+  const est = await storageGet('estruturas');
+  
+  await loadVistoriasNuvem();
+
   state.empreendimentos = emp || [];
-  state.vistoriasIndex = vidx || [];
   if(est && est.length){
     state.estruturas = est;
   } else {
@@ -625,7 +656,7 @@ function setView(v){
   window.scrollTo(0,0);
 }
 
-function fileToCompressedDataURL(file, maxDim=900, quality=0.62){
+function fileToCompressedDataURL(file, maxDim=800, quality=0.55){
   return new Promise((resolve,reject)=>{
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
@@ -668,21 +699,25 @@ const NAV = [
   {id:'naoconformidades', label:'Não conformidades', ic:'&#9888;'},
   {id:'empreendimentos', label:'Empreendimentos', ic:'&#127970;'},
   {id:'estruturas', label:'Biblioteca de estruturas', ic:'&#128218;'},
-  {id:'config_senha', label:'Alterar Senha', ic:'&#128274;'},
 ];
+
 function renderNav(){
   const el = document.getElementById('mainnav');
   el.innerHTML = NAV.map(n => `
     <button class="navbtn ${state.view===n.id?'active':''}" data-nav="${n.id}">
       <span class="ic">${n.ic}</span><span>${n.label}</span>
     </button>`).join('');
+  
   el.querySelectorAll('[data-nav]').forEach(b=>{
-    b.addEventListener('click', ()=> {
-      if(b.dataset.nav === 'config_senha'){
-        abrirConfigSenha();
-        return;
-      }
+    b.addEventListener('click', async ()=> {
       if(b.dataset.nav === 'nova') state.novaVistoria = null;
+      
+      // Atualiza os dados da nuvem sempre que voltar para Painel ou Vistorias
+      if((b.dataset.nav === 'dashboard' || b.dataset.nav === 'vistorias') && _supabase){
+        showToast('Atualizando dados...');
+        await loadVistoriasNuvem();
+      }
+      
       setView(b.dataset.nav);
     });
   });
@@ -708,7 +743,7 @@ function render(){
 }
 
 /* ============================================================
-   DASHBOARD
+   DASHBOARD CONSOLIDADO
    ============================================================ */
 function viewDashboard(){
   const total = state.vistoriasIndex.length;
@@ -730,7 +765,7 @@ function viewDashboard(){
   return `
   <div class="view-head">
     <div><div class="eyebrow">Visão geral</div><h1 class="view-title">Painel de inspeções</h1>
-    <div class="view-sub">Indicadores consolidados de todas as vistorias registradas.</div></div>
+    <div class="view-sub">Indicadores de vistorias de toda a equipe na nuvem.</div></div>
     <button class="btn primary" id="btn-nova-topo">+ Nova vistoria</button>
   </div>
 
@@ -767,19 +802,21 @@ function viewDashboard(){
   </div>
 
   <div class="card" style="margin-top:20px;">
-    <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias recentes</h3></div>
-    ${recentes.length ? `<table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
+    <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias recentes da Equipe</h3></div>
+    ${recentes.length ? `<table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
       ${recentes.map(v=>`
         <tr class="clickable" data-open="${v.id}">
           <td>${fmtDate(v.dataHora)}</td>
           <td>${esc(v.empreendimentoNome)}</td>
           <td>${esc(v.estruturaNome)}</td>
+          <td>${esc(v.responsavel||'—')}</td>
           <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC} NC</span>`:`<span class="badge conforme">OK</span>`}</td>
           <td>${v.criticidadeMax ? `<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>` : '—'}</td>
         </tr>`).join('')}
     </tbody></table>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
   </div>`;
 }
+
 function bindDashboard(){
   document.getElementById('btn-nova-topo')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
   document.getElementById('btn-nova-vazio')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
@@ -980,7 +1017,7 @@ function bindEstruturas(){
 }
 
 /* ============================================================
-   NOVA VISTORIA (COM CAMPO DE DATA AJUSTÁVEL)
+   NOVA VISTORIA (DATA LIVRE E FOTO DA GALERIA)
    ============================================================ */
 function viewNovaVistoria(){
   const nv = state.novaVistoria;
@@ -1013,7 +1050,8 @@ function viewNovaVistoria(){
     </div>` : `<div class="empty card"><div class="ic">&#128218;</div>Este empreendimento ainda não tem estruturas vinculadas.<br><br><button class="btn primary" id="btn-editar-emp-estruturas">Vincular estruturas</button></div>`}
     `;
   }
-  // step 3 - checklist
+  
+  // Step 3 - Checklist
   const emp = empreendimentoById(nv.empreendimentoId);
   const est = estruturaById(nv.estruturaId);
   const respondidos = est.itens.filter(it => nv.respostas[it.id]?.status).length;
@@ -1022,7 +1060,11 @@ function viewNovaVistoria(){
   let categorias = [...new Set(est.itens.map(i=>i.categoria).filter(Boolean))];
   let itensPorCat = categorias.length ? categorias.map(c=>({cat:c, itens: est.itens.filter(i=>i.categoria===c)})) : [{cat:null, itens: est.itens}];
 
-  const dataHoraFormatted = nv.dataHora ? nv.dataHora.slice(0,16) : new Date().toISOString().slice(0,16);
+  // Deixa o campo formatado vazio inicialmente para inserção manual
+  let dataHoraFormatted = '';
+  if (nv.dataHora) {
+    dataHoraFormatted = nv.dataHora.slice(0, 16);
+  }
 
   return `
   <div class="view-head">
@@ -1033,11 +1075,16 @@ function viewNovaVistoria(){
 
   <div class="card card-pad" style="margin-bottom:16px;">
     <div class="grid cols-3">
-      <div class="field" style="margin-bottom:0;"><label class="field-label">Data e Hora da Vistoria</label>
-        <input type="datetime-local" id="nv-datahora" value="${dataHoraFormatted}"></div>
-      <div class="field" style="margin-bottom:0;"><label class="field-label">Responsável pela vistoria</label>
-        <input type="text" id="nv-responsavel" value="${esc(nv.responsavel||'')}" placeholder="Nome do inspetor"></div>
-      <div class="field" style="margin-bottom:0;"><label class="field-label">Localização (GPS)</label>
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Data e Hora da Vistoria</label>
+        <input type="datetime-local" id="nv-datahora" value="${dataHoraFormatted}">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Responsável pela vistoria</label>
+        <input type="text" id="nv-responsavel" value="${esc(nv.responsavel||'')}" placeholder="Nome do inspetor">
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Localização (GPS)</label>
         <div class="rowflex">
           <span class="hint" id="nv-gps-txt" style="margin:0;">${nv.gps? `${nv.gps.lat.toFixed(5)}, ${nv.gps.lng.toFixed(5)}` : 'Não capturada'}</span>
           <button class="btn ghost sm" id="nv-gps-btn" type="button">${nv.gps?'Recapturar':'Capturar GPS'}</button>
@@ -1097,10 +1144,10 @@ function renderChecklistItem(it, nv, numero){
           <input type="text" data-rec="${it.id}" value="${esc(r.recomendacao)}" placeholder="Ação corretiva sugerida">
         </div>
       </div>
-      <label class="field-label">Fotos</label>
+      <label class="field-label">Fotos (Câmera ou Galeria)</label>
       <div class="photo-row" data-photos="${it.id}">
         ${r.fotos.map((f,i)=>`<img class="photo-thumb" src="${f}" data-photoidx="${i}">`).join('')}
-        <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" multiple data-photoinput="${it.id}" style="display:none;"></label>
+        <label class="photo-add">＋<input type="file" accept="image/*" multiple data-photoinput="${it.id}" style="display:none;"></label>
       </div>
     </div>
   </div>`;
@@ -1111,7 +1158,8 @@ function bindNovaVistoria(){
   if(!nv || nv.step===1){
     document.querySelectorAll('[data-pickemp]').forEach(el=>{
       el.addEventListener('click', ()=>{
-        state.novaVistoria = { empreendimentoId: el.dataset.pickemp, estruturaId:null, step:2, respostas:{}, gps:null, responsavel:'', dataHora:new Date().toISOString() };
+        // Nova vistoria inicia com o campo de data "vazio" para inserção manual
+        state.novaVistoria = { empreendimentoId: el.dataset.pickemp, estruturaId:null, step:2, respostas:{}, gps:null, responsavel:'', dataHora: '' };
         render();
       });
     });
@@ -1127,7 +1175,6 @@ function bindNovaVistoria(){
       el.addEventListener('click', async ()=>{
         nv.estruturaId = el.dataset.pickest;
         nv.step = 3;
-        nv.dataHora = new Date().toISOString();
         render();
         const gps = await getGPS();
         if(gps){ nv.gps = gps; if(state.view==='nova') render(); }
@@ -1135,7 +1182,7 @@ function bindNovaVistoria(){
     });
     return;
   }
-  // step 3
+  // Step 3
   document.getElementById('btn-voltar-2')?.addEventListener('click', ()=>{ nv.step=2; render(); });
   document.getElementById('nv-responsavel')?.addEventListener('input', e=>{ nv.responsavel = e.target.value; });
   document.getElementById('nv-datahora')?.addEventListener('change', e=>{ 
@@ -1193,6 +1240,13 @@ async function finalizarVistoria(){
   const emp = empreendimentoById(nv.empreendimentoId);
   const est = estruturaById(nv.estruturaId);
   const btn = document.getElementById('nv-finalizar');
+  
+  // Se o usuário não preencheu a data, avisa
+  if (!nv.dataHora) {
+    showToast('Por favor, informe a Data e Hora da Vistoria.');
+    return;
+  }
+  
   btn.disabled = true; btn.textContent = 'Salvando...';
 
   const itensResp = est.itens.map(it=>{
@@ -1215,25 +1269,18 @@ async function finalizarVistoria(){
     empreendimentoId: emp.id, empreendimentoNome: emp.nome,
     estruturaId: est.id, estruturaNome: est.nome,
     responsavel: nv.responsavel || '—',
-    dataHora: nv.dataHora || new Date().toISOString(),
+    dataHora: nv.dataHora,
     gps: nv.gps,
     itens: itensResp,
   };
-  const ok = await saveVistoria(vistoria);
-  if(!ok){ showToast('Erro ao salvar. Tente novamente.'); btn.disabled=false; btn.textContent='Finalizar vistoria'; return; }
-
-  state.vistoriasIndex.unshift({
-    id: vistoria.id, empreendimentoId: emp.id, empreendimentoNome: emp.nome,
-    estruturaId: est.id, estruturaNome: est.nome, responsavel: vistoria.responsavel,
-    dataHora: vistoria.dataHora, totalItens: itensResp.length, totalNC: ncItens.length,
-    criticidadeMax: critMax, criticidades: ncItens.map(i=>i.criticidade),
-  });
-  await saveVistoriasIndex();
+  
+  await saveVistoria(vistoria);
+  await loadVistoriasNuvem();
 
   state.novaVistoria = null;
   state.vistoriaAberta = vistoria;
   setView('vistoria-detalhe');
-  showToast('Vistoria registrada com sucesso.');
+  showToast('Vistoria salva com sucesso!');
 }
 
 /* ============================================================
@@ -1249,7 +1296,7 @@ function viewVistorias(){
         <td>${fmtDate(v.dataHora)}</td>
         <td>${esc(v.empreendimentoNome)}</td>
         <td>${esc(v.estruturaNome)}</td>
-        <td>${esc(v.responsavel)}</td>
+        <td>${esc(v.responsavel||'—')}</td>
         <td>${v.totalItens}</td>
         <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC}</span>`:`<span class="badge conforme">0</span>`}</td>
         <td>${v.criticidadeMax?`<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>`:'—'}</td>
@@ -1257,6 +1304,7 @@ function viewVistorias(){
   </tbody></table></div>` : `<div class="empty card"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.</div>`}
   `;
 }
+
 function bindVistorias(){
   document.querySelectorAll('[data-open]').forEach(tr=>{
     tr.addEventListener('click', async ()=>{
@@ -1334,7 +1382,7 @@ function bindVistoriaDetalhe(){
 }
 
 /* ============================================================
-   NÃO CONFORMIDADES (visão consolidada)
+   NÃO CONFORMIDADES (VISÃO CONSOLIDADA)
    ============================================================ */
 function viewNaoConformidades(){
   return `
