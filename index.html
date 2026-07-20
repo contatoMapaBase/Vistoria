@@ -1,0 +1,1471 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Vistoria — Gestão de Inspeções Ambientais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F1F3EE;
+  --surface:#FFFFFF;
+  --surface-2:#E9ECE5;
+  --ink:#16241C;
+  --ink-soft:#546056;
+  --ink-faint:#8A9389;
+  --line:#D7DED2;
+  --accent:#E2571D;
+  --accent-ink:#FFF6F1;
+  --conforme:#2F9E44;
+  --conforme-bg:#E9F7EC;
+  --nc:#C4332C;
+  --nc-bg:#FBEAE8;
+  --na:#8A9389;
+  --na-bg:#EEF0EA;
+  --baixa:#5B9A78;
+  --media:#D69E2E;
+  --alta:#E2571D;
+  --critica:#9B1C2E;
+  --radius:10px;
+  --shadow:0 1px 2px rgba(22,36,28,.06), 0 2px 12px rgba(22,36,28,.05);
+  --font-display:'Barlow Condensed',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);
+  color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--accent);color:#fff;}
+
+/* ---------- shell layout ---------- */
+#shell{
+  display:flex;
+  min-height:100vh;
+}
+#sidebar{
+  width:220px;
+  flex-shrink:0;
+  background:var(--ink);
+  color:#EDF1EA;
+  display:flex;
+  flex-direction:column;
+  position:sticky;
+  top:0;
+  height:100vh;
+}
+.brand{
+  padding:22px 20px 14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.brand-mark{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:26px;
+  letter-spacing:.5px;
+  color:#fff;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.brand-mark svg{flex-shrink:0;}
+.brand-sub{
+  font-size:11px;
+  color:#9FB0A2;
+  margin-top:4px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+nav.mainnav{
+  padding:14px 10px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  flex:1;
+  overflow-y:auto;
+}
+.navbtn{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border:none;
+  background:transparent;
+  color:#C7D2C7;
+  border-radius:8px;
+  font-size:14.5px;
+  font-weight:500;
+  text-align:left;
+  transition:background .12s, color .12s;
+}
+.navbtn:hover{background:rgba(255,255,255,.06);color:#fff;}
+.navbtn.active{background:var(--accent);color:#fff;}
+.navbtn .ic{width:18px;text-align:center;flex-shrink:0;opacity:.9;}
+.sidebar-foot{
+  padding:14px 20px 18px;
+  font-size:11px;
+  color:#7C8C7E;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+#main{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+#topbar{
+  display:none;
+}
+#content{
+  flex:1;
+  padding:28px 34px 90px;
+  max-width:1180px;
+  width:100%;
+}
+.view-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:22px;
+  flex-wrap:wrap;
+}
+.view-title{
+  font-family:var(--font-display);
+  font-size:32px;
+  font-weight:600;
+  line-height:1;
+  margin:0;
+}
+.view-sub{
+  color:var(--ink-soft);
+  font-size:14px;
+  margin-top:6px;
+}
+.eyebrow{
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  font-size:11px;
+  font-weight:600;
+  color:var(--accent);
+  margin-bottom:4px;
+}
+
+/* ---------- primitives ---------- */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 16px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--ink);
+  font-size:14px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.btn:hover{border-color:var(--ink-faint);}
+.btn.primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff;
+}
+.btn.primary:hover{background:#c8481a;}
+.btn.ghost{border-color:transparent;background:transparent;}
+.btn.danger{color:var(--nc);border-color:var(--nc-bg);}
+.btn.sm{padding:6px 11px;font-size:12.5px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+.card-pad{padding:20px;}
+
+.grid{display:grid;gap:16px;}
+.grid.cols-4{grid-template-columns:repeat(4,1fr);}
+.grid.cols-3{grid-template-columns:repeat(3,1fr);}
+.grid.cols-2{grid-template-columns:repeat(2,1fr);}
+@media(max-width:900px){
+  .grid.cols-4{grid-template-columns:repeat(2,1fr);}
+  .grid.cols-3{grid-template-columns:repeat(2,1fr);}
+  .grid.cols-2{grid-template-columns:1fr;}
+}
+
+.kpi{padding:18px 20px;}
+.kpi .num{font-family:var(--font-display);font-size:38px;font-weight:600;line-height:1;}
+.kpi .lbl{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:11.5px;
+  font-weight:600;
+  letter-spacing:.01em;
+}
+.badge.conforme{background:var(--conforme-bg);color:var(--conforme);}
+.badge.nc{background:var(--nc-bg);color:var(--nc);}
+.badge.na{background:var(--na-bg);color:var(--na);}
+.badge.baixa{background:#E7F3EC;color:var(--baixa);}
+.badge.media{background:#FBF1DC;color:#9A7415;}
+.badge.alta{background:#FCE7DD;color:var(--alta);}
+.badge.critica{background:#F7DEE1;color:var(--critica);}
+
+.pill{
+  display:inline-flex;
+  padding:6px 13px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  font-size:13px;
+  font-weight:500;
+  color:var(--ink-soft);
+}
+.pill.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);padding:8px 10px;border-bottom:1px solid var(--line);}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+tr.clickable:hover{background:var(--surface-2);cursor:pointer;}
+
+.empty{
+  text-align:center;
+  padding:50px 20px;
+  color:var(--ink-soft);
+}
+.empty .ic{font-size:34px;margin-bottom:10px;}
+
+input[type=text],input[type=date],input[type=number],select,textarea{
+  width:100%;
+  padding:9px 11px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--surface);
+  font-size:14px;
+  color:var(--ink);
+}
+textarea{resize:vertical;min-height:64px;}
+label.field-label{
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin-bottom:5px;
+  display:block;
+}
+.field{margin-bottom:14px;}
+
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(22,36,28,.45);
+  display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
+}
+.modal{
+  background:var(--surface);border-radius:12px;max-width:520px;width:100%;
+  max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.modal-head h3{margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;}
+.modal-body{padding:20px 22px;}
+.modal-foot{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px;}
+
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:11px 20px;border-radius:8px;
+  font-size:13.5px;box-shadow:var(--shadow);z-index:200;opacity:0;pointer-events:none;
+  transition:opacity .2s, transform .2s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+/* structure checklist chips */
+.chiprow{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{
+  padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);
+  background:var(--surface);font-size:13.5px;font-weight:500;
+}
+.chip.sel{border-color:var(--accent);background:var(--accent-ink);color:#a63a12;}
+
+/* checklist item card */
+.item-card{
+  border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  margin-bottom:10px;overflow:hidden;
+}
+.item-top{padding:14px 16px;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
+.item-num{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);margin-bottom:3px;display:block;}
+.item-txt{font-size:14.5px;line-height:1.4;font-weight:500;}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-shrink:0;}
+.seg button{
+  border:none;background:var(--surface);padding:8px 13px;font-size:12.5px;font-weight:700;
+  color:var(--ink-soft);border-right:1px solid var(--line);
+}
+.seg button:last-child{border-right:none;}
+.seg button.c.active{background:var(--conforme);color:#fff;}
+.seg button.n.active{background:var(--nc);color:#fff;}
+.seg button.a.active{background:var(--na);color:#fff;}
+.item-extra{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:0;padding-top:14px;}
+.item-extra.hidden{display:none;}
+.photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.photo-thumb{width:64px;height:64px;border-radius:7px;object-fit:cover;border:1px solid var(--line);}
+.photo-add{
+  width:64px;height:64px;border-radius:7px;border:1.5px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink-faint);
+  background:var(--surface-2);
+}
+
+.progressbar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
+.progressbar > div{height:100%;background:var(--accent);transition:width .25s;}
+
+.sticky-footer{
+  position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:12px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;
+  margin-left:-34px;margin-right:-34px;padding-left:34px;padding-right:34px;
+}
+
+.steps{display:flex;gap:6px;margin-bottom:20px;}
+.steps div{height:4px;flex:1;background:var(--line);border-radius:4px;}
+.steps div.done{background:var(--accent);}
+
+.contours{position:absolute;top:0;right:0;opacity:.14;pointer-events:none;}
+
+.hint{font-size:12px;color:var(--ink-faint);margin-top:4px;}
+
+.rowflex{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.spacer{flex:1;}
+
+@media(max-width:860px){
+  #sidebar{
+    position:fixed;bottom:0;left:0;right:0;top:auto;width:100%;height:auto;
+    flex-direction:row;z-index:50;box-shadow:0 -2px 14px rgba(0,0,0,.12);
+  }
+  .brand,.sidebar-foot{display:none;}
+  nav.mainnav{flex-direction:row;padding:6px;overflow-x:auto;width:100%;}
+  .navbtn{flex-direction:column;font-size:10px;padding:8px 10px;gap:3px;min-width:64px;}
+  .navbtn .ic{font-size:17px;}
+  #content{padding:18px 16px 90px;}
+  .view-title{font-size:26px;}
+  .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr 1fr;}
+  .sticky-footer{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;}
+}
+@media print{
+  #sidebar,.no-print{display:none!important;}
+  #content{padding:0;max-width:none;}
+  body{background:#fff;}
+}
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M2 20 Q7 14 12 20 Q17 14 22 20" stroke="#E2571D" stroke-width="2" stroke-linecap="round"/><path d="M4 15 Q8 10 12 15 Q16 10 20 15" stroke="#5B9A78" stroke-width="1.6" stroke-linecap="round" opacity=".8"/></svg>
+        Vistoria
+      </div>
+      <div class="brand-sub">Inspeções ambientais de campo</div>
+    </div>
+    <nav class="mainnav" id="mainnav"></nav>
+    <div class="sidebar-foot">Dados salvos neste navegador.</div>
+  </aside>
+
+  <div id="main">
+    <div id="content"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modal-root"></div>
+
+<script>
+/* ============================================================
+   ESTADO E PERSISTÊNCIA
+   ============================================================ */
+const state = {
+  view: 'dashboard',
+  empreendimentos: [],
+  estruturas: [],
+  vistoriasIndex: [],
+  ready: false,
+  novaVistoria: null, // {empreendimentoId, estruturaId, step, respostas, gps, responsavel, dataHora}
+  vistoriaAberta: null // vistoria completa carregada p/ visualização
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+async function storageGet(key){
+  try{
+    const r = await window.storage.get(key, false);
+    return r ? JSON.parse(r.value) : null;
+  }catch(e){ return null; }
+}
+async function storageSet(key, value){
+  try{
+    await window.storage.set(key, JSON.stringify(value), false);
+    return true;
+  }catch(e){ console.error('storage set falhou', key, e); return false; }
+}
+
+async function saveEmpreendimentos(){ await storageSet('empreendimentos', state.empreendimentos); }
+async function saveEstruturas(){ await storageSet('estruturas', state.estruturas); }
+async function saveVistoriasIndex(){ await storageSet('vistorias:index', state.vistoriasIndex); }
+async function saveVistoria(v){ return await storageSet('vistoria:'+v.id, v); }
+async function loadVistoria(id){ return await storageGet('vistoria:'+id); }
+
+/* ============================================================
+   BIBLIOTECA PADRÃO DE ESTRUTURAS
+   ============================================================ */
+function mkItens(list){ return list.map(t => ({ id: uid(), texto: (typeof t==='string'? t : t.texto), categoria: (typeof t==='string'? null : (t.cat||null)) })); }
+
+const DEFAULT_ESTRUTURAS = [
+{ nome:'Oficina', itens: mkItens([
+  {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
+  {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
+  {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Há resíduos contaminantes (estopas, galões de óleo, bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?',cat:'Estrutural/Efluentes'},
+  {texto:'Há manchas de óleo no solo?',cat:'Estrutural/Efluentes'},
+  {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
+  {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
+  {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural/Efluentes'},
+  {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
+  {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',cat:'Estrutural/Efluentes'},
+  {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural/Efluentes'},
+])},
+{ nome:'Ponto de Abastecimento', itens: mkItens([
+  {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
+  {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
+  {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Há resíduos contaminantes fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
+  {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?',cat:'Estrutural/Efluentes'},
+  {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural/Efluentes'},
+  {texto:'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?',cat:'Estrutural/Efluentes'},
+  {texto:'A estrutura de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural/Efluentes'},
+  {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural/Efluentes'},
+  {texto:'A altura da bacia de contenção é adequada ao volume do tanque?',cat:'Estrutural/Efluentes'},
+  {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural/Efluentes'},
+  {texto:'O sistema de drenagem oleosa da bacia está funcionando adequadamente?',cat:'Estrutural/Efluentes'},
+  {texto:'Há trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
+  {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
+  {texto:'As canaletas estão íntegras e desobstruídas?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',cat:'Estrutural/Efluentes'},
+  {texto:'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?',cat:'Estrutural/Efluentes'},
+  {texto:'A estrutura da bomba de abastecimento está íntegra?',cat:'Estrutural/Efluentes'},
+  {texto:'O sump da bomba está seco, sem líquidos acumulados?',cat:'Estrutural/Efluentes'},
+  {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural/Efluentes'},
+  {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural/Efluentes'},
+])},
+{ nome:'Lavador', itens: mkItens([
+  {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
+  {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
+  {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Há resíduos contaminantes fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
+  {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área?',cat:'Estrutural/Efluentes'},
+  {texto:'Há manchas de óleo no solo?',cat:'Estrutural/Efluentes'},
+  {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
+  {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
+  {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural/Efluentes'},
+  {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
+  {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
+  {texto:'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',cat:'Estrutural/Efluentes'},
+  {texto:'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural/Efluentes'},
+  {texto:'O fosso/rampa de lavagem e troca de óleo está desobstruído e sem trincas?',cat:'Estrutural/Efluentes'},
+])},
+{ nome:'Beneficiamento', itens: mkItens([
+  'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Foi identificado algum processo erosivo nos taludes e vias?',
+  'Está ocorrendo o molhamento das vias?',
+  'Está ocorrendo aspersão de água no processo de beneficiamento?',
+  'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',
+  'Existem resíduos sólidos em contato direto com o solo exposto?',
+  'Há recipientes de coleta de resíduos identificados e em número suficiente?',
+  'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino?',
+  'Há resíduos contaminantes em contato com solo e/ou recipientes?',
+  'Há manchas de óleo no solo?',
+  'Existem vazamentos em equipamentos ou veículos?',
+  'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',
+  'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',
+])},
+{ nome:'Lavra', itens: mkItens([
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Foi identificado algum processo erosivo nos taludes e vias?',
+  'Está ocorrendo o molhamento das vias?',
+  'Existem resíduos sólidos em contato direto com o solo exposto?',
+  'Há resíduos contaminantes em contato com solo e/ou recipientes inadequados?',
+  'Há manchas de óleo no solo?',
+  'Existem vazamentos em equipamentos ou veículos?',
+  'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',
+  'Há afloramento do lençol freático?',
+])},
+{ nome:'Pátio de Sucatas e Baias de Resíduos', itens: mkItens([
+  'O pátio de sucatas é impermeabilizado?',
+  'O pátio de sucatas é compactado?',
+  'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Os resíduos sólidos estão segregados corretamente nas suas devidas baias (orgânico, reciclável, perigoso)?',
+  'As baias estão com sua capacidade total atingida?',
+  'Existem resíduos sólidos em contato direto com o solo exposto?',
+  'Há recipientes de coleta de resíduos identificados e em número suficiente?',
+  'Há resíduos contaminantes fora das áreas designadas?',
+  'Há manchas de óleo no solo?',
+  'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',
+  'As canaletas de drenagem estão desobstruídas e íntegras?',
+  'As canaletas foram limpas recentemente?',
+  'O piso apresenta trincas, desgaste ou falhas de impermeabilização?',
+  'Há escoamento de efluentes fora do sistema de drenagem previsto?',
+  'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',
+  'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',
+])},
+{ nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Foi identificado algum processo erosivo nos taludes e vias?',
+  'Está ocorrendo o molhamento das vias?',
+  'Existem resíduos sólidos em contato direto com o solo exposto?',
+  'Há resíduos contaminantes em contato com solo e/ou recipientes inadequados?',
+  'Há manchas de óleo no solo?',
+  'Existem vazamentos em equipamentos ou veículos?',
+  'Há escoamento de água da chuva? O sistema de drenagem está em funcionamento?',
+])},
+{ nome:'Almoxarifado', itens: mkItens([
+  'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Os produtos químicos/inflamáveis estão armazenados em local segregado e ventilado?',
+  'Há fichas de segurança (FISPQ) disponíveis para os produtos armazenados?',
+  'Os produtos estão dispostos sobre estrados/pallets, sem contato direto com o piso?',
+  'Existem vazamentos ou embalagens danificadas?',
+  'O piso apresenta trincas, desgaste ou falhas de impermeabilização?',
+  'Os resíduos sólidos estão segregados corretamente?',
+])},
+{ nome:'Barragem', itens: mkItens([
+  'Há sinalização adequada e restrição de acesso não autorizado?',
+  'Foi identificado processo erosivo no talude, crista ou ombreiras?',
+  'Existem trincas, afundamentos ou deslocamentos na estrutura?',
+  'Há surgência de água (piping) no talude de jusante?',
+  'O sistema extravasor (vertedouro) está desobstruído e íntegro?',
+  'Os instrumentos de monitoramento (piezômetros, marcos) estão visíveis e íntegros?',
+  'A vegetação do talude está controlada, sem árvores de grande porte?',
+  'O nível do reservatório está dentro da faixa operacional prevista?',
+  'Há evidências de infiltração ou percolação anormal?',
+])},
+{ nome:'Galpão de Máquinas', itens: mkItens([
+  'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',
+  'Há sinalização adequada no local, como placas e avisos informativos?',
+  'Há manchas de óleo no piso?',
+  'Existem vazamentos em máquinas ou equipamentos estacionados?',
+  'Os resíduos contaminantes estão armazenados adequadamente?',
+  'O piso apresenta trincas ou falhas de impermeabilização?',
+  'Há sistema de drenagem/contenção para eventuais vazamentos?',
+])},
+{ nome:'Depósito de Resíduos', itens: mkItens([
+  'Os resíduos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',
+  'Há recipientes identificados e em número suficiente?',
+  'Os resíduos estão em contato direto com solo exposto?',
+  'O local possui cobertura e proteção contra chuva?',
+  'A capacidade de armazenamento está próxima do limite?',
+  'Há controle do prazo de armazenamento temporário?',
+  'Existem vazamentos ou contaminação visível no entorno?',
+])},
+{ nome:'Área Administrativa', itens: mkItens([
+  'Há sinalização de emergência e rotas de fuga?',
+  'Os extintores estão dentro da validade e acessíveis?',
+  'Os resíduos sólidos estão segregados corretamente (coleta seletiva)?',
+  'Há vazamentos ou infiltrações visíveis nas instalações?',
+  'O sistema de esgoto/efluentes sanitários está funcionando adequadamente?',
+])},
+{ nome:'ETE - Estação de Tratamento de Esgoto', itens: mkItens([
+  'Há sinalização adequada e restrição de acesso?',
+  'O sistema de tratamento está em funcionamento normal (sem odores/transbordamento)?',
+  'Os equipamentos eletromecânicos (bombas, aeradores) estão operando normalmente?',
+  'Há descarte de efluente fora do padrão visual esperado (cor, espuma, odor)?',
+  'O ponto de lançamento/monitoramento está acessível para coleta de amostras?',
+  'Existem vazamentos nas tubulações ou tanques?',
+  'O lodo gerado está sendo removido e destinado corretamente?',
+])},
+{ nome:'ETA - Estação de Tratamento de Água', itens: mkItens([
+  'Há sinalização adequada?',
+  'Os produtos químicos de tratamento estão armazenados corretamente?',
+  'O sistema de filtração/tratamento está operando normalmente?',
+  'Existem vazamentos nas tubulações ou tanques?',
+  'A água tratada apresenta aspecto visual adequado (turbidez, cor)?',
+])},
+{ nome:'Pátio', itens: mkItens([
+  'Há sinalização adequada?',
+  'Existem vazamentos de óleo/combustível no solo?',
+  'O piso apresenta trincas ou erosão?',
+  'O sistema de drenagem pluvial está funcionando?',
+  'Há resíduos sólidos dispostos inadequadamente?',
+])},
+{ nome:'Lagoas', itens: mkItens([
+  'Há sinalização e cercamento adequados?',
+  'Foi identificado processo erosivo nas margens/taludes?',
+  'Existem indícios de transbordamento ou extravasamento?',
+  'O nível da lagoa está dentro do esperado?',
+  'Há odor forte ou coloração anormal na lâmina d\u2019água?',
+  'A impermeabilização (geomembrana) apresenta danos visíveis?',
+])},
+{ nome:'Bacias de Contenção', itens: mkItens([
+  'A bacia está com rachaduras ou falhas estruturais?',
+  'A altura/volume da bacia é compatível com o item contido?',
+  'Há manchas de óleo, água acumulada ou material dentro da bacia?',
+  'O sistema de drenagem da bacia está funcionando adequadamente?',
+  'Existem trincas, desgaste ou falhas de impermeabilização?',
+])},
+{ nome:'Galpão de Insumos', itens: mkItens([
+  'Há extintores e sinalização adequados?',
+  'Os insumos estão armazenados sobre estrados/pallets, sem contato com o solo?',
+  'Há sinalização de produtos perigosos/inflamáveis, quando aplicável?',
+  'Existem embalagens danificadas ou vazamentos?',
+  'O piso apresenta trincas ou infiltrações?',
+])},
+{ nome:'Silos', itens: mkItens([
+  'A estrutura do silo apresenta trincas, corrosão ou deformações?',
+  'Há vazamento de material armazenado (grãos, insumos)?',
+  'O sistema de descarga está funcionando sem obstruções?',
+  'Existe sinalização de segurança e restrição de acesso ao topo/interior?',
+])},
+{ nome:'Currais', itens: mkItens([
+  'Há acúmulo excessivo de dejetos nas instalações?',
+  'O sistema de drenagem de dejetos está funcionando adequadamente?',
+  'Existe escoamento de efluentes para fora da área de manejo?',
+  'Os animais têm acesso a água limpa e sombra adequada?',
+  'Há controle de vetores (moscas, roedores)?',
+])},
+{ nome:'Confinamento', itens: mkItens([
+  'O piso/cama está seco, sem acúmulo excessivo de dejetos?',
+  'Os efluentes/dejetos são direcionados corretamente ao sistema de tratamento (esterqueira/biodigestor)?',
+  'Há transbordamento ou vazamento visível de dejetos líquidos?',
+  'O sistema de drenagem pluvial está separado do sistema de dejetos?',
+  'Existe controle de odor e vetores?',
+  'A capacidade de armazenamento de dejetos está próxima do limite?',
+])},
+{ nome:'Estradas Internas', itens: mkItens([
+  'Está ocorrendo o molhamento das vias para controle de poeira?',
+  'Foi identificado processo erosivo nas vias ou taludes marginais?',
+  'O sistema de drenagem lateral (valetas) está desobstruído?',
+  'Há sinalização adequada de tráfego e velocidade?',
+  'Existem pontos de acúmulo de água ou atoleiros?',
+])},
+{ nome:'Outros', itens: [] },
+].map(e => ({ id: uid(), nome: e.nome, itens: e.itens }));
+
+/* ============================================================
+   INICIALIZAÇÃO
+   ============================================================ */
+async function init(){
+  const [emp, est, vidx] = await Promise.all([
+    storageGet('empreendimentos'),
+    storageGet('estruturas'),
+    storageGet('vistorias:index'),
+  ]);
+  state.empreendimentos = emp || [];
+  state.vistoriasIndex = vidx || [];
+  if(est && est.length){
+    state.estruturas = est;
+  } else {
+    state.estruturas = DEFAULT_ESTRUTURAS;
+    await saveEstruturas();
+  }
+  state.ready = true;
+  render();
+}
+
+/* ============================================================
+   HELPERS DE UI
+   ============================================================ */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function fmtDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+function criticidadeLabel(c){ return {baixa:'Baixa',media:'Média',alta:'Alta',critica:'Crítica'}[c] || c; }
+
+function estruturaById(id){ return state.estruturas.find(e=>e.id===id); }
+function empreendimentoById(id){ return state.empreendimentos.find(e=>e.id===id); }
+
+function setView(v){
+  state.view = v;
+  render();
+  window.scrollTo(0,0);
+}
+
+/* imagem: redimensiona e comprime para base64 leve */
+function fileToCompressedDataURL(file, maxDim=900, quality=0.62){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = h*(maxDim/w); w = maxDim; }
+        else if(h > maxDim){ w = w*(maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function getGPS(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){ resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
+      () => resolve(null),
+      { timeout: 6000 }
+    );
+  });
+}
+
+/* ============================================================
+   NAVEGAÇÃO
+   ============================================================ */
+const NAV = [
+  {id:'dashboard', label:'Painel', ic:'&#9679;'},
+  {id:'nova', label:'Nova vistoria', ic:'&#10133;'},
+  {id:'vistorias', label:'Vistorias', ic:'&#128203;'},
+  {id:'naoconformidades', label:'Não conformidades', ic:'&#9888;'},
+  {id:'empreendimentos', label:'Empreendimentos', ic:'&#127970;'},
+  {id:'estruturas', label:'Biblioteca de estruturas', ic:'&#128218;'},
+];
+function renderNav(){
+  const el = document.getElementById('mainnav');
+  el.innerHTML = NAV.map(n => `
+    <button class="navbtn ${state.view===n.id?'active':''}" data-nav="${n.id}">
+      <span class="ic">${n.ic}</span><span>${n.label}</span>
+    </button>`).join('');
+  el.querySelectorAll('[data-nav]').forEach(b=>{
+    b.addEventListener('click', ()=> {
+      if(b.dataset.nav === 'nova') state.novaVistoria = null;
+      setView(b.dataset.nav);
+    });
+  });
+}
+
+/* ============================================================
+   RENDER PRINCIPAL
+   ============================================================ */
+function render(){
+  renderNav();
+  const c = document.getElementById('content');
+  if(!state.ready){ c.innerHTML = '<div class="empty">Carregando…</div>'; return; }
+  switch(state.view){
+    case 'dashboard': c.innerHTML = viewDashboard(); bindDashboard(); break;
+    case 'empreendimentos': c.innerHTML = viewEmpreendimentos(); bindEmpreendimentos(); break;
+    case 'estruturas': c.innerHTML = viewEstruturas(); bindEstruturas(); break;
+    case 'nova': c.innerHTML = viewNovaVistoria(); bindNovaVistoria(); break;
+    case 'vistorias': c.innerHTML = viewVistorias(); bindVistorias(); break;
+    case 'vistoria-detalhe': c.innerHTML = viewVistoriaDetalhe(); bindVistoriaDetalhe(); break;
+    case 'naoconformidades': c.innerHTML = viewNaoConformidades(); bindNaoConformidades(); break;
+    default: c.innerHTML = '<div class="empty">Não encontrado</div>';
+  }
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function viewDashboard(){
+  const total = state.vistoriasIndex.length;
+  const totalItens = state.vistoriasIndex.reduce((s,v)=>s+(v.totalItens||0),0);
+  const totalNC = state.vistoriasIndex.reduce((s,v)=>s+(v.totalNC||0),0);
+  const conformidade = totalItens ? Math.round(100*(totalItens-totalNC)/totalItens) : 100;
+
+  const porCrit = {baixa:0,media:0,alta:0,critica:0};
+  state.vistoriasIndex.forEach(v=>{ (v.criticidades||[]).forEach(c=>{ if(porCrit[c]!==undefined) porCrit[c]++; }); });
+  const maxCrit = Math.max(1,...Object.values(porCrit));
+
+  const porEstrutura = {};
+  state.vistoriasIndex.forEach(v=>{ porEstrutura[v.estruturaNome] = (porEstrutura[v.estruturaNome]||0) + (v.totalNC||0); });
+  const rankEstrutura = Object.entries(porEstrutura).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxRank = Math.max(1,...rankEstrutura.map(r=>r[1]));
+
+  const recentes = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora)).slice(0,6);
+
+  return `
+  <div class="view-head">
+    <div><div class="eyebrow">Visão geral</div><h1 class="view-title">Painel de inspeções</h1>
+    <div class="view-sub">Indicadores consolidados de todas as vistorias registradas.</div></div>
+    <button class="btn primary" id="btn-nova-topo">+ Nova vistoria</button>
+  </div>
+
+  <div class="grid cols-4" style="margin-bottom:22px;">
+    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias realizadas</div></div>
+    <div class="card kpi"><div class="num">${totalItens}</div><div class="lbl">Itens avaliados</div></div>
+    <div class="card kpi" style="border-color:${totalNC?'var(--nc-bg)':'var(--line)'}"><div class="num" style="color:${totalNC?'var(--nc)':'var(--ink)'}">${totalNC}</div><div class="lbl">Não conformidades</div></div>
+    <div class="card kpi"><div class="num">${conformidade}%</div><div class="lbl">Índice de conformidade</div></div>
+  </div>
+
+  <div class="grid cols-2" style="align-items:start;">
+    <div class="card card-pad">
+      <h3 style="margin:0 0 14px;font-family:var(--font-display);font-size:20px;font-weight:600;">Não conformidades por criticidade</h3>
+      ${['critica','alta','media','baixa'].map(k=>`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:70px;font-size:12.5px;color:var(--ink-soft);">${criticidadeLabel(k)}</div>
+          <div style="flex:1;background:var(--surface-2);border-radius:6px;height:16px;overflow:hidden;">
+            <div style="width:${(porCrit[k]/maxCrit*100)||0}%;height:100%;background:var(--${k});"></div>
+          </div>
+          <div style="width:24px;text-align:right;font-family:var(--font-mono);font-size:12.5px;">${porCrit[k]}</div>
+        </div>`).join('') || '<div class="hint">Sem dados ainda.</div>'}
+    </div>
+    <div class="card card-pad">
+      <h3 style="margin:0 0 14px;font-family:var(--font-display);font-size:20px;font-weight:600;">Estruturas com mais não conformidades</h3>
+      ${rankEstrutura.length ? rankEstrutura.map(([nome,n])=>`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:150px;font-size:12.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(nome)}</div>
+          <div style="flex:1;background:var(--surface-2);border-radius:6px;height:16px;overflow:hidden;">
+            <div style="width:${(n/maxRank*100)}%;height:100%;background:var(--accent);"></div>
+          </div>
+          <div style="width:24px;text-align:right;font-family:var(--font-mono);font-size:12.5px;">${n}</div>
+        </div>`).join('') : '<div class="hint">Sem dados ainda.</div>'}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias recentes</h3></div>
+    ${recentes.length ? `<table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
+      ${recentes.map(v=>`
+        <tr class="clickable" data-open="${v.id}">
+          <td>${fmtDate(v.dataHora)}</td>
+          <td>${esc(v.empreendimentoNome)}</td>
+          <td>${esc(v.estruturaNome)}</td>
+          <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC} NC</span>`:`<span class="badge conforme">OK</span>`}</td>
+          <td>${v.criticidadeMax ? `<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>` : '—'}</td>
+        </tr>`).join('')}
+    </tbody></table>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
+  </div>`;
+}
+function bindDashboard(){
+  document.getElementById('btn-nova-topo')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
+  document.getElementById('btn-nova-vazio')?.addEventListener('click', ()=>{ state.novaVistoria=null; setView('nova'); });
+  document.querySelectorAll('[data-open]').forEach(tr=>{
+    tr.addEventListener('click', async ()=>{
+      const v = await loadVistoria(tr.dataset.open);
+      state.vistoriaAberta = v;
+      setView('vistoria-detalhe');
+    });
+  });
+}
+
+/* ============================================================
+   EMPREENDIMENTOS
+   ============================================================ */
+function viewEmpreendimentos(){
+  return `
+  <div class="view-head">
+    <div><div class="eyebrow">Cadastro</div><h1 class="view-title">Empreendimentos</h1>
+    <div class="view-sub">Cada empreendimento reúne apenas as estruturas que ele possui.</div></div>
+    <button class="btn primary" id="btn-novo-emp">+ Novo empreendimento</button>
+  </div>
+  ${state.empreendimentos.length ? `<div class="grid cols-3">
+    ${state.empreendimentos.map(e=>`
+      <div class="card card-pad">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-family:var(--font-display);font-size:21px;font-weight:600;">${esc(e.nome)}</div>
+            <div class="hint" style="margin-top:2px;">${esc(e.tipo||'—')}</div>
+          </div>
+          <button class="btn ghost sm" data-editemp="${e.id}">Editar</button>
+        </div>
+        <div style="margin-top:12px;font-size:12.5px;color:var(--ink-soft);">${e.estruturas.length} estrutura(s) ativa(s)</div>
+        <div class="chiprow" style="margin-top:8px;">
+          ${e.estruturas.slice(0,5).map(id=>{const est=estruturaById(id); return est?`<span class="pill">${esc(est.nome)}</span>`:'';}).join('')}
+          ${e.estruturas.length>5?`<span class="pill">+${e.estruturas.length-5}</span>`:''}
+        </div>
+      </div>`).join('')}
+  </div>` : `<div class="empty card"><div class="ic">&#127970;</div>Nenhum empreendimento cadastrado.<br><br><button class="btn primary" id="btn-novo-emp-vazio">Cadastrar empreendimento</button></div>`}
+  `;
+}
+function empreendimentoModal(existing){
+  const isEdit = !!existing;
+  const sel = new Set(existing?.estruturas || []);
+  const modal = document.getElementById('modal-root');
+  modal.innerHTML = `
+  <div class="modal-backdrop" id="modal-bg">
+    <div class="modal">
+      <div class="modal-head"><h3>${isEdit?'Editar empreendimento':'Novo empreendimento'}</h3><button class="btn ghost sm" id="modal-close">✕</button></div>
+      <div class="modal-body">
+        <div class="field"><label class="field-label">Nome do empreendimento</label>
+          <input type="text" id="emp-nome" value="${esc(existing?.nome||'')}" placeholder="Ex.: Fazenda Boa Vista"></div>
+        <div class="field"><label class="field-label">Tipo (apenas informativo)</label>
+          <input type="text" id="emp-tipo" value="${esc(existing?.tipo||'')}" placeholder="Ex.: Mineração, Confinamento, Indústria, Agro..."></div>
+        <div class="field"><label class="field-label">Estruturas existentes neste empreendimento</label>
+          <div class="chiprow" id="emp-estruturas">
+            ${state.estruturas.map(e=>`<button type="button" class="chip ${sel.has(e.id)?'sel':''}" data-est="${e.id}">${esc(e.nome)}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        ${isEdit?'<button class="btn danger" id="emp-del">Excluir</button>':''}
+        <div class="spacer"></div>
+        <button class="btn ghost" id="modal-cancel">Cancelar</button>
+        <button class="btn primary" id="emp-salvar">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+  const close = ()=> modal.innerHTML='';
+  document.getElementById('modal-close').onclick = close;
+  document.getElementById('modal-cancel').onclick = close;
+  document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') close(); });
+  modal.querySelectorAll('[data-est]').forEach(b=>{
+    b.onclick = ()=>{ b.classList.toggle('sel'); };
+  });
+  if(isEdit){
+    document.getElementById('emp-del').onclick = async ()=>{
+      if(!confirm('Excluir este empreendimento? As vistorias já realizadas serão mantidas.')) return;
+      state.empreendimentos = state.empreendimentos.filter(e=>e.id!==existing.id);
+      await saveEmpreendimentos();
+      close(); render(); showToast('Empreendimento excluído.');
+    };
+  }
+  document.getElementById('emp-salvar').onclick = async ()=>{
+    const nome = document.getElementById('emp-nome').value.trim();
+    if(!nome){ showToast('Informe o nome do empreendimento.'); return; }
+    const tipo = document.getElementById('emp-tipo').value.trim();
+    const estruturas = [...modal.querySelectorAll('[data-est].sel')].map(b=>b.dataset.est);
+    if(isEdit){
+      Object.assign(existing, {nome, tipo, estruturas});
+    } else {
+      state.empreendimentos.push({ id: uid(), nome, tipo, estruturas, criadoEm: new Date().toISOString() });
+    }
+    await saveEmpreendimentos();
+    close(); render(); showToast('Empreendimento salvo.');
+  };
+}
+function bindEmpreendimentos(){
+  document.getElementById('btn-novo-emp')?.addEventListener('click', ()=>empreendimentoModal(null));
+  document.getElementById('btn-novo-emp-vazio')?.addEventListener('click', ()=>empreendimentoModal(null));
+  document.querySelectorAll('[data-editemp]').forEach(b=>{
+    b.addEventListener('click', ()=> empreendimentoModal(empreendimentoById(b.dataset.editemp)));
+  });
+}
+
+/* ============================================================
+   BIBLIOTECA DE ESTRUTURAS
+   ============================================================ */
+function viewEstruturas(){
+  return `
+  <div class="view-head">
+    <div><div class="eyebrow">Biblioteca reutilizável</div><h1 class="view-title">Estruturas e checklists</h1>
+    <div class="view-sub">Cada estrutura tem um checklist único, reaproveitado por qualquer empreendimento.</div></div>
+    <button class="btn primary" id="btn-nova-estrutura">+ Nova estrutura</button>
+  </div>
+  <div class="grid cols-3">
+    ${state.estruturas.map(e=>`
+      <div class="card card-pad">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
+          <button class="btn ghost sm" data-editest="${e.id}">Editar</button>
+        </div>
+        <div class="hint" style="margin-top:4px;">${e.itens.length} item(ns) de inspeção</div>
+      </div>`).join('')}
+  </div>`;
+}
+function estruturaModal(existing){
+  const isEdit = !!existing;
+  const itens = isEdit ? existing.itens.map(i=>({...i})) : [];
+  const modal = document.getElementById('modal-root');
+  function renderItens(){
+    return itens.map((it,idx)=>`
+      <div class="rowflex" style="margin-bottom:8px;" data-itemrow="${idx}">
+        <input type="text" value="${esc(it.texto)}" data-itemtxt="${idx}" placeholder="Texto do item de inspeção" style="flex:1;">
+        <input type="text" value="${esc(it.categoria||'')}" data-itemcat="${idx}" placeholder="Categoria (opcional)" style="width:140px;">
+        <button class="btn ghost sm" data-itemdel="${idx}">✕</button>
+      </div>`).join('');
+  }
+  modal.innerHTML = `
+  <div class="modal-backdrop" id="modal-bg">
+    <div class="modal" style="max-width:640px;">
+      <div class="modal-head"><h3>${isEdit?'Editar estrutura':'Nova estrutura'}</h3><button class="btn ghost sm" id="modal-close">✕</button></div>
+      <div class="modal-body">
+        <div class="field"><label class="field-label">Nome da estrutura</label>
+          <input type="text" id="est-nome" value="${esc(existing?.nome||'')}" placeholder="Ex.: Almoxarifado"></div>
+        <div class="field">
+          <label class="field-label">Itens de inspeção</label>
+          <div id="itens-lista">${renderItens()}</div>
+          <button class="btn ghost sm" id="est-add-item" style="margin-top:6px;">+ Adicionar item</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        ${isEdit?'<button class="btn danger" id="est-del">Excluir estrutura</button>':''}
+        <div class="spacer"></div>
+        <button class="btn ghost" id="modal-cancel">Cancelar</button>
+        <button class="btn primary" id="est-salvar">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+  const close = ()=> modal.innerHTML='';
+  document.getElementById('modal-close').onclick = close;
+  document.getElementById('modal-cancel').onclick = close;
+  document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') close(); });
+
+  function refreshList(){ document.getElementById('itens-lista').innerHTML = renderItens(); bindItemRows(); }
+  function bindItemRows(){
+    document.querySelectorAll('[data-itemtxt]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemtxt].texto = inp.value; });
+    document.querySelectorAll('[data-itemcat]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemcat].categoria = inp.value; });
+    document.querySelectorAll('[data-itemdel]').forEach(b=> b.onclick = ()=>{ itens.splice(+b.dataset.itemdel,1); refreshList(); });
+  }
+  bindItemRows();
+  document.getElementById('est-add-item').onclick = ()=>{ itens.push({id:uid(),texto:'',categoria:''}); refreshList(); };
+
+  if(isEdit){
+    document.getElementById('est-del').onclick = async ()=>{
+      if(!confirm('Excluir esta estrutura da biblioteca? Isso não afeta vistorias já realizadas.')) return;
+      state.estruturas = state.estruturas.filter(e=>e.id!==existing.id);
+      state.empreendimentos.forEach(e=> e.estruturas = e.estruturas.filter(id=>id!==existing.id));
+      await saveEstruturas(); await saveEmpreendimentos();
+      close(); render(); showToast('Estrutura excluída.');
+    };
+  }
+  document.getElementById('est-salvar').onclick = async ()=>{
+    const nome = document.getElementById('est-nome').value.trim();
+    if(!nome){ showToast('Informe o nome da estrutura.'); return; }
+    const itensLimpos = itens.filter(i=>i.texto.trim()).map(i=>({id:i.id||uid(), texto:i.texto.trim(), categoria: i.categoria?.trim()||null}));
+    if(isEdit){ Object.assign(existing, {nome, itens: itensLimpos}); }
+    else { state.estruturas.push({ id: uid(), nome, itens: itensLimpos }); }
+    await saveEstruturas();
+    close(); render(); showToast('Estrutura salva.');
+  };
+}
+function bindEstruturas(){
+  document.getElementById('btn-nova-estrutura')?.addEventListener('click', ()=>estruturaModal(null));
+  document.querySelectorAll('[data-editest]').forEach(b=>{
+    b.addEventListener('click', ()=> estruturaModal(estruturaById(b.dataset.editest)));
+  });
+}
+
+/* ============================================================
+   NOVA VISTORIA
+   ============================================================ */
+function viewNovaVistoria(){
+  const nv = state.novaVistoria;
+  if(!nv || nv.step===1){
+    return `
+    <div class="view-head"><div><div class="eyebrow">Nova vistoria</div><h1 class="view-title">Selecione o empreendimento</h1></div></div>
+    <div class="steps"><div class="done"></div><div></div><div></div></div>
+    ${state.empreendimentos.length ? `<div class="grid cols-3">
+      ${state.empreendimentos.map(e=>`
+        <div class="card card-pad clickable" data-pickemp="${e.id}" style="cursor:pointer;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
+          <div class="hint" style="margin-top:4px;">${e.estruturas.length} estrutura(s) disponível(is)</div>
+        </div>`).join('')}
+    </div>` : `<div class="empty card"><div class="ic">&#127970;</div>Cadastre um empreendimento antes de iniciar uma vistoria.<br><br><button class="btn primary" id="btn-ir-emp">Cadastrar empreendimento</button></div>`}
+    `;
+  }
+  if(nv.step===2){
+    const emp = empreendimentoById(nv.empreendimentoId);
+    const opts = emp.estruturas.map(id=>estruturaById(id)).filter(Boolean);
+    return `
+    <div class="view-head"><div><div class="eyebrow">${esc(emp.nome)}</div><h1 class="view-title">Selecione a estrutura</h1></div>
+    <button class="btn ghost" id="btn-voltar-1">← Trocar empreendimento</button></div>
+    <div class="steps"><div class="done"></div><div class="done"></div><div></div></div>
+    ${opts.length ? `<div class="grid cols-3">
+      ${opts.map(e=>`
+        <div class="card card-pad" data-pickest="${e.id}" style="cursor:pointer;">
+          <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
+          <div class="hint" style="margin-top:4px;">${e.itens.length} item(ns) de checklist</div>
+        </div>`).join('')}
+    </div>` : `<div class="empty card"><div class="ic">&#128218;</div>Este empreendimento ainda não tem estruturas vinculadas.<br><br><button class="btn primary" id="btn-editar-emp-estruturas">Vincular estruturas</button></div>`}
+    `;
+  }
+  // step 3 - checklist
+  const emp = empreendimentoById(nv.empreendimentoId);
+  const est = estruturaById(nv.estruturaId);
+  const respondidos = est.itens.filter(it => nv.respostas[it.id]?.status).length;
+  const pct = est.itens.length ? Math.round(100*respondidos/est.itens.length) : 0;
+
+  let categorias = [...new Set(est.itens.map(i=>i.categoria).filter(Boolean))];
+  let itensPorCat = categorias.length ? categorias.map(c=>({cat:c, itens: est.itens.filter(i=>i.categoria===c)})) : [{cat:null, itens: est.itens}];
+
+  return `
+  <div class="view-head">
+    <div><div class="eyebrow">${esc(emp.nome)} · ${esc(est.nome)}</div><h1 class="view-title">Checklist de inspeção</h1></div>
+    <button class="btn ghost" id="btn-voltar-2">← Trocar estrutura</button>
+  </div>
+  <div class="steps"><div class="done"></div><div class="done"></div><div class="done"></div></div>
+
+  <div class="card card-pad" style="margin-bottom:16px;">
+    <div class="grid cols-2">
+      <div class="field" style="margin-bottom:0;"><label class="field-label">Responsável pela vistoria</label>
+        <input type="text" id="nv-responsavel" value="${esc(nv.responsavel||'')}" placeholder="Nome do inspetor"></div>
+      <div class="field" style="margin-bottom:0;"><label class="field-label">Localização (GPS)</label>
+        <div class="rowflex">
+          <span class="hint" id="nv-gps-txt" style="margin:0;">${nv.gps? `${nv.gps.lat.toFixed(5)}, ${nv.gps.lng.toFixed(5)}` : 'Não capturada'}</span>
+          <button class="btn ghost sm" id="nv-gps-btn" type="button">${nv.gps?'Recapturar':'Capturar GPS'}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rowflex" style="margin-bottom:14px;">
+    <div class="progressbar" style="flex:1;"><div style="width:${pct}%"></div></div>
+    <div class="hint" style="white-space:nowrap;">${respondidos}/${est.itens.length} respondidos</div>
+  </div>
+
+  ${itensPorCat.map(grupo=>`
+    ${grupo.cat ? `<div class="eyebrow" style="margin:18px 0 8px;">${esc(grupo.cat)}</div>` : ''}
+    ${grupo.itens.map((it, i)=>renderChecklistItem(it, nv, est.itens.indexOf(it)+1)).join('')}
+  `).join('')}
+
+  <div class="sticky-footer">
+    <div class="hint">${respondidos}/${est.itens.length} itens respondidos</div>
+    <button class="btn primary" id="nv-finalizar" ${respondidos===0?'disabled':''}>Finalizar vistoria</button>
+  </div>
+  `;
+}
+
+function renderChecklistItem(it, nv, numero){
+  const r = nv.respostas[it.id] || { status:null, observacao:'', criticidade:'media', recomendacao:'', fotos:[] };
+  nv.respostas[it.id] = r;
+  const showExtra = r.status === 'nc';
+  return `
+  <div class="item-card" data-itemid="${it.id}">
+    <div class="item-top">
+      <div style="flex:1;min-width:200px;">
+        <span class="item-num">ITEM ${numero}</span>
+        <div class="item-txt">${esc(it.texto)}</div>
+      </div>
+      <div class="seg" data-seg="${it.id}">
+        <button type="button" class="c ${r.status==='conforme'?'active':''}" data-status="conforme">CONFORME</button>
+        <button type="button" class="n ${r.status==='nc'?'active':''}" data-status="nc">NÃO CONF.</button>
+        <button type="button" class="a ${r.status==='na'?'active':''}" data-status="na">N/A</button>
+      </div>
+    </div>
+    <div class="item-extra ${showExtra?'':'hidden'}" data-extra="${it.id}">
+      <div class="field" style="margin-bottom:10px;">
+        <label class="field-label">Observação</label>
+        <textarea data-obs="${it.id}" placeholder="Descreva a não conformidade observada...">${esc(r.observacao)}</textarea>
+      </div>
+      <div class="grid cols-2">
+        <div class="field" style="margin-bottom:10px;">
+          <label class="field-label">Criticidade</label>
+          <select data-crit="${it.id}">
+            ${['baixa','media','alta','critica'].map(c=>`<option value="${c}" ${r.criticidade===c?'selected':''}>${criticidadeLabel(c)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label class="field-label">Recomendação técnica</label>
+          <input type="text" data-rec="${it.id}" value="${esc(r.recomendacao)}" placeholder="Ação corretiva sugerida">
+        </div>
+      </div>
+      <label class="field-label">Fotos</label>
+      <div class="photo-row" data-photos="${it.id}">
+        ${r.fotos.map((f,i)=>`<img class="photo-thumb" src="${f}" data-photoidx="${i}">`).join('')}
+        <label class="photo-add">＋<input type="file" accept="image/*" capture="environment" multiple data-photoinput="${it.id}" style="display:none;"></label>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindNovaVistoria(){
+  const nv = state.novaVistoria;
+  if(!nv || nv.step===1){
+    document.querySelectorAll('[data-pickemp]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        state.novaVistoria = { empreendimentoId: el.dataset.pickemp, estruturaId:null, step:2, respostas:{}, gps:null, responsavel:'', dataHora:null };
+        render();
+      });
+    });
+    document.getElementById('btn-ir-emp')?.addEventListener('click', ()=> setView('empreendimentos'));
+    return;
+  }
+  if(nv.step===2){
+    document.getElementById('btn-voltar-1')?.addEventListener('click', ()=>{ nv.step=1; render(); });
+    document.getElementById('btn-editar-emp-estruturas')?.addEventListener('click', ()=>{
+      empreendimentoModal(empreendimentoById(nv.empreendimentoId));
+    });
+    document.querySelectorAll('[data-pickest]').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        nv.estruturaId = el.dataset.pickest;
+        nv.step = 3;
+        nv.dataHora = new Date().toISOString();
+        render();
+        const gps = await getGPS();
+        if(gps){ nv.gps = gps; if(state.view==='nova') render(); }
+      });
+    });
+    return;
+  }
+  // step 3
+  document.getElementById('btn-voltar-2')?.addEventListener('click', ()=>{ nv.step=2; render(); });
+  document.getElementById('nv-responsavel')?.addEventListener('input', e=>{ nv.responsavel = e.target.value; });
+  document.getElementById('nv-gps-btn')?.addEventListener('click', async ()=>{
+    document.getElementById('nv-gps-txt').textContent = 'Capturando...';
+    const gps = await getGPS();
+    nv.gps = gps;
+    document.getElementById('nv-gps-txt').textContent = gps ? `${gps.lat.toFixed(5)}, ${gps.lng.toFixed(5)}` : 'Indisponível neste dispositivo/navegador';
+  });
+
+  document.querySelectorAll('[data-seg]').forEach(seg=>{
+    seg.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = seg.dataset.seg;
+        state.novaVistoria.respostas[id].status = btn.dataset.status;
+        render();
+      });
+    });
+  });
+  document.querySelectorAll('[data-obs]').forEach(t=> t.addEventListener('input', e=>{ nv.respostas[t.dataset.obs].observacao = e.target.value; }));
+  document.querySelectorAll('[data-crit]').forEach(s=> s.addEventListener('change', e=>{ nv.respostas[s.dataset.crit].criticidade = e.target.value; }));
+  document.querySelectorAll('[data-rec]').forEach(i=> i.addEventListener('input', e=>{ nv.respostas[i.dataset.rec].recomendacao = e.target.value; }));
+  document.querySelectorAll('[data-photoinput]').forEach(inp=>{
+    inp.addEventListener('change', async ()=>{
+      const id = inp.dataset.photoinput;
+      const files = [...inp.files];
+      showToast('Processando foto(s)...');
+      for(const f of files){
+        try{
+          const dataUrl = await fileToCompressedDataURL(f);
+          nv.respostas[id].fotos.push(dataUrl);
+        }catch(e){ console.error(e); }
+      }
+      render();
+    });
+  });
+  document.querySelectorAll('[data-photoidx]').forEach(img=>{
+    img.addEventListener('click', ()=>{
+      const wrap = img.closest('[data-photos]');
+      const id = wrap.dataset.photos;
+      if(confirm('Remover esta foto?')){
+        nv.respostas[id].fotos.splice(+img.dataset.photoidx,1);
+        render();
+      }
+    });
+  });
+
+  document.getElementById('nv-finalizar')?.addEventListener('click', finalizarVistoria);
+}
+
+async function finalizarVistoria(){
+  const nv = state.novaVistoria;
+  const emp = empreendimentoById(nv.empreendimentoId);
+  const est = estruturaById(nv.estruturaId);
+  const btn = document.getElementById('nv-finalizar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  const itensResp = est.itens.map(it=>{
+    const r = nv.respostas[it.id] || {status:null};
+    return {
+      itemId: it.id, texto: it.texto, categoria: it.categoria,
+      status: r.status || 'na',
+      observacao: r.observacao || '',
+      criticidade: r.status==='nc' ? (r.criticidade||'media') : null,
+      recomendacao: r.status==='nc' ? (r.recomendacao||'') : '',
+      fotos: r.fotos || [],
+    };
+  });
+  const ncItens = itensResp.filter(i=>i.status==='nc');
+  const ordemCrit = {critica:4,alta:3,media:2,baixa:1};
+  const critMax = ncItens.reduce((max,i)=> (ordemCrit[i.criticidade]||0) > (ordemCrit[max]||0) ? i.criticidade : max, null);
+
+  const vistoria = {
+    id: uid(),
+    empreendimentoId: emp.id, empreendimentoNome: emp.nome,
+    estruturaId: est.id, estruturaNome: est.nome,
+    responsavel: nv.responsavel || '—',
+    dataHora: nv.dataHora || new Date().toISOString(),
+    gps: nv.gps,
+    itens: itensResp,
+  };
+  const ok = await saveVistoria(vistoria);
+  if(!ok){ showToast('Erro ao salvar. Tente novamente.'); btn.disabled=false; btn.textContent='Finalizar vistoria'; return; }
+
+  state.vistoriasIndex.unshift({
+    id: vistoria.id, empreendimentoId: emp.id, empreendimentoNome: emp.nome,
+    estruturaId: est.id, estruturaNome: est.nome, responsavel: vistoria.responsavel,
+    dataHora: vistoria.dataHora, totalItens: itensResp.length, totalNC: ncItens.length,
+    criticidadeMax: critMax, criticidades: ncItens.map(i=>i.criticidade),
+  });
+  await saveVistoriasIndex();
+
+  state.novaVistoria = null;
+  state.vistoriaAberta = vistoria;
+  setView('vistoria-detalhe');
+  showToast('Vistoria registrada com sucesso.');
+}
+
+/* ============================================================
+   LISTA DE VISTORIAS
+   ============================================================ */
+function viewVistorias(){
+  const rows = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora));
+  return `
+  <div class="view-head"><div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias realizadas</h1></div></div>
+  ${rows.length ? `<div class="card"><table><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>Itens</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
+    ${rows.map(v=>`
+      <tr class="clickable" data-open="${v.id}">
+        <td>${fmtDate(v.dataHora)}</td>
+        <td>${esc(v.empreendimentoNome)}</td>
+        <td>${esc(v.estruturaNome)}</td>
+        <td>${esc(v.responsavel)}</td>
+        <td>${v.totalItens}</td>
+        <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC}</span>`:`<span class="badge conforme">0</span>`}</td>
+        <td>${v.criticidadeMax?`<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>`:'—'}</td>
+      </tr>`).join('')}
+  </tbody></table></div>` : `<div class="empty card"><div class="ic">&#128203;</div>Nenhuma vistoria registrada ainda.</div>`}
+  `;
+}
+function bindVistorias(){
+  document.querySelectorAll('[data-open]').forEach(tr=>{
+    tr.addEventListener('click', async ()=>{
+      const v = await loadVistoria(tr.dataset.open);
+      state.vistoriaAberta = v;
+      setView('vistoria-detalhe');
+    });
+  });
+}
+
+/* ============================================================
+   DETALHE DA VISTORIA (RELATÓRIO)
+   ============================================================ */
+function viewVistoriaDetalhe(){
+  const v = state.vistoriaAberta;
+  if(!v) return '<div class="empty">Vistoria não encontrada.</div>';
+  const nc = v.itens.filter(i=>i.status==='nc');
+  return `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Relatório</div><h1 class="view-title">${esc(v.estruturaNome)}</h1>
+    <div class="view-sub">${esc(v.empreendimentoNome)} · ${fmtDate(v.dataHora)}</div></div>
+    <div class="rowflex">
+      <button class="btn ghost" id="btn-voltar-lista">← Voltar</button>
+      <button class="btn primary" id="btn-imprimir">Imprimir / Exportar PDF</button>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <div class="grid cols-4">
+      <div><div class="field-label">Empreendimento</div><div>${esc(v.empreendimentoNome)}</div></div>
+      <div><div class="field-label">Estrutura</div><div>${esc(v.estruturaNome)}</div></div>
+      <div><div class="field-label">Responsável</div><div>${esc(v.responsavel)}</div></div>
+      <div><div class="field-label">Data/hora</div><div>${fmtDate(v.dataHora)}</div></div>
+    </div>
+    <div style="margin-top:10px;font-family:var(--font-mono);font-size:12.5px;color:var(--ink-soft);">
+      GPS: ${v.gps ? `${v.gps.lat.toFixed(6)}, ${v.gps.lng.toFixed(6)} (±${Math.round(v.gps.acc||0)}m)` : 'não capturado'}
+    </div>
+  </div>
+
+  <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">Checklist</h3>
+  <div class="card" style="margin-bottom:22px;"><table>
+    <thead><tr><th>Item</th><th>Status</th><th>Observação</th></tr></thead>
+    <tbody>
+      ${v.itens.map((it,idx)=>`
+        <tr>
+          <td style="max-width:340px;"><span class="item-num">ITEM ${idx+1}${it.categoria?' · '+esc(it.categoria):''}</span><br>${esc(it.texto)}</td>
+          <td>${it.status==='conforme'?'<span class="badge conforme">Conforme</span>':it.status==='nc'?'<span class="badge nc">Não conforme</span>':'<span class="badge na">N/A</span>'}</td>
+          <td>${esc(it.observacao)||'—'}</td>
+        </tr>`).join('')}
+    </tbody>
+  </table></div>
+
+  <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">Não conformidades e plano de ação</h3>
+  ${nc.length ? `<div class="card" style="margin-bottom:22px;"><table>
+    <thead><tr><th>Item</th><th>Criticidade</th><th>Recomendação técnica</th></tr></thead><tbody>
+    ${nc.map(it=>`
+      <tr>
+        <td style="max-width:300px;">${esc(it.texto)}</td>
+        <td><span class="badge ${it.criticidade}">${criticidadeLabel(it.criticidade)}</span></td>
+        <td>${esc(it.recomendacao)||'<span class="hint">Não informada</span>'}</td>
+      </tr>`).join('')}
+  </tbody></table></div>` : `<div class="card card-pad" style="margin-bottom:22px;color:var(--conforme);font-weight:600;">Nenhuma não conformidade identificada nesta vistoria.</div>`}
+
+  <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">Relatório fotográfico</h3>
+  ${v.itens.some(i=>i.fotos?.length) ? v.itens.filter(i=>i.fotos?.length).map(it=>`
+    <div class="card card-pad" style="margin-bottom:14px;">
+      <div style="font-weight:600;margin-bottom:8px;">${esc(it.texto)}</div>
+      <div class="photo-row">${it.fotos.map(f=>`<img class="photo-thumb" style="width:120px;height:120px;" src="${f}">`).join('')}</div>
+    </div>`).join('') : `<div class="card card-pad hint">Nenhuma foto anexada.</div>`}
+  `;
+}
+function bindVistoriaDetalhe(){
+  document.getElementById('btn-voltar-lista')?.addEventListener('click', ()=> setView('vistorias'));
+  document.getElementById('btn-imprimir')?.addEventListener('click', ()=> window.print());
+}
+
+/* ============================================================
+   NÃO CONFORMIDADES (visão consolidada)
+   ============================================================ */
+function viewNaoConformidades(){
+  return `
+  <div class="view-head"><div><div class="eyebrow">Consolidado</div><h1 class="view-title">Não conformidades</h1>
+  <div class="view-sub">Carregando itens não conformes de todas as vistorias...</div></div></div>
+  <div id="nc-list"><div class="empty">Carregando…</div></div>`;
+}
+async function bindNaoConformidades(){
+  const withNC = state.vistoriasIndex.filter(v=>v.totalNC>0).sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora));
+  const rows = [];
+  for(const idx of withNC){
+    const v = await loadVistoria(idx.id);
+    if(!v) continue;
+    v.itens.filter(i=>i.status==='nc').forEach(it=>{
+      rows.push({ vistoriaId: v.id, empreendimento: v.empreendimentoNome, estrutura: v.estruturaNome, dataHora: v.dataHora, ...it });
+    });
+  }
+  const el = document.getElementById('nc-list');
+  if(!el) return;
+  if(!rows.length){ el.innerHTML = '<div class="empty card"><div class="ic">&#10004;</div>Nenhuma não conformidade registrada.</div>'; return; }
+  rows.sort((a,b)=> ({critica:4,alta:3,media:2,baixa:1}[b.criticidade]||0) - ({critica:4,alta:3,media:2,baixa:1}[a.criticidade]||0));
+  el.innerHTML = `<div class="card"><table>
+    <thead><tr><th>Criticidade</th><th>Empreendimento</th><th>Estrutura</th><th>Item</th><th>Recomendação</th><th>Data</th></tr></thead>
+    <tbody>
+    ${rows.map(r=>`
+      <tr class="clickable" data-openvist="${r.vistoriaId}">
+        <td><span class="badge ${r.criticidade}">${criticidadeLabel(r.criticidade)}</span></td>
+        <td>${esc(r.empreendimento)}</td>
+        <td>${esc(r.estrutura)}</td>
+        <td style="max-width:280px;">${esc(r.texto)}</td>
+        <td style="max-width:220px;">${esc(r.recomendacao)||'—'}</td>
+        <td>${fmtDate(r.dataHora)}</td>
+      </tr>`).join('')}
+    </tbody></table></div>`;
+  el.querySelectorAll('[data-openvist]').forEach(tr=>{
+    tr.addEventListener('click', async ()=>{
+      const v = await loadVistoria(tr.dataset.openvist);
+      state.vistoriaAberta = v;
+      setView('vistoria-detalhe');
+    });
+  });
+}
+
+init();
+</script>
+</body>
+</html>
