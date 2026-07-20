@@ -720,7 +720,7 @@ async function iniciarApp(){
 }
 
 /* ============================================================
-   BIBLIOTECA PADRÃO DE ESTRUTURAS (GERAL, MINERAÇÃO E AGRO)
+   BIBLIOTECA PADRÃO DE ESTRUTURAS (ORGANIZADA POR SETOR)
    ============================================================ */
 function mkItens(list){ return list.map(t => ({ id: uid(), texto: (typeof t==='string'? t : t.texto), categoria: (typeof t==='string'? null : (t.cat||null)) })); }
 
@@ -1268,7 +1268,7 @@ function bindEmpreendimentos(){
 }
 
 /* ============================================================
-   BIBLIOTECA DE ESTRUTURAS (DIVIDIDA POR SETOR)
+   BIBLIOTECA DE ESTRUTURAS (EDITOR AVANÇADO MANUAL)
    ============================================================ */
 function viewEstruturas(){
   const setores = [
@@ -1280,7 +1280,7 @@ function viewEstruturas(){
   return `
   <div class="view-head">
     <div><div class="eyebrow">Biblioteca reutilizável</div><h1 class="view-title">Estruturas e checklists</h1>
-    <div class="view-sub">Bibliotecas organizadas por setor (Mineração, Agro e Comum).</div></div>
+    <div class="view-sub">Crie ou modifique manualmente estruturas e checklists por setor.</div></div>
     <div class="rowflex">
       <button class="btn ghost danger" id="btn-reset-estrutura">Restaurar Biblioteca Padrão</button>
       <button class="btn primary" id="btn-nova-estrutura">+ Nova estrutura</button>
@@ -1299,7 +1299,7 @@ function viewEstruturas(){
           <div class="card card-pad">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
-              <button class="btn ghost sm" data-editest="${e.id}">Editar</button>
+              <button class="btn ghost sm" data-editest="${e.id}">Editar Checklist</button>
             </div>
             <div class="hint" style="margin-top:4px;">${e.itens.length} item(ns) de inspeção</div>
           </div>`).join('')}
@@ -1311,27 +1311,52 @@ function viewEstruturas(){
 
 function estruturaModal(existing){
   const isEdit = !!existing;
-  const itens = isEdit ? existing.itens.map(i=>({...i})) : [];
+  let itens = isEdit ? existing.itens.map(i=>({...i})) : [];
+  let modoBulk = false; // Alterna entre lista normal e colar em bloco
   const modal = document.getElementById('modal-root');
 
-  function renderItens(){
-    return itens.map((it,idx)=>`
-      <div class="rowflex" style="margin-bottom:8px;" data-itemrow="${idx}">
-        <input type="text" value="${esc(it.texto)}" data-itemtxt="${idx}" placeholder="Texto do item de inspeção" style="flex:1;">
-        <input type="text" value="${esc(it.categoria||'')}" data-itemcat="${idx}" placeholder="Categoria (opcional)" style="width:140px;">
-        <button class="btn ghost sm" data-itemdel="${idx}">✕</button>
-      </div>`).join('');
+  function renderModalBody(){
+    if(modoBulk){
+      const textoLines = itens.map(i=> i.texto).join('\n');
+      return `
+        <div class="field">
+          <label class="field-label">Cole suas perguntas abaixo (uma por linha)</label>
+          <textarea id="est-bulk-txt" style="min-height:220px;font-family:var(--font-body);font-size:13px;line-height:1.5;" placeholder="Exemplo:\nHá extintores no local?\nExiste vazamento de óleo?\nOs resíduos estão segregados?">${esc(textoLines)}</textarea>
+          <div class="hint" style="margin-top:6px;">Cada linha digitada ou colada se tornará um item no checklist.</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div id="itens-lista">
+        ${itens.map((it,idx)=>`
+          <div class="rowflex" style="margin-bottom:8px;align-items:center;" data-itemrow="${idx}">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <button type="button" class="btn ghost sm" style="padding:2px 6px;" data-itemup="${idx}" ${idx===0?'disabled':''}>▲</button>
+              <button type="button" class="btn ghost sm" style="padding:2px 6px;" data-itemdown="${idx}" ${idx===itens.length-1?'disabled':''}>▼</button>
+            </div>
+            <input type="text" value="${esc(it.texto)}" data-itemtxt="${idx}" placeholder="Pergunta do item de inspeção" style="flex:1;">
+            <input type="text" value="${esc(it.categoria||'')}" data-itemcat="${idx}" placeholder="Categoria (opcional)" style="width:130px;">
+            <button type="button" class="btn ghost sm danger" data-itemdel="${idx}">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <button type="button" class="btn ghost sm" id="est-add-item" style="margin-top:6px;">+ Adicionar item único</button>
+    `;
   }
 
   modal.innerHTML = `
   <div class="modal-backdrop" id="modal-bg">
-    <div class="modal" style="max-width:640px;">
-      <div class="modal-head"><h3>${isEdit?'Editar estrutura':'Nova estrutura'}</h3><button class="btn ghost sm" id="modal-close">✕</button></div>
+    <div class="modal" style="max-width:680px;">
+      <div class="modal-head">
+        <h3>${isEdit?'Editar Estrutura e Checklist':'Nova Estrutura'}</h3>
+        <button class="btn ghost sm" id="modal-close">✕</button>
+      </div>
       <div class="modal-body">
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Nome da estrutura</label>
-            <input type="text" id="est-nome" value="${esc(existing?.nome||'')}" placeholder="Ex.: Silo de Armazenamento"></div>
-          <div class="field"><label class="field-label">Setor / Categoria</label>
+        <div class="grid cols-2" style="margin-bottom:12px;">
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Nome da Estrutura</label>
+            <input type="text" id="est-nome" value="${esc(existing?.nome||'')}" placeholder="Ex.: Silo de Grãos"></div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Setor / Categoria</label>
             <select id="est-setor">
               <option value="Mineração" ${existing?.setor==='Mineração'?'selected':''}>⛏️ Mineração</option>
               <option value="Agro" ${existing?.setor==='Agro'?'selected':''}>🌱 Agronegócio</option>
@@ -1339,17 +1364,24 @@ function estruturaModal(existing){
             </select>
           </div>
         </div>
-        <div class="field">
-          <label class="field-label">Itens de inspeção</label>
-          <div id="itens-lista">${renderItens()}</div>
-          <button class="btn ghost sm" id="est-add-item" style="margin-top:6px;">+ Adicionar item</button>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+          <label class="field-label" style="margin:0;font-size:13px;font-weight:700;">Itens de Inspeção (${itens.length})</label>
+          <div class="rowflex">
+            <button type="button" class="btn ghost sm" id="btn-toggle-modo">${modoBulk ? '➔ Ver Lista Formatada' : '📋 Colar em Bloco (Texto)'}</button>
+          </div>
         </div>
+
+        <div id="est-body-container">${renderModalBody()}</div>
       </div>
       <div class="modal-foot">
-        ${isEdit?'<button class="btn danger" id="est-del">Excluir estrutura</button>':''}
+        ${isEdit ? `
+          <button type="button" class="btn danger" id="est-del">Excluir</button>
+          <button type="button" class="btn ghost sm" id="est-dup">Duplicar</button>
+        ` : ''}
         <div class="spacer"></div>
-        <button class="btn ghost" id="modal-cancel">Cancelar</button>
-        <button class="btn primary" id="est-salvar">Salvar na Nuvem</button>
+        <button type="button" class="btn ghost" id="modal-cancel">Cancelar</button>
+        <button type="button" class="btn primary" id="est-salvar">Salvar na Nuvem</button>
       </div>
     </div>
   </div>`;
@@ -1359,14 +1391,79 @@ function estruturaModal(existing){
   document.getElementById('modal-cancel').onclick = close;
   document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') close(); });
 
-  function refreshList(){ document.getElementById('itens-lista').innerHTML = renderItens(); bindItemRows(); }
-  function bindItemRows(){
-    document.querySelectorAll('[data-itemtxt]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemtxt].texto = inp.value; });
-    document.querySelectorAll('[data-itemcat]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemcat].categoria = inp.value; });
-    document.querySelectorAll('[data-itemdel]').forEach(b=> b.onclick = ()=>{ itens.splice(+b.dataset.itemdel,1); refreshList(); });
+  function syncInputsToMemory(){
+    if(!modoBulk){
+      document.querySelectorAll('[data-itemtxt]').forEach(inp=>{
+        const idx = +inp.dataset.itemtxt;
+        if(itens[idx]) itens[idx].texto = inp.value;
+      });
+      document.querySelectorAll('[data-itemcat]').forEach(inp=>{
+        const idx = +inp.dataset.itemcat;
+        if(itens[idx]) itens[idx].categoria = inp.value;
+      });
+    } else {
+      const area = document.getElementById('est-bulk-txt');
+      if(area){
+        const lines = area.value.split('\n').map(l=>l.trim()).filter(Boolean);
+        itens = lines.map(l => ({ id: uid(), texto: l, categoria: null }));
+      }
+    }
   }
-  bindItemRows();
-  document.getElementById('est-add-item').onclick = ()=>{ itens.push({id:uid(),texto:'',categoria:''}); refreshList(); };
+
+  function updateContainer(){
+    document.getElementById('est-body-container').innerHTML = renderModalBody();
+    bindContainerEvents();
+  }
+
+  function bindContainerEvents(){
+    if(!modoBulk){
+      document.querySelectorAll('[data-itemtxt]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemtxt].texto = inp.value; });
+      document.querySelectorAll('[data-itemcat]').forEach(inp=> inp.oninput = ()=>{ itens[+inp.dataset.itemcat].categoria = inp.value; });
+      
+      document.querySelectorAll('[data-itemdel]').forEach(b=> b.onclick = ()=>{ 
+        syncInputsToMemory();
+        itens.splice(+b.dataset.itemdel, 1); 
+        updateContainer(); 
+      });
+
+      document.querySelectorAll('[data-itemup]').forEach(b=> b.onclick = ()=>{
+        syncInputsToMemory();
+        const idx = +b.dataset.itemup;
+        if(idx > 0){
+          const temp = itens[idx];
+          itens[idx] = itens[idx-1];
+          itens[idx-1] = temp;
+          updateContainer();
+        }
+      });
+
+      document.querySelectorAll('[data-itemdown]').forEach(b=> b.onclick = ()=>{
+        syncInputsToMemory();
+        const idx = +b.dataset.itemdown;
+        if(idx < itens.length - 1){
+          const temp = itens[idx];
+          itens[idx] = itens[idx+1];
+          itens[idx+1] = temp;
+          updateContainer();
+        }
+      });
+
+      document.getElementById('est-add-item')?.addEventListener('click', ()=>{
+        syncInputsToMemory();
+        itens.push({ id: uid(), texto: '', categoria: '' });
+        updateContainer();
+      });
+    }
+  }
+
+  document.getElementById('btn-toggle-modo').onclick = ()=>{
+    syncInputsToMemory();
+    modoBulk = !modoBulk;
+    document.getElementById('btn-toggle-modo').textContent = modoBulk ? '➔ Ver Lista Formatada' : '📋 Colar em Bloco (Texto)';
+    updateContainer();
+  };
+
+  bindContainerEvents();
 
   if(isEdit){
     document.getElementById('est-del').onclick = async ()=>{
@@ -1380,17 +1477,33 @@ function estruturaModal(existing){
       
       close(); render(); showToast('Estrutura excluída.');
     };
+
+    document.getElementById('est-dup').onclick = async ()=>{
+      syncInputsToMemory();
+      const novoNome = (document.getElementById('est-nome').value.trim() || existing.nome) + ' (Cópia)';
+      const novoSetor = document.getElementById('est-setor').value;
+      const copia = { id: uid(), nome: novoNome, setor: novoSetor, itens: JSON.parse(JSON.stringify(itens)) };
+      
+      state.estruturas.push(copia);
+      await storageSet('estruturas', state.estruturas);
+      if(_supabase) {
+        const payloadItens = { setor: copia.setor, list: copia.itens };
+        await _supabase.from('estruturas').upsert({ id: copia.id, nome: copia.nome, itens: payloadItens });
+      }
+      close(); render(); showToast('Cópia criada com sucesso!');
+    };
   }
 
   document.getElementById('est-salvar').onclick = async ()=>{
+    syncInputsToMemory();
     const nome = document.getElementById('est-nome').value.trim();
     if(!nome){ showToast('Informe o nome da estrutura.'); return; }
     const setor = document.getElementById('est-setor').value;
-    const itensLimpos = itens.filter(i=>i.texto.trim()).map(i=>({id:i.id||uid(), texto:i.texto.trim(), categoria: i.categoria?.trim()||null}));
+    const itensLimpos = itens.filter(i=>i.texto.trim()).map(i=>({ id: i.id||uid(), texto: i.texto.trim(), categoria: i.categoria?.trim()||null }));
     
     let estObj;
     if(isEdit){ 
-      Object.assign(existing, {nome, setor, itens: itensLimpos}); 
+      Object.assign(existing, { nome, setor, itens: itensLimpos }); 
       estObj = existing;
     } else { 
       estObj = { id: uid(), nome, setor, itens: itensLimpos };
@@ -1403,16 +1516,15 @@ function estruturaModal(existing){
       await _supabase.from('estruturas').upsert({ id: estObj.id, nome: estObj.nome, itens: payloadItens });
     }
     
-    close(); render(); showToast('Estrutura salva.');
+    close(); render(); showToast('Estrutura e checklist salvos na Nuvem!');
   };
 }
 
 function bindEstruturas(){
   document.getElementById('btn-nova-estrutura')?.addEventListener('click', ()=>estruturaModal(null));
   
-  // FUNÇÃO MÁGICA PARA LIMPAR A NUVEM E INSTALAR A NOVA LISTA
   document.getElementById('btn-reset-estrutura')?.addEventListener('click', async ()=>{
-    if(!confirm('ATENÇÃO: Isso vai apagar a biblioteca de estruturas atual e instalar a nova versão organizada exatamente como você pediu (Mineração, Agro, Geral). Confirma?')) return;
+    if(!confirm('ATENÇÃO: Isso vai restaurar a biblioteca para o padrão original da MapaBase. Confirma?')) return;
     showToast('Restaurando nuvem...');
     
     if(_supabase) {
