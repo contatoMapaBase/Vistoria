@@ -845,9 +845,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há sinalização adequada de velocidade e tráfego de veículos pesados?',cat:'Segurança'},
     {texto:'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?',cat:'Manutenção'},
   ])},
-
-  // === MINERAÇÃO ===
-  { setor:'Mineração', nome:'Barragem de Rejeitos', itens: mkItens([
+  { setor:'Geral', nome:'Barragem', itens: mkItens([
     {texto:'Há sinalização adequada e restrição rigorosa de acesso não autorizado?',cat:'Segurança'},
     {texto:'Foi identificado processo erosivo no talude, crista ou ombreiras da barragem?',cat:'Estabilidade'},
     {texto:'Existem trincas, afundamentos, degraus de abatimento ou deslocamentos no maciço?',cat:'Estabilidade'},
@@ -855,9 +853,25 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O sistema extravasor (vertedouro/tulipa) está desobstruído, íntegro e operacional?',cat:'Extravasor'},
     {texto:'Os instrumentos de monitoramento (piezômetros, marcos topográficos) estão visíveis e íntegros?',cat:'Instrumentação'},
     {texto:'A vegetação do talude está controlada, sem árvores de grande porte ou cupinzeiros?',cat:'Manutenção'},
-    {texto:'O nível da lama/reservatório está dentro da folga operacional de segurança (bordalivre)?',cat:'Operação'},
+    {texto:'O nível da água/lama/reservatório está dentro da folga operacional de segurança (bordalivre)?',cat:'Operação'},
   ])},
-  { setor:'Mineração', nome:'Frente de Lavra', itens: mkItens([
+  { setor:'Geral', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
+    {texto:'Há sinalização adequada nos acessos e praças de descarga?',cat:'Segurança'},
+    {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
+    {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
+    {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
+    {texto:'Há presença de resíduos perigosos ou sucatas misturados ao material da pilha?',cat:'Resíduos'},
+  ])},
+  { setor:'Geral', nome:'Pátio de Sucatas e Baias de Resíduos', itens: mkItens([
+    {texto:'O pátio de sucatas é impermeabilizado e possui canaleta de retenção de óleos?',cat:'Impermeabilização'},
+    {texto:'Há sinalização clara dividindo as baias por tipo de material (ferrosos, pneus, contaminados)?',cat:'Segregação'},
+    {texto:'As baias estão dentro do limite da sua capacidade total de armazenamento?',cat:'Capacidade'},
+    {texto:'Existem sucatas com resíduos de óleo em contato direto com o solo exposto?',cat:'Proteção do Solo'},
+    {texto:'A caixa separadora de água e óleo (CSAO) do pátio está limpa e operacional?',cat:'Efluentes'},
+  ])},
+
+  // === MINERAÇÃO ===
+  { setor:'Mineração', nome:'Lavra', itens: mkItens([
     {texto:'Há sinalização adequada de área operacional, desmonte e limites de bancada?',cat:'Sinalização'},
     {texto:'Foi identificado processo erosivo nos taludes de lavra ou praças de trabalho?',cat:'Erosão/Estabilidade'},
     {texto:'Está ocorrendo o molhamento constante das vias de lavra para controle de poeira?',cat:'Qualidade do Ar'},
@@ -867,7 +881,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O sistema de bombeamento e drenagem pluvial da cova está funcionando?',cat:'Drenagem'},
     {texto:'Há afloramento do lençol freático com necessidade de bombeamento monitorado?',cat:'Recursos Hídricos'},
   ])},
-  { setor:'Mineração', nome:'Planta de Beneficiamento', itens: mkItens([
+  { setor:'Mineração', nome:'Beneficiamento', itens: mkItens([
     {texto:'Há extintores e sinalização de segurança em todos os níveis do beneficiamento?',cat:'Segurança'},
     {texto:'Está ocorrendo aspersão de água/supressão de poeira nos britadores e correias?',cat:'Qualidade do Ar'},
     {texto:'Os resíduos de processo (rejeito úmido/seco) são direcionados para local licenciado?',cat:'Rejeitos'},
@@ -875,49 +889,30 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?',cat:'Contenção'},
     {texto:'As fossas e caixas de decantação do setor estão limpas e operacionais?',cat:'Efluentes'},
   ])},
-  { setor:'Mineração', nome:'Pilha de Estéril / Adjacentes', itens: mkItens([
-    {texto:'Há sinalização adequada nos acessos e praças de descarga de estéril?',cat:'Segurança'},
-    {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
-    {texto:'Os leigos/taludes respeitam o ângulo de repouso e projeto de engenharia?',cat:'Engenharia'},
-    {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
-    {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
-    {texto:'Há presença de resíduos perigosos ou sucatas misturados ao estéril?',cat:'Resíduos'},
-  ])},
-  { setor:'Mineração', nome:'Pátio de Sucatas e Baias de Resíduos', itens: mkItens([
-    {texto:'O pátio de sucatas é impermeabilizado e possui canaleta de retenção de óleos?',cat:'Impermeabilização'},
-    {texto:'Há sinalização clara dividindo as baias por tipo de material (ferrosos, pneus, contaminados)?',cat:'Segregação'},
-    {texto:'As baias estão dentro do limite da sua capacidade total de armazenamento?',cat:'Capacidade'},
-    {texto:'Existem sucatas com resíduos de óleo em contato direto com o solo exposto?',cat:'Proteção do Solo'},
-    {texto:'A caixa separadora de água e óleo (CSAO) do pátio está limpa e operacional?',cat:'Efluentes'},
-  ])},
-  { setor:'Mineração', nome:'Lagoas de Decantação / Contenção', itens: mkItens([
-    {texto:'Há sinalização de alerta e cercamento de proteção no entorno da lagoa?',cat:'Segurança'},
-    {texto:'Foi identificado processo erosivo nas margens ou taludes da lagoa?',cat:'Estabilidade'},
-    {texto:'A capacidade de acúmulo está adequada (sem risco iminente de transbordamento)?',cat:'Capacidade'},
-    {texto:'A geomembrana/revestimento de impermeabilização apresenta danos ou rasgos?',cat:'Estanqueidade'},
-    {texto:'A água clarificada extravasada atende aos parâmetros de turbidez e turbulência?',cat:'Efluente'},
-  ])},
 
   // === AGRONEGÓCIO ===
-  { setor:'Agro', nome:'Currais e Área de Manejo', itens: mkItens([
+  { setor:'Agro', nome:'Confinamento', itens: mkItens([
+    {texto:'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?',cat:'Efluentes/Sanidade'},
+    {texto:'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?',cat:'Drenagem Pluvial'},
+    {texto:'Há controle sistemático de vetores (moscas, roedores e insetos)?',cat:'Controle de Pragas'},
+    {texto:'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?',cat:'Resíduos Sanitários'},
+  ])},
+  { setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
+    {texto:'A geomembrana/revestimento da lagoa apresenta rasgos, furos ou deformações?',cat:'Estanqueidade'},
+    {texto:'O nível de biofertilizante/dejetos respeita a folga mínima de segurança contra transbordamento?',cat:'Capacidade'},
+    {texto:'A cerca de isolamento ao redor da lagoa está íntegra e com portão trancado?',cat:'Segurança'},
+    {texto:'A tubulação de alimentação e bombeamento apresenta vazamentos ou oxidação grave?',cat:'Integridade de Tubulações'},
+    {texto:'Há poços de monitoramento do lençol freático no entorno das lagoas?',cat:'Monitoramento Ambiental'},
+  ])},
+  { setor:'Agro', nome:'Currais', itens: mkItens([
     {texto:'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?',cat:'Manejo de Efluentes'},
     {texto:'O efluente do curral é direcionado para esterqueira ou sistema de tratamento adequado?',cat:'Manejo de Efluentes'},
     {texto:'Há acúmulo excessivo de esterco/dejetos gerando odores intensos ou proliferação de moscas?',cat:'Controle Sanitário'},
     {texto:'Existe mitigação de poeira na área de manejo (umectação quando necessário)?',cat:'Qualidade do Ar'},
     {texto:'Os bebedouros possuem sistema de boia funcional evitando vazamentos e desperdício de água?',cat:'Recursos Hídricos'},
     {texto:'Produtos veterinários, agulhas e seringas descartadas possuem recipiente rígido exclusivo?',cat:'Resíduos Perigosos'},
-    {texto:'A limpeza dos currais é realizada periodicamente com destinação correta do esterco?',cat:'Sanidade'},
   ])},
-  { setor:'Agro', nome:'Confinamento Animal', itens: mkItens([
-    {texto:'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?',cat:'Efluentes/Sanidade'},
-    {texto:'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?',cat:'Drenagem Pluvial'},
-    {texto:'A esterqueira/lagoa de chorume está operando dentro da margem de segurança de nível?',cat:'Armazenamento de Dejetos'},
-    {texto:'Existe impermeabilização (geomembrana ou solo compactado estanque) nas bacias de chorume?',cat:'Proteção do Solo/Lençol'},
-    {texto:'Há plano de aplicação de dejetos no solo (fertirrigação/esterco) respeitando limites técnicos?',cat:'Disposição no Solo'},
-    {texto:'Há controle sistemático de vetores (moscas, roedores e insetos)?',cat:'Controle de Pragas'},
-    {texto:'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?',cat:'Resíduos Sanitários'},
-  ])},
-  { setor:'Agro', nome:'Silos e Armazenamento de Grãos', itens: mkItens([
+  { setor:'Agro', nome:'Silos', itens: mkItens([
     {texto:'O sistema de exaustão/captação de poeira de grãos (moegas e túneis) está limpo e funcional?',cat:'Qualidade do Ar/Segurança'},
     {texto:'Os resíduos de pré-limpeza de grãos (palhas, pó) possuem abrigo fechado e destinação adequada?',cat:'Gerenciamento de Resíduos'},
     {texto:'O expurgo/fumigação de grãos utiliza inseticidas registrados e armazenados sob tranca?',cat:'Uso de Químicos'},
@@ -925,40 +920,20 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há trincas, inclinações ou danos estruturais nas paredes dos silos ou moegas?',cat:'Integridade Estrutural'},
     {texto:'O sistema de drenagem de águas pluviais no entorno dos silos está desobstruído?',cat:'Drenagem'},
   ])},
-  { setor:'Agro', nome:'Galpão de Defensivos e Embalagens Vazias', itens: mkItens([
+  { setor:'Agro', nome:'Depósito de Agrotóxicos', itens: mkItens([
     {texto:'O depósito possui piso impermeável, liso, sem ralos direcionados à rede pública ou solo?',cat:'Estrutural/Contenção'},
     {texto:'Existe bacia ou rampa de contenção na porta para reter eventuais derramamentos?',cat:'Segurança Ambiental'},
     {texto:'A ventilação do galpão é adequada e os acessos mantidos trancados com sinalização de risco?',cat:'Segurança de Acesso'},
     {texto:'Há chuveiro de emergência e lava-olhos em pleno funcionamento no lado externo?',cat:'Segurança do Trabalho'},
     {texto:'As Fichas de Dados de Segurança (FDS/FISPQ) de todos os produtos estão disponíveis?',cat:'Documentação'},
-    {texto:'Há área exclusiva para armazenamento temporário de embalagens vazias com tríplice lavagem?',cat:'Embalagens Vazias'},
     {texto:'O kit de mitigação de emergência (serragem/areia, pá, EPIs, tambor) está completo e acessível?',cat:'Plano de Emergência'},
   ])},
-  { setor:'Agro', nome:'Pátio de Lavagem de Pulverizadores (Descontaminação)', itens: mkItens([
-    {texto:'A lavagem dos equipamentos de pulverização ocorre exclusivamente em pista impermeabilizada?',cat:'Proteção do Solo'},
-    {texto:'A calda residual/água de lavagem é direcionada para sistema de tratamento/evaporação dedicado?',cat:'Manejo de Efluentes'},
-    {texto:'Existe canaleta perimetral cobrindo todo o raio de respingo do pulverizador?',cat:'Contenção'},
-    {texto:'A água de chuva é desviada da pista quando o lavador não está em uso?',cat:'Drenagem Pluvial'},
-    {texto:'Há sinalização e interdição de acesso para pessoas não autorizadas?',cat:'Segurança'},
-  ])},
-  { setor:'Agro', nome:'Esterqueira e Biodigestor', itens: mkItens([
-    {texto:'A geomembrana/revestimento da lagoa/biodigestor apresenta rasgos, furos ou deformações?',cat:'Estanqueidade'},
-    {texto:'O queimador de biogás (flare) está operacional para queima de excedentes?',cat:'Emissões/Segurança'},
-    {texto:'O nível de biofertilizante/dejetos respeita a folga mínima de segurança contra transbordamento?',cat:'Capacidade'},
-    {texto:'Há poços de monitoramento do lençol freático no entorno das lagoas?',cat:'Monitoramento Ambiental'},
-    {texto:'A tubulação de alimentação e bombeamento apresenta vazamentos ou oxidação grave?',cat:'Integridade de Tubulações'},
-  ])},
-  { setor:'Agro', nome:'Área de Compostagem Orgânica', itens: mkItens([
-    {texto:'O pátio de compostagem é impermeabilizado ou sobre solo compactado estanque?',cat:'Proteção do Solo'},
-    {texto:'A leira de compostagem está coberta ou protegida do excesso de chuvas?',cat:'Manejo do Processo'},
-    {texto:'O chorume gerado é recolhido e reutilizado no umedecimento das leiras sem escoar para o solo?',cat:'Reciclagem de Efluente'},
-    {texto:'A temperatura e umidade das leiras são monitoradas para garantir a sanitização do composto?',cat:'Qualidade Sanitária'},
-  ])},
-  { setor:'Agro', nome:'Galpão de Insumos e Adubos', itens: mkItens([
-    {texto:'Os adubos e fertilizantes estão dispostos sobre pallets, protegidos de umidade e chuva?',cat:'Armazenamento'},
-    {texto:'Há separação física entre adubos, defensivos e rações animais?',cat:'Segregação'},
-    {texto:'Existe contenção para evitar derramamento de fertilizantes líquidos (se houver)?',cat:'Contenção'},
-    {texto:'O piso apresenta trincas que permitam infiltração de produtos no solo?',cat:'Estrutural'},
+  { setor:'Agro', nome:'Depósito de Vasilhames Vazios de Agrotóxico', itens: mkItens([
+    {texto:'O local é coberto, com piso impermeável, livre de inundações e trancado?',cat:'Estrutural'},
+    {texto:'Há sinalização de segurança (caveira) informando "Embalagens Vazias"?',cat:'Sinalização'},
+    {texto:'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?',cat:'Tratamento Prévio'},
+    {texto:'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?',cat:'Armazenamento'},
+    {texto:'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?',cat:'Documentação'},
   ])}
 ].map(e => ({ id: uid(), setor: e.setor, nome: e.nome, itens: e.itens }));
 
@@ -1199,9 +1174,9 @@ function empreendimentoModal(existing){
   const modal = document.getElementById('modal-root');
 
   const setores = [
-    { key: 'Geral', titulo: '⚙️ Comum / Geral' },
+    { key: 'Mineração', titulo: '⛏️ Mineração' },
     { key: 'Agro', titulo: '🌱 Agronegócio' },
-    { key: 'Mineração', titulo: '⛏️ Mineração' }
+    { key: 'Geral', titulo: '⚙️ Comum / Geral' }
   ];
 
   modal.innerHTML = `
@@ -1297,16 +1272,19 @@ function bindEmpreendimentos(){
    ============================================================ */
 function viewEstruturas(){
   const setores = [
-    { key: 'Geral', titulo: '⚙️ Estruturas Comuns / Gerais' },
+    { key: 'Mineração', titulo: '⛏️ Estruturas de Mineração' },
     { key: 'Agro', titulo: '🌱 Estruturas do Agronegócio' },
-    { key: 'Mineração', titulo: '⛏️ Estruturas de Mineração' }
+    { key: 'Geral', titulo: '⚙️ Estruturas Comuns / Gerais' }
   ];
 
   return `
   <div class="view-head">
     <div><div class="eyebrow">Biblioteca reutilizável</div><h1 class="view-title">Estruturas e checklists</h1>
-    <div class="view-sub">Bibliotecas organizadas por setor (Geral, Agro e Mineração).</div></div>
-    <button class="btn primary" id="btn-nova-estrutura">+ Nova estrutura</button>
+    <div class="view-sub">Bibliotecas organizadas por setor (Mineração, Agro e Comum).</div></div>
+    <div class="rowflex">
+      <button class="btn ghost danger" id="btn-reset-estrutura">Restaurar Biblioteca Padrão</button>
+      <button class="btn primary" id="btn-nova-estrutura">+ Nova estrutura</button>
+    </div>
   </div>
 
   ${setores.map(s => {
@@ -1355,9 +1333,9 @@ function estruturaModal(existing){
             <input type="text" id="est-nome" value="${esc(existing?.nome||'')}" placeholder="Ex.: Silo de Armazenamento"></div>
           <div class="field"><label class="field-label">Setor / Categoria</label>
             <select id="est-setor">
-              <option value="Geral" ${(existing?.setor||'Geral')==='Geral'?'selected':''}>⚙️ Comum / Geral</option>
-              <option value="Agro" ${existing?.setor==='Agro'?'selected':''}>🌱 Agronegócio</option>
               <option value="Mineração" ${existing?.setor==='Mineração'?'selected':''}>⛏️ Mineração</option>
+              <option value="Agro" ${existing?.setor==='Agro'?'selected':''}>🌱 Agronegócio</option>
+              <option value="Geral" ${(existing?.setor||'Geral')==='Geral'?'selected':''}>⚙️ Comum / Geral</option>
             </select>
           </div>
         </div>
@@ -1431,6 +1409,32 @@ function estruturaModal(existing){
 
 function bindEstruturas(){
   document.getElementById('btn-nova-estrutura')?.addEventListener('click', ()=>estruturaModal(null));
+  
+  // FUNÇÃO MÁGICA PARA LIMPAR A NUVEM E INSTALAR A NOVA LISTA
+  document.getElementById('btn-reset-estrutura')?.addEventListener('click', async ()=>{
+    if(!confirm('ATENÇÃO: Isso vai apagar a biblioteca de estruturas atual e instalar a nova versão organizada exatamente como você pediu (Mineração, Agro, Geral). Confirma?')) return;
+    showToast('Restaurando nuvem...');
+    
+    if(_supabase) {
+       const { data } = await _supabase.from('estruturas').select('id');
+       if(data && data.length) {
+          const ids = data.map(d=>d.id);
+          await _supabase.from('estruturas').delete().in('id', ids);
+       }
+    }
+    state.estruturas = DEFAULT_ESTRUTURAS;
+    await storageSet('estruturas', state.estruturas);
+    
+    if(_supabase) {
+      for(let e of state.estruturas){
+        const payloadItens = { setor: e.setor, list: e.itens };
+        await _supabase.from('estruturas').upsert({id: e.id, nome: e.nome, itens: payloadItens});
+      }
+    }
+    render();
+    showToast('Biblioteca restaurada com sucesso!');
+  });
+
   document.querySelectorAll('[data-editest]').forEach(b=>{
     b.addEventListener('click', ()=> estruturaModal(estruturaById(b.dataset.editest)));
   });
