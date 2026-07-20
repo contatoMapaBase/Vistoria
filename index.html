@@ -17,7 +17,7 @@
   --ink-soft:#546056;
   --ink-faint:#8A9389;
   --line:#D7DED2;
-  --accent:#7ebf41; /* Verde MapaBase Ajustado */
+  --accent:#7ebf41;
   --accent-ink:#f0f8e9;
   --conforme:#2F9E44;
   --conforme-bg:#E9F7EC;
@@ -86,7 +86,7 @@ summary { list-style: none; }
 .brand-mark img {
   max-width: 100%;
   height: auto;
-  max-height: 40px; /* Ajuste seguro para sidebar */
+  max-height: 40px;
   object-fit: contain;
 }
 .brand-sub{
@@ -441,9 +441,9 @@ const state = {
   ready: false,
   novaVistoria: null,
   vistoriaAberta: null,
-  dashFiltroEmp: '', // Filtro por Empreendimento no Painel
-  dashFiltroMes: '', // Filtro por Data/Mês no Painel
-  vistoriasConsolidadas: [], // Guarda as vistorias abertas para o PDF Total
+  dashFiltroEmp: '', 
+  dashFiltroMes: '', 
+  vistoriasConsolidadas: [], 
   tituloConsolidado: ''
 };
 
@@ -540,6 +540,54 @@ async function loadVistoria(id){
   }
   return await storageGet('vistoria:'+id); 
 }
+
+/* ============================================================
+   EXPORTAÇÃO PARA EXCEL (CSV FORMATADO PARA PORTUGUÊS)
+   ============================================================ */
+window.exportarExcelVistorias = async function() {
+  showToast('Gerando base Excel, aguarde...');
+  
+  let csvContent = "\uFEFF"; 
+  csvContent += "Empreendimento;Estrutura;Data e Hora;Responsável;Item de Inspeção;Categoria;Status;Observação Registrada;Criticidade;Recomendação Técnica\n";
+
+  const escCsv = (texto) => {
+    if (!texto) return '""';
+    const str = texto.toString().replace(/"/g, '""').replace(/\n/g, " ");
+    return `"${str}"`;
+  };
+
+  for(const idx of state.vistoriasIndex) {
+    const v = await loadVistoria(idx.id);
+    if(!v) continue;
+    
+    const dataFmt = fmtDate(v.dataHora);
+    const emp = escCsv(v.empreendimentoNome);
+    const est = escCsv(v.estruturaNome);
+    const resp = escCsv(v.responsavel);
+
+    v.itens.forEach(it => {
+      const itemTxt = escCsv(it.texto);
+      const cat = escCsv(it.categoria);
+      const statusLabel = it.status === 'conforme' ? 'Conforme' : (it.status === 'nc' ? 'Não Conforme' : 'N/A');
+      const status = escCsv(statusLabel);
+      const obs = escCsv(it.observacao);
+      const crit = escCsv(it.criticidade ? criticidadeLabel(it.criticidade) : '');
+      const rec = escCsv(it.recomendacao);
+
+      csvContent += `${emp};${est};${escCsv(dataFmt)};${resp};${itemTxt};${cat};${status};${obs};${crit};${rec}\n`;
+    });
+  }
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `mapabase_inspecoes_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('Download do Excel concluído!');
+};
 
 /* ============================================================
    FUNÇÕES PARA SALVAR E EXCLUIR VISTORIA NA NUVEM
@@ -842,7 +890,7 @@ async function iniciarApp(){
 }
 
 /* ============================================================
-   BIBLIOTECA PADRÃO DE ESTRUTURAS (ATUALIZADA E REVISADA)
+   BIBLIOTECA PADRÃO DE ESTRUTURAS (ORGANIZADA POR SETOR)
    ============================================================ */
 function mkItens(list){ return list.map(t => ({ id: uid(), texto: (typeof t==='string'? t : t.texto), categoria: (typeof t==='string'? null : (t.cat||null)) })); }
 
@@ -945,28 +993,28 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há sinalização adequada de velocidade e tráfego de veículos pesados?',cat:'Segurança'},
     {texto:'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?',cat:'Manutenção'},
   ])},
-  { setor:'Geral', nome:'Barragem', itens: mkItens([
-    {texto:'Há sinalização adequada e restrição rigorosa de acesso não autorizado?',cat:'Segurança'},
-    {texto:'Foi identificado processo erosivo no talude, crista ou ombreiras da barragem?',cat:'Estabilidade'},
-    {texto:'Existem trincas, afundamentos, degraus de abatimento ou deslocamentos no maciço?',cat:'Estabilidade'},
-    {texto:'Há surgência de água (piping) ou umidade anômala no talude de jusante?',cat:'Segurança Hidráulica'},
-    {texto:'O sistema extravasor (vertedouro/tulipa) está desobstruído, íntegro e operacional?',cat:'Extravasor'},
-    {texto:'Os instrumentos de monitoramento (piezômetros, marcos topográficos) estão visíveis e íntegros?',cat:'Instrumentação'},
-    {texto:'A vegetação do talude está controlada, sem árvores de grande porte ou cupinzeiros?',cat:'Manutenção'},
-    {texto:'O nível da água/lama/reservatório está dentro da folga operacional de segurança (bordalivre)?',cat:'Operação'},
-  ])},
-  { setor:'Geral', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
-    {texto:'Há sinalização adequada nos acessos e praças de descarga?',cat:'Segurança'},
-    {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
-    {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
-    {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
-  ])},
-  { setor:'Geral', nome:'Pátio de Sucatas e Baias de Resíduos', itens: mkItens([
-    {texto:'O pátio de sucatas é impermeabilizado e possui canaleta de retenção de óleos?',cat:'Impermeabilização'},
-    {texto:'Há sinalização clara dividindo as baias por tipo de material (ferrosos, pneus, contaminados)?',cat:'Segregação'},
-    {texto:'As baias estão dentro do limite da sua capacidade total de armazenamento?',cat:'Capacidade'},
-    {texto:'Existem sucatas com resíduos de óleo em contato direto com o solo exposto?',cat:'Proteção do Solo'},
-    {texto:'A caixa separadora de água e óleo (CSAO) do pátio está limpa e operacional?',cat:'Efluentes'},
+  { setor:'Geral', nome:'Barragem de Recurso Hídrico', itens: mkItens([
+    {texto:'A barragem possui sinalização, controle de acesso e cercamento em boas condições?', cat:'Segurança'},
+    {texto:'Há processos erosivos, ravinamentos ou voçorocas nos taludes de montante, jusante ou ombreiras?', cat:'Estabilidade dos Taludes'},
+    {texto:'Existem trincas, recalques, afundamentos, escorregamentos ou deformações no maciço?', cat:'Estabilidade dos Taludes'},
+    {texto:'Foram identificados formigueiros, cupinzeiros ou tocas de animais no corpo da barragem?', cat:'Estabilidade dos Taludes'},
+    {texto:'A cobertura vegetal dos taludes encontra-se uniforme e sem árvores de grande porte?', cat:'Estabilidade dos Taludes'},
+    {texto:'Há surgências (piping), umidade excessiva ou pontos de infiltração no talude de jusante?', cat:'Segurança Hidráulica'},
+    {texto:'O nível da água encontra-se dentro da borda livre (freeboard) prevista para operação?', cat:'Segurança Hidráulica'},
+    {texto:'O vertedouro/extravasor encontra-se limpo, desobstruído e sem danos estruturais?', cat:'Extravasor'},
+    {texto:'Há sinais de erosão na saída do extravasor ou dissipador de energia?', cat:'Extravasor'},
+    {texto:'O sistema de descarga de fundo encontra-se íntegro e operacional?', cat:'Descarga de Fundo'},
+    {texto:'Existem vazamentos, corrosão ou dificuldades de operação das comportas/registros?', cat:'Descarga de Fundo'},
+    {texto:'Existe sistema de captação superficial instalado na barragem?', cat:'Captação de Água'},
+    {texto:'A estrutura de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
+    {texto:'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat:'Captação de Água'},
+    {texto:'As mangueiras, conexões e tubulações apresentam bom estado de conservação?', cat:'Captação de Água'},
+    {texto:'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat:'Monitoramento'},
+    {texto:'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', cat:'Monitoramento'},
+    {texto:'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', cat:'Qualidade Ambiental'},
+    {texto:'Há presença excessiva de macrófitas, algas ou vegetação aquática?', cat:'Qualidade Ambiental'},
+    {texto:'Há indícios de mortandade de peixes ou fauna aquática?', cat:'Qualidade Ambiental'},
+    {texto:'O entorno da barragem encontra-se limpo, sem resíduos ou materiais que possam comprometer a operação?', cat:'Manutenção'}
   ])},
 
   // === MINERAÇÃO ===
@@ -987,6 +1035,12 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existe sistema de contenção e reciclagem para a água de processo?',cat:'Recursos Hídricos'},
     {texto:'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?',cat:'Contenção'},
     {texto:'As fossas e caixas de decantação do setor estão limpas e operacionais?',cat:'Efluentes'},
+  ])},
+  { setor:'Mineração', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
+    {texto:'Há sinalização adequada nos acessos e praças de descarga?',cat:'Segurança'},
+    {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
+    {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
+    {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
   ])},
 
   // === AGRONEGÓCIO ===
@@ -1027,11 +1081,24 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?',cat:'Resíduos Sanitários'},
   ])},
   { setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
-    {texto:'A geomembrana/revestimento da lagoa apresenta rasgos, furos ou deformações?',cat:'Estanqueidade'},
-    {texto:'O nível de biofertilizante/dejetos respeita a folga mínima de segurança contra transbordamento?',cat:'Capacidade'},
-    {texto:'A cerca de isolamento ao redor da lagoa está íntegra e com portão trancado?',cat:'Segurança'},
-    {texto:'A tubulação de alimentação e bombeamento apresenta vazamentos ou oxidação grave?',cat:'Integridade de Tubulações'},
-    {texto:'Há poços de monitoramento do lençol freático no entorno das lagoas?',cat:'Monitoramento Ambiental'},
+    {texto:'A lagoa possui impermeabilização (geomembrana ou revestimento)?', cat:'Impermeabilização'},
+    {texto:'A impermeabilização apresenta rasgos, perfurações, deslocamentos ou desgaste?', cat:'Impermeabilização'},
+    {texto:'Os taludes apresentam estabilidade adequada, sem erosões, deslizamentos ou recalques?', cat:'Taludes'},
+    {texto:'Há presença de vegetação inadequada, árvores, formigueiros ou cupinzeiros?', cat:'Taludes'},
+    {texto:'O nível do efluente respeita a borda livre operacional?', cat:'Capacidade Operacional'},
+    {texto:'A lagoa possui aeradores?', cat:'Sistema de Aeração'},
+    {texto:'Os aeradores encontram-se em funcionamento e com manutenção em dia?', cat:'Sistema de Aeração'},
+    {texto:'As tubulações de entrada e saída apresentam vazamentos ou obstruções?', cat:'Tubulações'},
+    {texto:'O efluente apresenta aspecto compatível com a etapa de tratamento (cor, odor e sólidos)?', cat:'Qualidade do Efluente'},
+    {texto:'Há presença excessiva de espuma, crostas ou materiais flutuantes?', cat:'Qualidade do Efluente'},
+    {texto:'Foi realizada limpeza ou remoção periódica do lodo de fundo conforme planejamento operacional?', cat:'Limpeza e Manutenção'},
+    {texto:'Há acúmulo excessivo de sedimentos reduzindo o volume útil da lagoa?', cat:'Limpeza e Manutenção'},
+    {texto:'Há presença significativa de mosquitos, moscas ou outros vetores?', cat:'Vetores'},
+    {texto:'A lagoa possui cercamento e controle de acesso?', cat:'Segurança'},
+    {texto:'Existem placas de advertência e sinalização de segurança?', cat:'Segurança'},
+    {texto:'Há monitoramento da qualidade do efluente (DBO, DQO, SST, pH ou outros parâmetros)?', cat:'Monitoramento Ambiental'},
+    {texto:'Há monitoramento de possíveis vazamentos ou infiltrações no entorno da lagoa?', cat:'Monitoramento Ambiental'},
+    {texto:'A área ao redor da lagoa encontra-se limpa, organizada e sem resíduos?', cat:'Condições Gerais'}
   ])},
   { setor:'Agro', nome:'Currais', itens: mkItens([
     {texto:'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?',cat:'Manejo de Efluentes'},
@@ -1329,7 +1396,7 @@ function bindDashboard(){
 }
 
 /* ============================================================
-   EMPREENDIMENTOS (ORGANIZADO POR SETORES)
+   EMPREENDIMENTOS
    ============================================================ */
 function viewEmpreendimentos(){
   return `
@@ -1458,7 +1525,7 @@ function bindEmpreendimentos(){
 }
 
 /* ============================================================
-   BIBLIOTECA DE ESTRUTURAS (EDITOR AVANÇADO MANUAL)
+   BIBLIOTECA DE ESTRUTURAS
    ============================================================ */
 function viewEstruturas(){
   const setores = [
@@ -2038,6 +2105,9 @@ function viewVistorias(){
       <div class="eyebrow">Histórico Organizado</div>
       <h1 class="view-title">Vistorias por Empreendimento</h1>
       <div class="view-sub">Inspeções agrupadas por pasta de empreendimento e organizadas por datas.</div>
+    </div>
+    <div class="rowflex">
+      <button class="btn primary" onclick="exportarExcelVistorias()">📊 Exportar para Excel</button>
     </div>
   </div>
 
