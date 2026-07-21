@@ -764,7 +764,7 @@ function render() {
 }
 
 /* ============================================================
-   SINCRO E DADOS NUVEM
+   SINCRO E DADOS NUVEM (COM CORREÇÃO E MAPEAMENTO DE SETOR)
    ============================================================ */
 async function syncGlobalNuvem(){
   if(!_supabase || !navigator.onLine) return false;
@@ -778,15 +778,25 @@ async function syncGlobalNuvem(){
       state.empreendimentos = empReq.data.map(d=>({id: d.id, nome: d.nome, tipo: d.tipo, estruturas: d.estruturas, criadoEm: d.criado_em}));
       await storageSet('empreendimentos', state.empreendimentos);
     }
+    
     if(estReq.data && estReq.data.length > 0) {
       state.estruturas = estReq.data.map(d => {
         let listItens = [];
-        let setorVal = d.setor || 'Geral';
+        let setorVal = d.setor;
+
+        // Se o banco trouxer setor nulo ou 'Geral' incorreto para uma estrutura padronizada, corrige pelo nome
+        const defRef = DEFAULT_ESTRUTURAS.find(x => x.nome === d.nome);
+        if (defRef && (!setorVal || (setorVal === 'Geral' && defRef.setor !== 'Geral'))) {
+          setorVal = defRef.setor;
+        } else if (!setorVal) {
+          setorVal = 'Geral';
+        }
+
         if (Array.isArray(d.itens)) {
           listItens = d.itens;
         } else if (d.itens && typeof d.itens === 'object') {
           listItens = d.itens.list || [];
-          if (d.itens.setor) setorVal = d.itens.setor;
+          if (d.itens.setor && (!setorVal || setorVal === 'Geral')) setorVal = d.itens.setor;
         }
         return { id: d.id, nome: d.nome, setor: setorVal, itens: listItens };
       });
@@ -851,6 +861,7 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
+      
       let critMax = null;
       const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
       v.itens.forEach(i => {
@@ -949,7 +960,7 @@ function viewEmpreendimentos() {
     </div>
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
-  ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenhum empreendimento cadastrado.</div>' : `
+  ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenum empreendimento cadastrado.</div>' : `
   <div class="grid cols-2">
     ${state.empreendimentos.map((e) => {
       const visual = getSetorVisual(e.tipo);
@@ -1256,7 +1267,7 @@ function bindEditorEstrutura() {
     const est = state.estruturaEditando;
     est.nome = document.getElementById('ed-est-nome').value.trim();
     est.setor = document.getElementById('ed-est-setor').value;
-    if(!est.nome) return showToast('Nome da estrutura é obrigatório!');
+    if(!est.nome) return showToast('Nome obrigatório!');
     
     const idx = state.estruturas.findIndex(x => x.id === est.id);
     if(idx >= 0) state.estruturas[idx] = est;
