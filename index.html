@@ -121,17 +121,29 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 .badge.critica{background:#F7DEE1;color:var(--critica);}
 .badge.pending{background:#FFF3CD;color:#975A16; border:1px solid #F6E05E;}
 
-/* CARDS VISUAIS (EMPREENDIMENTOS E ESTRUTURAS) */
+/* CARDS VISUAIS E SETORES */
+.sector-header { display:flex; align-items:center; gap:12px; margin: 40px 0 20px 0; border-bottom: 2px solid var(--line); padding-bottom: 12px; }
+.sector-icon { font-size: 32px; background: var(--surface); border: 1px solid var(--line); padding: 8px 12px; border-radius: 12px; box-shadow: var(--shadow); }
+.sector-title { font-family:var(--font-display); font-size:28px; font-weight:600; margin:0; color:var(--ink); }
+
 .visual-card { display:flex; flex-direction:column; overflow:hidden; transition:transform 0.2s, box-shadow 0.2s; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
 .visual-card:hover { transform:translateY(-2px); box-shadow: 0 8px 24px rgba(22,36,28,.08); }
 .visual-card-cover { height:100px; display:flex; align-items:center; justify-content:center; font-size:40px; position:relative; }
+.visual-card-large .visual-card-cover { height: 140px; font-size: 56px; } /* Para Empreendimentos */
 .cover-geral { background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); }
 .cover-agro { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
 .cover-mina { background: linear-gradient(135deg, #e6dada 0%, #274046 100%); }
 .visual-card-body { padding:18px 20px; flex:1; display:flex; flex-direction:column; }
-.visual-card-title { font-family:var(--font-display); font-size:22px; font-weight:600; margin:0 0 6px; color:var(--ink); line-height:1.1; }
-.visual-card-desc { font-size:13px; color:var(--ink-soft); margin-bottom:16px; flex:1; }
+.visual-card-title { font-family:var(--font-display); font-size:24px; font-weight:600; margin:0 0 6px; color:var(--ink); line-height:1.1; }
+.visual-card-desc { font-size:13.5px; color:var(--ink-soft); margin-bottom:16px; flex:1; line-height:1.5; }
 .visual-card-foot { padding:12px 20px; border-top:1px solid var(--line); background:var(--surface-2); display:flex; gap:8px; justify-content:flex-end; }
+
+/* ESTRUTURAS VINCULADAS NO CARD DE EMPREENDIMENTO */
+.est-list-chip { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:3px 8px; font-size:11.5px; margin:2px 4px 2px 0; color:var(--ink-soft); }
+
+/* FILTROS (Dashboard, Histórico, NCs) */
+.filter-bar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; display:flex; gap:16px; align-items:flex-end; box-shadow:var(--shadow); flex-wrap:wrap;}
+.filter-bar .field { margin-bottom:0; flex:1; min-width:200px; }
 
 /* ACORDEÃO HISTÓRICO */
 .folder-details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px; overflow:hidden; box-shadow:var(--shadow); }
@@ -213,7 +225,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 }
 @media print{
   .print-only-title { display:block !important; margin-bottom: 20px; }
-  #sidebar, .no-print, nav.mainnav, .view-head, #modal-root { display:none !important; }
+  #sidebar, .no-print, nav.mainnav, .view-head, .filter-bar, #modal-root { display:none !important; }
   #content { padding:0; max-width:100%; width:100%; margin:0; }
   body { background:#fff; margin:0; }
   .card, .folder-details { border:1px solid #ddd; box-shadow:none; }
@@ -314,7 +326,7 @@ async function storageSet(key, value) { return await idb.set(key, value); }
 async function storageRemove(key) { return await idb.remove(key); }
 
 /* ============================================================
-   UTILITÁRIOS GERAIS
+   UTILITÁRIOS GERAIS E FILTROS
    ============================================================ */
 function esc(str) {
   if (str == null) return '';
@@ -337,9 +349,9 @@ function getSetorVisual(setor) {
   const map = {
     'Mineração': { class: 'cover-mina', icon: '⛏️' },
     'Agro': { class: 'cover-agro', icon: '🌾' },
-    'Geral': { class: 'cover-geral', icon: '🏭' }
+    'Geral': { class: 'cover-geral', icon: '🏭⛏️🌾' }
   };
-  return map[setor] || map['Geral'];
+  return map[setor] || { class: 'cover-geral', icon: '🏭' };
 }
 
 function showToast(msg) {
@@ -354,30 +366,65 @@ function mkItens(list){ return list.map(t => ({ id: uid(), texto: (typeof t==='s
 
 function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 
-/* FOTOS: Compressão em Canvas para Base64 */
-function fileToCompressedDataURL(file) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        let width = img.width;
-        let height = img.height;
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+function formatMesIsoParaExtenso(iso) {
+  if(!iso) return '';
+  const [ano, mes] = iso.split('-');
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return `${meses[parseInt(mes,10)-1]} / ${ano}`;
+}
+
+function renderFilterBar(prefix) {
+  const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
+  const mesesSet = new Set();
+  state.vistoriasIndex.forEach(v => {
+    const d = new Date(v.dataHora);
+    if(!isNaN(d)) mesesSet.add(d.toISOString().slice(0,7));
+  });
+  const meses = [...mesesSet].sort().reverse();
+  
+  const currEmp = state.filtros[prefix].emp;
+  const currMes = state.filtros[prefix].mes;
+
+  return `
+    <div class="filter-bar no-print">
+      <div class="field">
+        <label class="field-label">Empreendimento</label>
+        <select id="filter-${prefix}-emp">
+          <option value="">Todos os Empreendimentos</option>
+          ${emps.map(e => `<option value="${esc(e)}" ${currEmp===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Período (Mês)</label>
+        <select id="filter-${prefix}-mes">
+          <option value="">Todos os Meses</option>
+          ${meses.map(m => `<option value="${m}" ${currMes===m?'selected':''}>${formatMesIsoParaExtenso(m)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn ghost" onclick="limparFiltros('${prefix}')" style="height:42px;">Limpar</button>
+    </div>
+  `;
+}
+
+function bindFilterBar(prefix) {
+  document.getElementById(`filter-${prefix}-emp`)?.addEventListener('change', e => { state.filtros[prefix].emp = e.target.value; render(); });
+  document.getElementById(`filter-${prefix}-mes`)?.addEventListener('change', e => { state.filtros[prefix].mes = e.target.value; render(); });
+}
+
+window.limparFiltros = function(prefix) {
+  state.filtros[prefix] = { emp: '', mes: '' };
+  render();
+}
+
+function aplicarFiltros(lista, prefix) {
+  const f = state.filtros[prefix];
+  return lista.filter(v => {
+    if(f.emp && v.empreendimentoNome !== f.emp) return false;
+    if(f.mes) {
+      const d = new Date(v.dataHora || v.data);
+      if(isNaN(d) || d.toISOString().slice(0,7) !== f.mes) return false;
+    }
+    return true;
   });
 }
 
@@ -497,7 +544,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existe sistema de captação superficial instalado na barragem?', cat:'Captação de Água'},
     {texto:'A estrutura de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
     {texto:'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat:'Captação de Água'},
-    {texto:'As mangueiras, conexões e tubulações apresentam bom estado de conservação?', cat:'Captação de Água'},
+    {texto:'As mangueiras, conexões e tubulações apresenta bom estado de conservação?', cat:'Captação de Água'},
     {texto:'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat:'Monitoramento'},
     {texto:'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', cat:'Monitoramento'},
     {texto:'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', cat:'Qualidade Ambiental'},
@@ -628,11 +675,12 @@ const state = {
   ready: false,
   novaVistoria: null,
   vistoriaAberta: null,
-  dashFiltroEmp: '', 
-  dashFiltroMes: '', 
-  evolucaoFiltroEmp: '',
-  evolucaoFiltroEst: '',
-  estruturaEditando: null
+  estruturaEditando: null,
+  filtros: {
+    dash: { emp: '', mes: '' },
+    hist: { emp: '', mes: '' },
+    nc: { emp: '', mes: '' }
+  }
 };
 
 function setView(viewName) {
@@ -758,7 +806,6 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
-      
       let critMax = null;
       const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
       v.itens.forEach(i => {
@@ -858,21 +905,28 @@ function viewEmpreendimentos() {
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
   ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenhum empreendimento cadastrado.</div>' : `
-  <div class="grid cols-3">
-    ${state.empreendimentos.map((e, idx) => {
+  <div class="grid cols-2">
+    ${state.empreendimentos.map((e) => {
       const visual = getSetorVisual(e.tipo);
       return `
-      <div class="visual-card">
+      <div class="visual-card visual-card-large">
         <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
         <div class="visual-card-body">
-          <h3 class="visual-card-title">${esc(e.nome)}</h3>
-          <div class="visual-card-desc">
-            <span class="badge na" style="margin-bottom:8px;">${esc(e.tipo || 'Geral')}</span><br>
-            ${(e.estruturas||[]).length} estruturas vinculadas
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <h3 class="visual-card-title">${esc(e.nome)}</h3>
+            <span class="badge na">${esc(e.tipo || 'Geral')}</span>
+          </div>
+          <div class="visual-card-desc" style="margin-top:12px;">
+            <strong style="display:block; margin-bottom:6px; color:var(--ink);">Estruturas Vinculadas:</strong>
+            ${(e.estruturas||[]).length > 0 ? 
+              e.estruturas.map(est => `<span class="est-list-chip">${esc(est)}</span>`).join('') : 
+              '<span class="hint">Nenhuma estrutura vinculada.</span>'
+            }
           </div>
         </div>
         <div class="visual-card-foot">
-          <button class="btn ghost sm danger" onclick="excluirEmpreendimento('${e.id}')">Excluir</button>
+          <button class="btn ghost sm" onclick="editarEmpreendimento('${e.id}')">✏️ Editar</button>
+          <button class="btn ghost sm danger" onclick="excluirEmpreendimento('${e.id}')">✕ Excluir</button>
         </div>
       </div>
       `
@@ -882,61 +936,81 @@ function viewEmpreendimentos() {
 }
 
 function bindEmpreendimentos() {
-  document.getElementById('btn-add-emp')?.addEventListener('click', () => {
-    const html = `
-    <div class="modal-backdrop">
-      <div class="modal">
-        <div class="modal-head"><h3>Novo Empreendimento</h3><button class="btn ghost sm" onclick="closeModal()">✕</button></div>
-        <div class="modal-body">
-          <div class="field">
-            <label class="field-label">Nome do Empreendimento</label>
-            <input type="text" id="mod-emp-nome">
-          </div>
-          <div class="field">
-            <label class="field-label">Setor / Tipo</label>
-            <select id="mod-emp-tipo">
-              <option value="Geral">Geral</option>
-              <option value="Mineração">Mineração</option>
-              <option value="Agro">Agro</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field-label">Vincular Estruturas Existentes (Opcional)</label>
-            <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:10px;">
-              ${state.estruturas.map(est => `
-                <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; cursor:pointer;">
-                  <input type="checkbox" class="mod-emp-est" value="${esc(est.nome)}" style="width:auto;"> ${esc(est.nome)}
-                </label>
-              `).join('')}
-            </div>
-          </div>
+  document.getElementById('btn-add-emp')?.addEventListener('click', () => abrirModalEmpreendimento());
+}
+
+window.editarEmpreendimento = function(id) {
+  const emp = state.empreendimentos.find(e => e.id === id);
+  if(emp) abrirModalEmpreendimento(emp);
+}
+
+function abrirModalEmpreendimento(empExistente = null) {
+  const isEdit = !!empExistente;
+  const id = isEdit ? empExistente.id : uid();
+  const nome = isEdit ? empExistente.nome : '';
+  const tipo = isEdit ? (empExistente.tipo || 'Geral') : 'Geral';
+  const vinculadas = isEdit ? (empExistente.estruturas || []) : [];
+
+  const html = `
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-head"><h3>${isEdit ? 'Editar Empreendimento' : 'Novo Empreendimento'}</h3><button class="btn ghost sm" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label">Nome do Empreendimento</label>
+          <input type="text" id="mod-emp-nome" value="${esc(nome)}">
         </div>
-        <div class="modal-foot">
-          <button class="btn ghost" onclick="closeModal()">Cancelar</button>
-          <button class="btn primary" id="btn-save-emp">Salvar Empreendimento</button>
+        <div class="field">
+          <label class="field-label">Setor / Tipo Principal</label>
+          <select id="mod-emp-tipo">
+            <option value="Geral" ${tipo==='Geral'?'selected':''}>Geral</option>
+            <option value="Mineração" ${tipo==='Mineração'?'selected':''}>Mineração</option>
+            <option value="Agro" ${tipo==='Agro'?'selected':''}>Agro</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Vincular Estruturas Existentes na Biblioteca</label>
+          <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fafbf9;">
+            ${state.estruturas.map(est => `
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; cursor:pointer; padding:4px; border-radius:4px; transition:background 0.2s;">
+                <input type="checkbox" class="mod-emp-est" value="${esc(est.nome)}" ${vinculadas.includes(est.nome) ? 'checked' : ''} style="width:auto;"> ${esc(est.nome)}
+              </label>
+            `).join('')}
+          </div>
         </div>
       </div>
-    </div>`;
-    document.getElementById('modal-root').innerHTML = html;
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" id="btn-save-emp">${isEdit ? 'Salvar Alterações' : 'Criar Empreendimento'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+  
+  document.getElementById('btn-save-emp').addEventListener('click', async () => {
+    const novoNome = document.getElementById('mod-emp-nome').value.trim();
+    const novoTipo = document.getElementById('mod-emp-tipo').value;
+    const novasVinculadas = Array.from(document.querySelectorAll('.mod-emp-est:checked')).map(cb => cb.value);
     
-    document.getElementById('btn-save-emp').addEventListener('click', async () => {
-      const nome = document.getElementById('mod-emp-nome').value.trim();
-      const tipo = document.getElementById('mod-emp-tipo').value;
-      const vinculadas = Array.from(document.querySelectorAll('.mod-emp-est:checked')).map(cb => cb.value);
-      
-      if(!nome) return showToast('Nome é obrigatório');
-      
-      const obj = { id: uid(), nome, tipo, estruturas: vinculadas, criado_em: new Date().toISOString() };
+    if(!novoNome) return showToast('O Nome é obrigatório');
+    
+    const obj = { id, nome: novoNome, tipo: novoTipo, estruturas: novasVinculadas, criado_em: isEdit ? empExistente.criado_em : new Date().toISOString() };
+    
+    if(isEdit) {
+      const idx = state.empreendimentos.findIndex(e => e.id === id);
+      state.empreendimentos[idx] = obj;
+    } else {
       state.empreendimentos.push(obj);
-      await storageSet('empreendimentos', state.empreendimentos);
-      if(_supabase && navigator.onLine) await _supabase.from('empreendimentos').upsert(obj);
-      closeModal(); render(); showToast('Salvo com sucesso!');
-    });
+    }
+
+    await storageSet('empreendimentos', state.empreendimentos);
+    if(_supabase && navigator.onLine) await _supabase.from('empreendimentos').upsert(obj);
+    closeModal(); render(); showToast('Empreendimento salvo com sucesso!');
   });
 }
 
 window.excluirEmpreendimento = async function(id) {
-  if(confirm('Excluir empreendimento?')) {
+  if(confirm('Tem certeza de que deseja excluir este empreendimento permanentemente?')) {
     state.empreendimentos = state.empreendimentos.filter(e => e.id !== id);
     await storageSet('empreendimentos', state.empreendimentos);
     if(_supabase && navigator.onLine) await _supabase.from('empreendimentos').delete().eq('id', id);
@@ -945,43 +1019,63 @@ window.excluirEmpreendimento = async function(id) {
 }
 
 /* ============================================================
-   TELAS: ESTRUTURAS (EDITOR COMPLETO COM CARDS)
+   TELAS: ESTRUTURAS (SEPARADAS POR SETOR)
    ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
 
-  return `
+  const setoresDef = [
+    { id: 'Geral', icon: '🏭⛏️🌾', title: 'Setor Geral / Misto' },
+    { id: 'Mineração', icon: '⛏️', title: 'Mineração e Processamento' },
+    { id: 'Agro', icon: '🌾', title: 'Agronegócio e Criação' }
+  ];
+
+  let html = `
   <div class="view-head">
     <div>
       <div class="eyebrow">Biblioteca</div>
-      <h1 class="view-title">Estruturas Padrão</h1>
+      <h1 class="view-title">Estruturas de Inspeção</h1>
     </div>
     <button class="btn primary" id="btn-add-est">+ Nova Estrutura</button>
-  </div>
-  ${state.estruturas.length === 0 ? '<div class="empty card"><div class="ic">🏗️</div>Nenhuma estrutura cadastrada.</div>' : `
-  <div class="grid cols-3">
-    ${state.estruturas.map((e) => {
-      const visual = getSetorVisual(e.setor);
-      return `
-      <div class="visual-card">
-        <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
-        <div class="visual-card-body">
-          <h3 class="visual-card-title">${esc(e.nome)}</h3>
-          <div class="visual-card-desc">
-            <span class="badge na" style="margin-bottom:8px;">${esc(e.setor || 'Geral')}</span><br>
-            ${(e.itens||[]).length} itens de verificação
-          </div>
-        </div>
-        <div class="visual-card-foot">
-          <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">✏️ Editar</button>
-          <button class="btn ghost sm" onclick="duplicarEstrutura('${e.id}')">📋 Duplicar</button>
-          <button class="btn ghost sm danger" onclick="excluirEstrutura('${e.id}')">✕</button>
-        </div>
+  </div>`;
+
+  if(state.estruturas.length === 0) {
+    return html + '<div class="empty card"><div class="ic">🏗️</div>Nenhuma estrutura cadastrada na biblioteca.</div>';
+  }
+
+  setoresDef.forEach(setor => {
+    const ests = state.estruturas.filter(e => (e.setor || 'Geral') === setor.id);
+    if(ests.length > 0) {
+      html += `
+      <div class="sector-header">
+        <div class="sector-icon">${setor.icon}</div>
+        <h2 class="sector-title">${setor.title}</h2>
       </div>
-      `
-    }).join('')}
-  </div>`}
-  `;
+      <div class="grid cols-3">
+        ${ests.map(e => {
+          const visual = getSetorVisual(e.setor);
+          return `
+          <div class="visual-card">
+            <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
+            <div class="visual-card-body">
+              <h3 class="visual-card-title">${esc(e.nome)}</h3>
+              <div class="visual-card-desc">
+                ${(e.itens||[]).length} itens de verificação no checklist.
+              </div>
+            </div>
+            <div class="visual-card-foot">
+              <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">✏️ Editar</button>
+              <button class="btn ghost sm" onclick="duplicarEstrutura('${e.id}')">📋 Duplicar</button>
+              <button class="btn ghost sm danger" onclick="excluirEstrutura('${e.id}')">✕</button>
+            </div>
+          </div>
+          `
+        }).join('')}
+      </div>`;
+    }
+  });
+
+  return html;
 }
 
 function bindEstruturas() {
@@ -1038,7 +1132,7 @@ function viewEditorEstrutura() {
       <div class="field">
         <label class="field-label">Setor</label>
         <select id="ed-est-setor">
-          <option value="Geral" ${est.setor==='Geral'?'selected':''}>Geral</option>
+          <option value="Geral" ${est.setor==='Geral'?'selected':''}>Geral (Misto)</option>
           <option value="Mineração" ${est.setor==='Mineração'?'selected':''}>Mineração</option>
           <option value="Agro" ${est.setor==='Agro'?'selected':''}>Agro</option>
         </select>
@@ -1337,24 +1431,24 @@ window.removeFoto = function(itemId, photoIdx) {
 }
 
 /* ============================================================
-   TELA: DASHBOARD E EXPORTAÇÃO
+   TELA: DASHBOARD COM FILTROS
    ============================================================ */
 function viewDashboard() {
-  const total = state.vistoriasIndex.length;
-  const totalNC = state.vistoriasIndex.reduce((s,v)=>s+(v.totalNC||0),0);
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
+  
+  const total = filtradas.length;
+  const totalNC = filtradas.reduce((s,v)=>s+(v.totalNC||0),0);
   
   const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
   const porEmp = {};
 
-  state.vistoriasIndex.forEach(v => {
-    // Globais
+  filtradas.forEach(v => {
     if (v.criticidades) {
       porCrit.baixa += v.criticidades.baixa || 0;
       porCrit.media += v.criticidades.media || 0;
       porCrit.alta += v.criticidades.alta || 0;
       porCrit.critica += v.criticidades.critica || 0;
     }
-    // Por Empreendimento
     if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0 };
     porEmp[v.empreendimentoNome].vist++;
     porEmp[v.empreendimentoNome].nc += (v.totalNC||0);
@@ -1366,12 +1460,16 @@ function viewDashboard() {
   <div class="view-head">
     <div><div class="eyebrow">Visão Geral</div><h1 class="view-title">Painel de Inspeções</h1></div>
     <div class="rowflex">
+      <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Geral (Excel)</button>
       <button class="btn primary" onclick="setView('nova')">+ Nova Vistoria</button>
     </div>
   </div>
+
+  ${renderFilterBar('dash')}
+
   <div class="grid cols-2" style="margin-bottom:24px;">
-    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias Realizadas</div></div>
-    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades (Total)</div></div>
+    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias Filtradas</div></div>
+    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades no Período</div></div>
   </div>
   
   <div class="grid cols-2" style="align-items:start;">
@@ -1387,7 +1485,7 @@ function viewDashboard() {
                 <td>${stat.vist}</td>
                 <td>${stat.nc > 0 ? `<span style="color:var(--nc);font-weight:700;">${stat.nc}</span>` : `<span style="color:var(--conforme);">0</span>`}</td>
               </tr>
-            `).join('') || '<tr><td colspan="3" class="empty" style="padding:20px;">Sem dados</td></tr>'}
+            `).join('') || '<tr><td colspan="3" class="empty" style="padding:20px;">Sem dados para o filtro</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1406,7 +1504,8 @@ function viewDashboard() {
     </div>
   </div>`;
 }
-function bindDashboard() {}
+
+function bindDashboard() { bindFilterBar('dash'); }
 
 /* EXPORTAÇÃO EXCEL REAL */
 window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') {
@@ -1472,21 +1571,28 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
 };
 
 /* ============================================================
-   TELA: HISTÓRICO DE VISTORIAS (ACORDEÃO E AGRUPADO)
+   TELA: HISTÓRICO DE VISTORIAS COM FILTROS
    ============================================================ */
 function viewVistorias() {
-  const rows = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora));
-  const temPendentes = rows.some(v => v.syncStatus === 'pending');
+  const filtradas = aplicarFiltros([...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora)), 'hist');
+  const temPendentes = state.vistoriasIndex.some(v => v.syncStatus === 'pending');
   
-  if(rows.length === 0) {
-    return `
-    <div class="view-head no-print"><div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div></div>
-    <div class="empty card"><div class="ic">📋</div>Nenhuma vistoria registrada.</div>`;
+  let html = `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div>
+    <div class="rowflex">
+      ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
+    </div>
+  </div>
+  ${renderFilterBar('hist')}`;
+
+  if(filtradas.length === 0) {
+    return html + `<div class="empty card"><div class="ic">📋</div>Nenhuma vistoria registrada com estes filtros.</div>`;
   }
 
   // Agrupar por Empreendimento -> Mês
   const porEmp = {};
-  rows.forEach(v => {
+  filtradas.forEach(v => {
     const emp = v.empreendimentoNome || 'Sem Empreendimento';
     if(!porEmp[emp]) porEmp[emp] = {};
     const d = new Date(v.dataHora);
@@ -1495,14 +1601,7 @@ function viewVistorias() {
     porEmp[emp][mesIso].push(v);
   });
 
-  return `
-  <div class="view-head no-print">
-    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div>
-    <div class="rowflex">
-      ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
-    </div>
-  </div>
-  
+  html += `
   <div style="display:flex; flex-direction:column;">
     ${Object.entries(porEmp).map(([empNome, meses]) => {
       const totalVists = Object.values(meses).flat().length;
@@ -1519,7 +1618,7 @@ function viewVistorias() {
           ${Object.entries(meses).map(([mesIso, vists]) => `
             <div class="month-group">
               <div class="month-header">
-                <span>🗓️ Período: ${esc(mesIso)}</span>
+                <span>🗓️ Período: ${formatMesIsoParaExtenso(mesIso)}</span>
                 <div class="rowflex">
                   <button class="btn ghost sm" onclick="exportarExcel('mes', '${esc(mesIso)}', '${esc(empNome)}')">📊 Excel Mês</button>
                   <button class="btn ghost sm" onclick="window.gerarPdfMes('${esc(mesIso)}', '${esc(empNome)}')">🖨️ PDF Mês</button>
@@ -1535,7 +1634,7 @@ function viewVistorias() {
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.estruturaNome)}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.syncStatus==='pending'?'<span class="badge pending">⏳ Local</span>':'<span class="badge conforme">✅ Nuvem</span>'}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.totalNC > 0 ? `<span class="badge nc">${v.totalNC}</span>` : `<span class="badge conforme">OK</span>`}</td>
-                        <td style="text-align:right; width:220px;">
+                        <td style="text-align:right; width:240px;">
                           <div class="rowflex" style="justify-content:flex-end; gap:6px;">
                             <button class="btn ghost sm" onclick="abrirVistoria('${v.id}')">🔍 Abrir</button>
                             <button class="btn ghost sm" onclick="window.gerarPdfUnico('${v.id}')">🖨️ PDF</button>
@@ -1554,8 +1653,10 @@ function viewVistorias() {
       `
     }).join('')}
   </div>`;
+  
+  return html;
 }
-function bindVistorias() {}
+function bindVistorias() { bindFilterBar('hist'); }
 
 window.abrirVistoria = async function(id) {
   const v = await storageGet('vistoria:'+id);
@@ -1704,7 +1805,7 @@ window.gerarPdfMes = async function(mesIso, empNome) {
     </div>
     <div class="print-only-title" style="display:block; text-align:center; margin-bottom:40px;">
       <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Inspeções</h1>
-      <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${mesIso}</p>
+      <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${formatMesIsoParaExtenso(mesIso)}</p>
     </div>
     ${vists.map((v) => {
       return `<div style="page-break-after:always; margin-bottom:60px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
@@ -1803,17 +1904,18 @@ function bindEvolucao() {
 }
 
 /* ============================================================
-   TELA: NÃO CONFORMIDADES CONSOLIDADAS
+   TELA: NÃO CONFORMIDADES CONSOLIDADAS COM FILTROS
    ============================================================ */
 function viewNcs() {
   return `
   <div class="view-head no-print">
     <div><div class="eyebrow">Consolidado</div><h1 class="view-title">Mapeamento de NCs</h1></div>
     <div class="rowflex">
-      <button class="btn primary" onclick="carregarNcsNaTela()">🔍 Carregar Relatório de NCs</button>
-      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Consolidade</button>
+      <button class="btn primary" onclick="carregarNcsNaTela()">🔍 Aplicar Filtros e Carregar Relatório</button>
+      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Consolidado</button>
     </div>
   </div>
+  ${renderFilterBar('nc')}
   <div id="ncs-container">
     <div class="empty card"><div class="ic">⚠️</div>Clique no botão acima para compilar todas as pendências.</div>
   </div>`;
@@ -1823,8 +1925,10 @@ window.carregarNcsNaTela = async function() {
   const container = document.getElementById('ncs-container');
   container.innerHTML = '<div class="empty">Processando dados, aguarde...</div>';
   
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'nc');
+  
   let allNcs = [];
-  for(let idx of state.vistoriasIndex) {
+  for(let idx of filtradas) {
     if(idx.totalNC > 0) {
       const v = await loadVistoria(idx.id);
       if(v) {
@@ -1836,7 +1940,7 @@ window.carregarNcsNaTela = async function() {
   }
 
   if(allNcs.length === 0) {
-    container.innerHTML = '<div class="empty card" style="color:var(--conforme);"><div class="ic">✨</div>Nenhuma não conformidade encontrada no sistema!</div>';
+    container.innerHTML = '<div class="empty card" style="color:var(--conforme);"><div class="ic">✨</div>Nenhuma não conformidade encontrada com os filtros selecionados!</div>';
     return;
   }
 
@@ -1863,7 +1967,7 @@ window.carregarNcsNaTela = async function() {
   </div>`;
 }
 
-function bindNcs() {}
+function bindNcs() { bindFilterBar('nc'); }
 
 /* ============================================================
    INICIALIZAÇÃO E AUTENTICAÇÃO
