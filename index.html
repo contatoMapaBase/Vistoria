@@ -209,6 +209,13 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 }
 .photo-add:hover{border-color:var(--accent); color:var(--accent);}
 
+/* EDITOR DE ESTRUTURA ROW */
+.ed-item-row { padding:16px; display:flex; gap:12px; align-items:center; }
+.ed-arrows { display:flex; flex-direction:column; line-height:0.8; font-size:22px; color:var(--ink-faint); cursor:ns-resize; }
+.ed-inputs { display:flex; gap:12px; flex:1; }
+.ed-item-txt { flex:1; }
+.ed-item-cat { width:200px; }
+
 .rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
 @media(max-width:860px){
@@ -229,10 +236,11 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   #sidebar, .no-print, nav.mainnav, .view-head, .filter-bar, #modal-root { display:none !important; }
   #content { padding:0; max-width:100%; width:100%; margin:0; }
   body { background:#fff; margin:0; }
-  .card, .folder-details { border:1px solid #ddd; box-shadow:none; }
+  .card, .folder-details { border:1px solid #ddd; box-shadow:none; break-inside: avoid; }
   .table-wrapper { overflow:visible !important; }
   table { min-width:100%; }
   * { -webkit-print-color-adjust:exact !important; color-adjust:exact !important; }
+  canvas { max-width: 100% !important; height: auto !important; }
 }
 </style>
 </head>
@@ -1195,7 +1203,7 @@ window.excluirEstrutura = async function(id) {
 }
 
 /* ============================================================
-   EDITOR DE ESTRUTURAS (NOVO LAYOUT REFORMULADO E CONFORTÁVEL)
+   EDITOR DE ESTRUTURAS
    ============================================================ */
 function viewEditorEstrutura() {
   const est = state.estruturaEditando;
@@ -1325,7 +1333,7 @@ window.removerItemEst = function(idx) {
 }
 
 /* ============================================================
-   TELA: NOVA VISTORIA (SELEÇÃO INTELIGENTE DE ESTRUTURAS)
+   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO)
    ============================================================ */
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
@@ -1415,6 +1423,7 @@ function viewNovaVistoria() {
             <div class="item-txt">
               ${esc(it.texto)}
               <button class="btn ghost sm" style="padding:0 4px; border:none; margin-left:4px; font-size:12px; color:var(--ink-faint);" onclick="window.editarTextoItemNV('${it.id}')" title="Editar Tópico">✏️</button>
+              <button class="btn ghost sm danger" style="padding:0 4px; border:none; margin-left:2px; font-size:12px; color:var(--nc);" onclick="window.removerItemNV('${it.id}')" title="Excluir Tópico">✕</button>
             </div>
           </div>
           <div class="seg">
@@ -1604,6 +1613,15 @@ window.editarTextoItemNV = function(id) {
   }
 };
 
+window.removerItemNV = function(id) {
+  if(!state.novaVistoria) return;
+  if(confirm('Tem certeza que deseja remover este item desta vistoria?')) {
+    state.novaVistoria.itens = state.novaVistoria.itens.filter(i => i.id !== id);
+    delete state.novaVistoria.respostas[id];
+    render();
+  }
+};
+
 window.addFoto = async function(event, itemId) {
   const file = event.target.files[0];
   if(!file) return;
@@ -1622,7 +1640,7 @@ window.removeFoto = function(itemId, photoIdx) {
 }
 
 /* ============================================================
-   TELA: DASHBOARD COM GRÁFICO DE PIZZA
+   TELA: DASHBOARD COM GRÁFICOS MELHORADOS
    ============================================================ */
 function viewDashboard() {
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
@@ -1648,12 +1666,17 @@ function viewDashboard() {
   const maxCrit = Math.max(1, ...Object.values(porCrit));
 
   return `
-  <div class="view-head">
+  <div class="view-head no-print">
     <div><div class="eyebrow">Visão Geral</div><h1 class="view-title">Painel de Inspeções</h1></div>
     <div class="rowflex">
-      <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Geral (Excel)</button>
+      <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>
+      <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>
       <button class="btn primary" onclick="setView('nova')">+ Nova Vistoria</button>
     </div>
+  </div>
+
+  <div class="print-only-title" style="display:none; text-align:center; margin-bottom: 20px;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório do Painel de Inspeções</h1>
   </div>
 
   ${renderFilterBar('dash')}
@@ -1666,19 +1689,9 @@ function viewDashboard() {
   <div class="grid cols-2" style="align-items:start;">
     <div class="card card-pad">
       <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Desempenho por Empreendimento</h3>
-      <div class="table-wrapper">
-        <table style="min-width:100%;">
-          <thead><tr><th>Empreendimento</th><th>Vistorias</th><th>NCs</th></tr></thead>
-          <tbody>
-            ${Object.entries(porEmp).sort((a,b)=>b[1].nc - a[1].nc).map(([nome, stat]) => `
-              <tr>
-                <td style="font-weight:600;">${esc(nome)}</td>
-                <td>${stat.vist}</td>
-                <td>${stat.nc > 0 ? `<span style="color:var(--nc);font-weight:700;">${stat.nc}</span>` : `<span style="color:var(--conforme);">0</span>`}</td>
-              </tr>
-            `).join('') || '<tr><td colspan="3" class="empty" style="padding:20px;">Sem dados para o filtro</td></tr>'}
-          </tbody>
-        </table>
+      <div style="width:100%; height:250px; position:relative;">
+         <canvas id="dashBarChart"></canvas>
+         ${total === 0 ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--ink-faint); text-align:center;">Sem Dados</div>' : ''}
       </div>
     </div>
     
@@ -1707,22 +1720,51 @@ function viewDashboard() {
 function bindDashboard() { 
   bindFilterBar('dash'); 
   
-  const canvas = document.getElementById('dashPieChart');
-  if(canvas) {
-      if(window.dashPieChartInstance) window.dashPieChartInstance.destroy();
-      
-      const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
-      const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
-      filtradas.forEach(v => {
-        if (v.criticidades) {
-          porCrit.baixa += v.criticidades.baixa || 0;
-          porCrit.media += v.criticidades.media || 0;
-          porCrit.alta += v.criticidades.alta || 0;
-          porCrit.critica += v.criticidades.critica || 0;
-        }
-      });
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
+  const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
+  const porEmp = {};
 
-      const ctx = canvas.getContext('2d');
+  filtradas.forEach(v => {
+    if (v.criticidades) {
+      porCrit.baixa += v.criticidades.baixa || 0;
+      porCrit.media += v.criticidades.media || 0;
+      porCrit.alta += v.criticidades.alta || 0;
+      porCrit.critica += v.criticidades.critica || 0;
+    }
+    if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0 };
+    porEmp[v.empreendimentoNome].vist++;
+    porEmp[v.empreendimentoNome].nc += (v.totalNC||0);
+  });
+
+  const barCanvas = document.getElementById('dashBarChart');
+  if(barCanvas) {
+      if(window.dashBarChartInstance) window.dashBarChartInstance.destroy();
+      const labels = Object.keys(porEmp).slice(0, 10);
+      const dataVist = labels.map(l => porEmp[l].vist);
+      const dataNC = labels.map(l => porEmp[l].nc);
+
+      const ctx = barCanvas.getContext('2d');
+      window.dashBarChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: labels.map(l => l.length > 15 ? l.slice(0, 15) + '...' : l),
+              datasets: [
+                  { label: 'Vistorias', data: dataVist, backgroundColor: '#5B9A78' },
+                  { label: 'Não Conformidades', data: dataNC, backgroundColor: '#C4332C' }
+              ]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          }
+      });
+  }
+
+  const pieCanvas = document.getElementById('dashPieChart');
+  if(pieCanvas) {
+      if(window.dashPieChartInstance) window.dashPieChartInstance.destroy();
+      const ctx = pieCanvas.getContext('2d');
       window.dashPieChartInstance = new Chart(ctx, {
           type: 'doughnut',
           data: {
@@ -1769,6 +1811,8 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
      });
   } else if (tipo === 'vist') {
      indexVists = state.vistoriasIndex.filter(v => v.id === valor);
+  } else if (tipo === 'evo') {
+     indexVists = state.vistoriasIndex.filter(v => v.empreendimentoNome === state.evolucaoFiltroEmp && v.estruturaNome === state.evolucaoFiltroEst).sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
   }
 
   if (indexVists.length === 0) return showToast('Nenhum dado encontrado.');
@@ -1899,6 +1943,20 @@ window.abrirVistoria = async function(id) {
   if (v) { state.vistoriaAberta = v; setView('vistoria-detalhe'); }
 }
 
+window.removerItemHistorico = async function(vistId, itemId) {
+  if(!confirm('Tem certeza que deseja excluir permanentemente este item do relatório salvo?')) return;
+  showToast('Removendo item e recalculando...');
+  
+  const v = await loadVistoria(vistId);
+  if(!v) return showToast('Erro ao carregar a vistoria original.');
+
+  v.itens = v.itens.filter(i => i.id !== itemId);
+  await saveVistoria(v); 
+  
+  state.vistoriaAberta = v;
+  render(); 
+}
+
 /* ============================================================
    TELA: DETALHE / RELATÓRIO INDIVIDUAL (PDF)
    ============================================================ */
@@ -1913,7 +1971,7 @@ function viewVistoriaDetalhe(vistoriaParam) {
     <div class="rowflex">
       <button class="btn ghost" onclick="setView('vistorias')">← Voltar</button>
       <button class="btn ghost" onclick="editarVistoriaAtual()">✏️ Editar</button>
-      <button class="btn ghost danger" onclick="deletarVistoriaAtual()">✕ Excluir</button>
+      <button class="btn ghost danger" onclick="deletarVistoriaAtual()">✕ Excluir Relatório</button>
       <button class="btn primary" onclick="window.print()">🖨️ Imprimir PDF</button>
     </div>
   </div>
@@ -1934,13 +1992,14 @@ function viewVistoriaDetalhe(vistoriaParam) {
   <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Checklist Completo</h3>
   <div class="card table-wrapper" style="margin-bottom:28px;">
     <table>
-      <thead><tr><th>Item</th><th>Status</th><th>Observação</th></tr></thead>
+      <thead><tr><th>Item</th><th>Status</th><th>Observação</th><th class="no-print" style="width: 50px;">Ação</th></tr></thead>
       <tbody>
         ${v.itens.map(it => `
           <tr style="break-inside: avoid;">
             <td style="width:50%; font-weight:500;">${esc(it.texto)}</td>
             <td><span class="badge ${it.status==='conforme'?'conforme':it.status==='nc'?'nc':'na'}">${it.status.toUpperCase()}</span></td>
             <td style="font-size:13px; color:var(--ink-soft);">${esc(it.observacao)||'—'}</td>
+            <td class="no-print"><button class="btn ghost sm danger" onclick="removerItemHistorico('${v.id}', '${it.id}')" title="Excluir item da vistoria salva">✕</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -2050,7 +2109,7 @@ window.gerarPdfMes = async function(mesIso, empNome) {
 };
 
 /* ============================================================
-   TELA: EVOLUÇÃO
+   TELA: EVOLUÇÃO (COM EXPORTAÇÃO PDF/EXCEL E GRÁFICOS)
    ============================================================ */
 function viewEvolucao() {
   const empComVistoria = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
@@ -2058,8 +2117,18 @@ function viewEvolucao() {
   let html = `
   <div class="view-head no-print">
     <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Evolução das Inspeções</h1></div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()" id="btn-print-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">🖨️ Exportar PDF</button>
+      <button class="btn ghost" onclick="exportarExcel('evo')" id="btn-excel-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">📊 Exportar Excel</button>
+    </div>
   </div>
-  <div class="card card-pad" style="margin-bottom:24px; background:var(--surface-2);">
+  
+  <div class="print-only-title" style="display:none; text-align:center; margin-bottom: 20px;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Evolução das Inspeções</h1>
+    <p style="color:var(--ink-soft); margin-top:8px;">${esc(state.evolucaoFiltroEmp)} | ${esc(state.evolucaoFiltroEst)}</p>
+  </div>
+
+  <div class="card card-pad no-print" style="margin-bottom:24px; background:var(--surface-2);">
     <div class="grid cols-2">
       <div class="field">
         <label class="field-label">Empreendimento</label>
@@ -2085,13 +2154,13 @@ function viewEvolucao() {
   </div>`;
 
   if(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) {
-    return html + `<div class="empty card"><div class="ic">📈</div>Utilize os filtros acima para visualizar a linha do tempo.</div>`;
+    return html + `<div class="empty card no-print"><div class="ic">📈</div>Utilize os filtros acima para visualizar a linha do tempo.</div>`;
   }
 
   const history = state.vistoriasIndex.filter(vi => vi.empreendimentoNome === state.evolucaoFiltroEmp && vi.estruturaNome === state.evolucaoFiltroEst)
     .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
 
-  if(history.length === 0) return html + `<div class="empty card">Nenhuma vistoria encontrada para esta combinação.</div>`;
+  if(history.length === 0) return html + `<div class="empty card no-print">Nenhuma vistoria encontrada para esta combinação.</div>`;
 
   html += `
   <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
@@ -2099,14 +2168,14 @@ function viewEvolucao() {
   </div>
   <div class="card table-wrapper">
     <table>
-      <thead><tr><th>Data da Inspeção</th><th>Responsável</th><th>Status (NCs)</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Data da Inspeção</th><th>Responsável</th><th>Status (NCs)</th><th class="no-print">Ação</th></tr></thead>
       <tbody>
         ${[...history].reverse().map(h => `
           <tr>
             <td style="font-weight:600;">${fmtDate(h.dataHora)}</td>
             <td>${esc(h.responsavel)}</td>
             <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} Não Conformidades</span>` : `<span class="badge conforme">100% Conforme</span>`}</td>
-            <td><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">🔍 Ver Relatório</button></td>
+            <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">🔍 Ver Relatório</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -2220,20 +2289,18 @@ async function iniciarApp() {
     await loadVistoriasNuvem();
   }
 
-  if(state.estruturas.length === 0) {
-    state.estruturas = DEFAULT_ESTRUTURAS;
-    await storageSet('estruturas', state.estruturas);
-    if(_supabase && navigator.onLine) {
-      for(let e of state.estruturas) {
-        await _supabase.from('estruturas').upsert({
-          id: e.id, 
-          nome: e.nome, 
-          setor: e.setor, 
-          itens: { setor: e.setor, list: e.itens }
-        });
+  // Garantir que novas estruturas padrão (ex: Planta Industrial) sejam injetadas se não existirem
+  let adicionouNova = false;
+  DEFAULT_ESTRUTURAS.forEach(def => {
+    if (!state.estruturas.some(e => e.nome === def.nome)) {
+      state.estruturas.push(def);
+      if (_supabase && navigator.onLine) {
+        _supabase.from('estruturas').upsert({ id: def.id, nome: def.nome, setor: def.setor, itens: { setor: def.setor, list: def.itens } });
       }
+      adicionouNova = true;
     }
-  }
+  });
+  if (adicionouNova) await storageSet('estruturas', state.estruturas);
   
   state.ready = true;
   render();
