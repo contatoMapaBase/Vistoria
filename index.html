@@ -187,7 +187,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 .modal-body{padding:24px;}
 .modal-foot{padding:16px 24px 24px;display:flex;justify-content:flex-end;gap:12px; background:var(--surface-2); border-top:1px solid var(--line);}
 
-/* CHECKLIST ITENS E EDITOR */
+/* CHECKLIST ITENS */
 .item-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden; box-shadow:var(--shadow);}
 .item-top{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
 .item-num{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--ink-faint);margin-bottom:6px;display:block;}
@@ -209,13 +209,6 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 }
 .photo-add:hover{border-color:var(--accent); color:var(--accent);}
 
-/* EDITOR DE ESTRUTURA ROW */
-.ed-item-row { padding:16px; display:flex; gap:12px; align-items:center; }
-.ed-arrows { display:flex; flex-direction:column; line-height:0.8; font-size:22px; color:var(--ink-faint); cursor:ns-resize; }
-.ed-inputs { display:flex; gap:12px; flex:1; }
-.ed-item-txt { flex:1; }
-.ed-item-cat { width:200px; }
-
 .rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
 @media(max-width:860px){
@@ -229,13 +222,6 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
   .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
-  
-  /* EDITOR RESPONSIVO */
-  .ed-item-row { flex-wrap:wrap; }
-  .ed-arrows { flex-direction:row; gap:16px; order:1; }
-  .ed-item-row > .danger { order:2; margin-left:auto; }
-  .ed-inputs { flex-direction:column; width:100%; order:3; margin-top:8px; }
-  .ed-item-cat { width:100%; }
 }
 
 @media print{
@@ -446,7 +432,7 @@ function aplicarFiltros(lista, prefix) {
 }
 
 /* ============================================================
-   BIBLIOTECA PADRÃO DE ESTRUTURAS (SEMENTE)
+   BIBLIOTECA PADRÃO DE ESTRUTURAS (ATUALIZADA E COMPLETA)
    ============================================================ */
 const DEFAULT_ESTRUTURAS = [
   { setor:'Geral', nome:'Balança', itens: mkItens([
@@ -466,39 +452,66 @@ const DEFAULT_ESTRUTURAS = [
   { setor:'Geral', nome:'Oficina Mecânica', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Há resíduos contaminantes (estopas, galões de óleo, bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?',cat:'Estrutural/Efluentes'},
-    {texto:'Há manchas de óleo no solo?',cat:'Estrutural/Efluentes'},
-    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
-    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
-    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural/Efluentes'},
-    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
-    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
-    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
+    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?',cat:'Estrutural / Efluentes'},
+    {texto:'Há manchas de óleo no solo?',cat:'Estrutural / Efluentes'},
+    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural / Efluentes'},
+    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural / Efluentes'},
+    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural / Efluentes'},
+    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
+    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
+    {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'}
   ])},
   { setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
-    {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento impermeabilizada?',cat:'Estrutural/Efluentes'},
-    {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural/Efluentes'},
-    {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural/Efluentes'},
-    {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural/Efluentes'},
-    {texto:'O sistema de drenagem oleosa da bacia está direcionando ao sistema adequado (CSAO)?',cat:'Estrutural/Efluentes'},
-    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural/Efluentes'},
+    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?',cat:'Estrutural / Efluentes'},
+    {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural / Efluentes'},
+    {texto:'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?',cat:'Estrutural / Efluentes'},
+    {texto:'A estrutura de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
+    {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural / Efluentes'},
+    {texto:'A altura da bacia de contenção é adequada ao volume do tanque?',cat:'Estrutural / Efluentes'},
+    {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural / Efluentes'},
+    {texto:'O sistema de drenagem oleosa da bacia está funcionando adequadamente?',cat:'Estrutural / Efluentes'},
+    {texto:'Há trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
+    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
+    {texto:'As canaletas estão íntegras e desobstruídas?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
+    {texto:'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?',cat:'Estrutural / Efluentes'},
+    {texto:'A estrutura da bomba de abastecimento está íntegra?',cat:'Estrutural / Efluentes'},
+    {texto:'O sump da bomba está seco, sem líquidos acumulados?',cat:'Estrutural / Efluentes'},
+    {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural / Efluentes'},
+    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural / Efluentes'}
   ])},
   { setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
-    {texto:'Há resíduos contaminantes fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
-    {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área impermeabilizada?',cat:'Estrutural/Efluentes'},
-    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
-    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
-    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
-    {texto:'O fosso/rampa de lavagem está desobstruído e sem trincas?',cat:'Estrutural/Efluentes'},
+    {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
+    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área?',cat:'Estrutural / Efluentes'},
+    {texto:'Há manchas de óleo no solo?',cat:'Estrutural / Efluentes'},
+    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural / Efluentes'},
+    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural / Efluentes'},
+    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural / Efluentes'},
+    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
+    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
+    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
+    {texto:'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
+    {texto:'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?',cat:'Estrutural / Efluentes'}
   ])},
   { setor:'Geral', nome:'Almoxarifado', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
@@ -823,7 +836,6 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
-      
       let critMax = null;
       const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
       v.itens.forEach(i => {
@@ -1041,7 +1053,7 @@ window.excluirEmpreendimento = async function(id) {
 }
 
 /* ============================================================
-   TELAS: ESTRUTURAS (SEPARADAS POR SETOR, SEM EMOJIS NOS CARDS)
+   TELAS: ESTRUTURAS (SEPARADAS POR SETOR, LIMPAS E SEM EMOJIS NOS CARDS)
    ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
@@ -1131,24 +1143,27 @@ window.excluirEstrutura = async function(id) {
   }
 }
 
+/* ============================================================
+   EDITOR DE ESTRUTURAS (NOVO LAYOUT REFORMULADO E CONFORTÁVEL)
+   ============================================================ */
 function viewEditorEstrutura() {
   const est = state.estruturaEditando;
   return `
   <div class="view-head no-print">
-    <div><div class="eyebrow">Edição</div><h1 class="view-title">Montar Checklist</h1></div>
+    <div><div class="eyebrow">Edição</div><h1 class="view-title">Montar Checklist: ${esc(est.nome)}</h1></div>
     <div class="rowflex">
       <button class="btn ghost" onclick="state.estruturaEditando=null; render();">Cancelar</button>
       <button class="btn primary" id="btn-save-est">💾 Salvar Estrutura</button>
     </div>
   </div>
-  <div class="card card-pad" style="margin-bottom:20px;">
+  <div class="card card-pad" style="margin-bottom:24px;">
     <div class="grid cols-2">
       <div class="field">
         <label class="field-label">Nome da Estrutura</label>
         <input type="text" id="ed-est-nome" value="${esc(est.nome)}">
       </div>
       <div class="field">
-        <label class="field-label">Setor</label>
+        <label class="field-label">Setor / Categoria Principal</label>
         <select id="ed-est-setor">
           <option value="Geral" ${est.setor==='Geral'?'selected':''}>Geral (Misto)</option>
           <option value="Mineração" ${est.setor==='Mineração'?'selected':''}>Mineração</option>
@@ -1157,22 +1172,32 @@ function viewEditorEstrutura() {
       </div>
     </div>
     <div class="rowflex" style="margin-top:10px;">
-      <button class="btn ghost sm" id="btn-ed-add-item">+ Adicionar 1 Item</button>
+      <button class="btn primary sm" id="btn-ed-add-item">+ Adicionar 1 Item</button>
       <button class="btn ghost sm" id="btn-ed-bulk-paste">📋 Colar em Bloco (1 por linha)</button>
     </div>
   </div>
 
   <div id="ed-est-itens-list">
     ${est.itens.map((it, i) => `
-      <div class="item-card ed-item-row">
-        <div class="ed-arrows">
-          <span onclick="moverItemEst(${i}, -1)">▲</span><span onclick="moverItemEst(${i}, 1)">▼</span>
+      <div class="card card-pad" style="margin-bottom:16px; border:1px solid var(--line); background:var(--surface);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--surface-2);">
+          <span class="badge na" style="font-size:12px;">Item #${i+1}</span>
+          <div class="rowflex" style="gap:6px;">
+            <button class="btn ghost sm" onclick="moverItemEst(${i}, -1)" title="Mover para cima">▲ Subir</button>
+            <button class="btn ghost sm" onclick="moverItemEst(${i}, 1)" title="Mover para baixo">▼ Descer</button>
+            <button class="btn ghost sm danger" onclick="removerItemEst(${i})" title="Remover item">✕ Excluir</button>
+          </div>
         </div>
-        <div class="ed-inputs">
-          <input type="text" class="ed-item-txt" data-idx="${i}" value="${esc(it.texto)}" placeholder="Texto da pergunta...">
-          <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria||'')}" placeholder="Categoria (Opcional)">
+        <div class="grid cols-2" style="gap:16px;">
+          <div style="grid-column: 1 / -1;">
+            <label class="field-label">Pergunta / Item a ser Inspecionado</label>
+            <textarea class="ed-item-txt" data-idx="${i}" style="width:100%; min-height:64px; font-size:14px; font-family:inherit; padding:10px; border:1px solid var(--line); border-radius:8px;" placeholder="Digite o texto da pergunta...">${esc(it.texto)}</textarea>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label class="field-label">Categoria / Tipologia (Ex: Segurança, Gerenciamento de Resíduos...)</label>
+            <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria||'')}" placeholder="Digite a categoria...">
+          </div>
         </div>
-        <button class="btn ghost sm danger" onclick="removerItemEst(${i})">✕</button>
       </div>
     `).join('')}
   </div>`;
@@ -1214,7 +1239,7 @@ function bindEditorEstrutura() {
     if(_supabase && navigator.onLine) await _supabase.from('estruturas').upsert({id: est.id, nome: est.nome, itens: {setor: est.setor, list: est.itens}});
     
     state.estruturaEditando = null;
-    render(); showToast('Estrutura salva!');
+    render(); showToast('Estrutura salva com sucesso!');
   });
 }
 
@@ -1330,7 +1355,7 @@ function viewNovaVistoria() {
           </div>
           
           <div style="margin-top:10px;">
-            <label class="field-label">Evidências Fotográficas</label>
+            <label class="field-label">Evidências Fotográficas (fotos com coordenadas - timestamp)</label>
             <div class="photo-row" id="photos-${it.id}">
               ${resp.fotos.map((f, pIdx) => `
                 <div class="photo-thumb">
@@ -1339,7 +1364,7 @@ function viewNovaVistoria() {
                 </div>
               `).join('')}
               <label class="photo-add">
-                +<input type="file" accept="image/*" capture="environment" style="display:none;" onchange="addFoto(event, '${it.id}')">
+                +<input type="file" accept="image/*" style="display:none;" onchange="addFoto(event, '${it.id}')">
               </label>
             </div>
           </div>
