@@ -188,7 +188,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 .modal-body{padding:24px;}
 .modal-foot{padding:16px 24px 24px;display:flex;justify-content:flex-end;gap:12px; background:var(--surface-2); border-top:1px solid var(--line);}
 
-/* CHECKLIST ITENS */
+/* CHECKLIST ITENS E EDITOR */
 .item-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden; box-shadow:var(--shadow);}
 .item-top{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
 .item-num{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--ink-faint);margin-bottom:6px;display:block;}
@@ -230,6 +230,13 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
   .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
+  
+  /* EDITOR RESPONSIVO */
+  .ed-item-row { flex-wrap:wrap; }
+  .ed-arrows { flex-direction:row; gap:16px; order:1; }
+  .ed-item-row > .danger { order:2; margin-left:auto; }
+  .ed-inputs { flex-direction:column; width:100%; order:3; margin-top:8px; }
+  .ed-item-cat { width:100%; }
 }
 
 @media print{
@@ -296,6 +303,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+// IndexedDB Blindado
 const idb = {
   db: null,
   async init() {
@@ -308,28 +316,38 @@ const idb = {
     });
   },
   async get(key) {
-    await this.init();
-    return new Promise((resolve) => {
-      const req = this.db.transaction('store', 'readonly').objectStore('store').get(key);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    });
+    try {
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction('store', 'readonly');
+        const req = tx.objectStore('store').get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = e => reject(e);
+      });
+    } catch(e) { return null; }
   },
   async set(key, val) {
-    await this.init();
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('store', 'readwrite');
-      tx.objectStore('store').put(val, key);
-      tx.oncomplete = () => resolve(true);
-    });
+    try {
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction('store', 'readwrite');
+        tx.objectStore('store').put(val, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = e => reject(e);
+        tx.onabort = e => reject(e);
+      });
+    } catch(e) { return false; }
   },
   async remove(key) {
-    await this.init();
-    return new Promise((resolve) => {
-      const tx = this.db.transaction('store', 'readwrite');
-      tx.objectStore('store').delete(key);
-      tx.oncomplete = () => resolve(true);
-    });
+    try {
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const tx = this.db.transaction('store', 'readwrite');
+        tx.objectStore('store').delete(key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = e => reject(e);
+      });
+    } catch(e) { return false; }
   }
 };
 
@@ -986,21 +1004,43 @@ async function loadVistoriasNuvem(){
   }
 }
 
-async function loadVistoria(id){ 
-  let v = await storageGet('vistoria:'+id); 
-  if(v) return v;
-  if(_supabase && navigator.onLine){
-    try{
-      const { data } = await _supabase.from('vistorias').select('*').eq('id', id).single();
-      if(data) {
+async function loadVistoria(id) { 
+  try {
+    let v = await storageGet('vistoria:'+id); 
+    
+    // Ignora o cache local se ele estiver pela metade/corrompido e força o download da nuvem
+    if (v && Array.isArray(v.itens) && v.itens.length > 0) {
+      return v; 
+    }
+    
+    if (_supabase && navigator.onLine) {
+      const { data, error } = await _supabase.from('vistorias').select('*').eq('id', id).single();
+      
+      if (error) throw new Error(error.message);
+      
+      if (data) {
+        // Garante a conversão correta dos dados
+        let itensParsed = typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens;
+        let gpsParsed = typeof data.gps === 'string' ? JSON.parse(data.gps) : data.gps;
+        
         v = {
-          id: data.id, empreendimentoNome: data.empreendimento_nome, estruturaNome: data.estrutura_nome,
-          responsavel: data.responsavel, dataHora: data.data_hora, gps: data.gps, itens: data.itens, syncStatus: 'synced'
+          id: data.id, 
+          empreendimentoNome: data.empreendimento_nome, 
+          estruturaNome: data.estrutura_nome,
+          responsavel: data.responsavel, 
+          dataHora: data.data_hora, 
+          gps: gpsParsed, 
+          itens: Array.isArray(itensParsed) ? itensParsed : [], 
+          syncStatus: 'synced'
         };
         await storageSet('vistoria:'+id, v);
         return v;
       }
-    }catch(e){}
+    } else if (!v) {
+      alert("Você está offline e este relatório não está salvo na memória deste aparelho.");
+    }
+  } catch(e) {
+    alert("Falha de conexão ao baixar a vistoria: " + e.message);
   }
   return null;
 }
@@ -2124,8 +2164,19 @@ function viewVistorias() {
 function bindVistorias() { bindFilterBar('hist'); }
 
 window.abrirVistoria = async function(id) {
-  const v = await storageGet('vistoria:'+id);
-  if (v) { state.vistoriaAberta = v; setView('vistoria-detalhe'); }
+  try {
+    showToast('Baixando relatório da nuvem...'); 
+    const v = await loadVistoria(id);
+    
+    if (v && v.itens && v.itens.length > 0) { 
+      state.vistoriaAberta = v; 
+      setView('vistoria-detalhe'); 
+    } else if (v) {
+      alert('O relatório foi baixado, mas a lista de perguntas (checklist) está corrompida.');
+    }
+  } catch (e) {
+    alert('Erro fatal ao abrir tela: ' + e.message);
+  }
 }
 
 window.removerItemHistorico = async function(vistId, itemId) {
@@ -2240,17 +2291,33 @@ window.deletarVistoriaAtual = async function() {
 }
 
 window.editarVistoriaAtual = function() {
-  const v = state.vistoriaAberta;
-  const respostas = {};
-  v.itens.forEach(it => {
-    respostas[it.id] = { status: it.status, observacao: it.observacao||'', criticidade: it.criticidade||'media', recomendacao: it.recomendacao||'', fotos: it.fotos||[] };
-  });
-  state.novaVistoria = {
-    id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
-    resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
-    itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
-  };
-  setView('nova');
+  try {
+    const v = state.vistoriaAberta;
+    if(!v || !v.itens) {
+      alert('Erro: Os dados dessa vistoria estão corrompidos ou incompletos no seu aparelho.');
+      return;
+    }
+    
+    const respostas = {};
+    v.itens.forEach(it => {
+      respostas[it.id] = { 
+        status: it.status || '', 
+        observacao: it.observacao || '', 
+        criticidade: it.criticidade || 'media', 
+        recomendacao: it.recomendacao || '', 
+        fotos: it.fotos || [] 
+      };
+    });
+    
+    state.novaVistoria = {
+      id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
+      resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
+      itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
+    };
+    setView('nova');
+  } catch (e) {
+    alert('Erro na abertura do painel de edição: ' + e.message);
+  }
 }
 
 window.gerarPdfUnico = async function(id) {
@@ -2477,7 +2544,7 @@ async function iniciarApp() {
   // Garantir que novas estruturas padrão (ex: Planta Industrial) sejam injetadas se não existirem
   let adicionouNova = false;
   DEFAULT_ESTRUTURAS.forEach(def => {
-    if (!state.estruturas.some(e => e.nome === def.nome)) {
+    if (!state.estruturas.some(e => e.nome === def.nome || e.id === def.id)) {
       state.estruturas.push(def);
       if (_supabase && navigator.onLine) {
         _supabase.from('estruturas').upsert({ id: def.id, nome: def.nome, setor: def.setor, itens: { setor: def.setor, list: def.itens } });
