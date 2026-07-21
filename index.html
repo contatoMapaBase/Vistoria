@@ -296,8 +296,8 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 /* ============================================================
    CONFIGURAÇÃO DO BANCO DE DADOS SUPABASE E INDEXEDDB
    ============================================================ */
-const SUPABASE_URL = 'https://luvxmuhtemyloljnqgif.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1dnhtdWh0ZW15bG9sam5xZ2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NTE1MzcsImV4cCI6MjEwMDEyNzUzN30.inJ4fIL8ayPeg57snqeMRjFFwbSB1tZrCWQh0ytjXLA';
+const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
@@ -1041,7 +1041,7 @@ window.excluirEmpreendimento = async function(id) {
 }
 
 /* ============================================================
-   TELAS: ESTRUTURAS (SEPARADAS POR SETOR)
+   TELAS: ESTRUTURAS (SEPARADAS POR SETOR, SEM EMOJIS NOS CARDS)
    ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
