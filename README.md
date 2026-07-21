@@ -1,2 +1,2 @@
-# Check-List-Vistorias
+# Vistorias
 Aplicativo de Vistoria
