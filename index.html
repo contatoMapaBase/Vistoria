@@ -343,6 +343,13 @@ function fmtDate(iso) {
   return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
 }
 
+function toDatetimeLocalValue(isoOrDateStr) {
+  const d = isoOrDateStr ? new Date(isoOrDateStr) : new Date();
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function criticidadeLabel(val) {
   const map = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
   return map[val] || val;
@@ -697,6 +704,15 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?',cat:'Tratamento Prévio'},
     {texto:'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?',cat:'Armazenamento'},
     {texto:'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?',cat:'Documentação'},
+  ])},
+  { setor:'Indústrias', nome:'Planta Industrial', itens: mkItens([
+    {texto:'Os resíduos sólidos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
+    {texto:'Os tornos mecânicos, prensas e máquinas apresentam vazamentos de óleo ou escoamento de efluentes oleosos?',cat:'Estrutural / Efluentes'},
+    {texto:'Os colaboradores e operadores estão utilizando todos os EPIs obrigatórios para a atividade?',cat:'Segurança do Trabalho'},
+    {texto:'Há sinalização adequada de segurança, placas informativas e rotas de fuga desobstruídas?',cat:'Segurança / Sinalização'},
+    {texto:'Os banheiros, vestiários e refeitórios estão limpos, organizados e em boas condições sanitárias?',cat:'Instalações Sanitárias'},
+    {texto:'Produtos químicos e solventes industriais possuem FISPQ/FDS e estão armazenados sobre bacia de contenção?',cat:'Segurança Química'},
+    {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ].map(e=>({ id:uid(), setor:e.setor, nome:e.nome, itens:e.itens }));
   /* ============================================================
@@ -784,7 +800,6 @@ async function syncGlobalNuvem(){
         let listItens = [];
         let setorVal = d.setor;
 
-        // Se o banco trouxer setor nulo ou 'Geral' incorreto para uma estrutura padronizada, corrige pelo nome
         const defRef = DEFAULT_ESTRUTURAS.find(x => x.nome === d.nome);
         if (defRef && (!setorVal || (setorVal === 'Geral' && defRef.setor !== 'Geral'))) {
           setorVal = defRef.setor;
@@ -861,7 +876,6 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
-      
       let critMax = null;
       const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
       v.itens.forEach(i => {
@@ -960,7 +974,7 @@ function viewEmpreendimentos() {
     </div>
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
-  ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenum empreendimento cadastrado.</div>' : `
+  ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenhum empreendimento cadastrado.</div>' : `
   <div class="grid cols-2">
     ${state.empreendimentos.map((e) => {
       const visual = getSetorVisual(e.tipo);
@@ -1311,15 +1325,28 @@ window.removerItemEst = function(idx) {
 }
 
 /* ============================================================
-   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO)
+   TELA: NOVA VISTORIA (SELEÇÃO INTELIGENTE DE ESTRUTURAS)
    ============================================================ */
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
-    state.novaVistoria = { step: 1, emp: '', est: '', resp: '', gps: null, itens: [], respostas: {} };
+    state.novaVistoria = { step: 1, emp: '', est: '', resp: '', dataHora: new Date().toISOString(), gps: null, itens: [], respostas: {}, mostrarTodasEstruturas: false };
   }
   const nv = state.novaVistoria;
 
   if (nv.step === 1) {
+    const dataHoraVal = toDatetimeLocalValue(nv.dataHora);
+    const empObj = state.empreendimentos.find(e => e.nome === nv.emp);
+
+    let estruturasExibidas = state.estruturas;
+    let possuiVinculo = false;
+
+    if (empObj && empObj.estruturas && empObj.estruturas.length > 0) {
+      possuiVinculo = true;
+      if (!nv.mostrarTodasEstruturas) {
+        estruturasExibidas = state.estruturas.filter(s => empObj.estruturas.includes(s.id) || empObj.estruturas.includes(s.nome));
+      }
+    }
+
     return `
     <div class="view-head">
       <div><div class="eyebrow">Nova Inspeção</div><h1 class="view-title">Iniciar Vistoria</h1></div>
@@ -1333,11 +1360,24 @@ function viewNovaVistoria() {
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Estrutura Alvo</label>
-        <select id="nv-est">
-          <option value="">-- Selecione --</option>
-          ${state.estruturas.map(e => `<option value="${e.nome}" ${nv.est===e.nome?'selected':''}>${esc(e.nome)}</option>`).join('')}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label class="field-label" style="margin-bottom:0;">Estrutura Alvo</label>
+          ${possuiVinculo ? `
+            <button type="button" class="btn ghost sm" id="btn-toggle-todas-est" style="font-size:11.5px; padding:2px 8px; border:1px solid var(--line);">
+              ${nv.mostrarTodasEstruturas ? '🔒 Ver Apenas Vinculadas' : '🌐 Outras Estruturas'}
+            </button>
+          ` : ''}
+        </div>
+        <select id="nv-est" ${!nv.emp ? 'disabled' : ''}>
+          <option value="">${nv.emp ? '-- Selecione a Estrutura --' : '-- Primeiro selecione o Empreendimento --'}</option>
+          ${estruturasExibidas.map(e => `<option value="${e.nome}" ${nv.est===e.nome?'selected':''}>${esc(e.nome)}</option>`).join('')}
         </select>
+        ${possuiVinculo && !nv.mostrarTodasEstruturas ? `<div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Exibindo apenas a(s) ${estruturasExibidas.length} estrutura(s) vinculada(s) a este empreendimento.</div>` : ''}
+        ${possuiVinculo && nv.mostrarTodasEstruturas ? `<div class="hint" style="font-size:12px; color:var(--alta); margin-top:4px;">Exibindo toda a biblioteca de estruturas.</div>` : ''}
+      </div>
+      <div class="field">
+        <label class="field-label">Data e Hora da Vistoria</label>
+        <input type="datetime-local" id="nv-data-hora" value="${dataHoraVal}">
       </div>
       <div class="field">
         <label class="field-label">Nome do Responsável/Inspetor</label>
@@ -1361,7 +1401,7 @@ function viewNovaVistoria() {
       <button class="btn ghost" id="btn-nv-back">← Resumo</button>
     </div>
     <div class="card card-pad no-print" style="margin-bottom: 24px; background:var(--surface-2);">
-      <strong>Local:</strong> ${esc(nv.emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(nv.est)}
+      <strong>Local:</strong> ${esc(nv.emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(nv.est)} &nbsp;|&nbsp; <strong>Data:</strong> ${fmtDate(nv.dataHora)}
     </div>
     ${nv.itens.map((it, i) => {
       const resp = nv.respostas[it.id] || { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
@@ -1441,6 +1481,17 @@ function bindNovaVistoria() {
   const nv = state.novaVistoria;
   
   if (nv && nv.step === 1) {
+    document.getElementById('nv-emp')?.addEventListener('change', (e) => {
+      nv.emp = e.target.value;
+      nv.est = '';
+      render();
+    });
+
+    document.getElementById('btn-toggle-todas-est')?.addEventListener('click', () => {
+      nv.mostrarTodasEstruturas = !nv.mostrarTodasEstruturas;
+      render();
+    });
+
     document.getElementById('btn-gps')?.addEventListener('click', () => {
       document.getElementById('gps-status').textContent = 'Buscando satélites...';
       navigator.geolocation.getCurrentPosition(
@@ -1457,9 +1508,12 @@ function bindNovaVistoria() {
       nv.emp = document.getElementById('nv-emp').value;
       nv.est = document.getElementById('nv-est').value;
       nv.resp = document.getElementById('nv-resp').value;
+      const dataHoraInput = document.getElementById('nv-data-hora').value;
       
-      if (!nv.emp || !nv.est || !nv.resp) return showToast('Preencha os campos obrigatórios!');
+      if (!nv.emp || !nv.est || !nv.resp || !dataHoraInput) return showToast('Preencha todos os campos obrigatórios!');
       
+      nv.dataHora = new Date(dataHoraInput).toISOString();
+
       if(nv.itens.length === 0) {
         const estruturaRef = state.estruturas.find(e => e.nome === nv.est);
         nv.itens = estruturaRef ? JSON.parse(JSON.stringify(estruturaRef.itens)) : [];
@@ -1526,7 +1580,7 @@ function bindNovaVistoria() {
         empreendimentoNome: nv.emp,
         estruturaNome: nv.est,
         responsavel: nv.resp,
-        dataHora: isEdit ? nv.dataHora : new Date().toISOString(),
+        dataHora: nv.dataHora,
         gps: nv.gps,
         itens: finalItens
       };
