@@ -188,7 +188,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 .modal-body{padding:24px;}
 .modal-foot{padding:16px 24px 24px;display:flex;justify-content:flex-end;gap:12px; background:var(--surface-2); border-top:1px solid var(--line);}
 
-/* CHECKLIST ITENS */
+/* CHECKLIST ITENS E EDITOR */
 .item-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden; box-shadow:var(--shadow);}
 .item-top{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
 .item-num{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--ink-faint);margin-bottom:6px;display:block;}
@@ -210,6 +210,13 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 }
 .photo-add:hover{border-color:var(--accent); color:var(--accent);}
 
+/* EDITOR DE ESTRUTURA ROW */
+.ed-item-row { padding:16px; display:flex; gap:12px; align-items:center; }
+.ed-arrows { display:flex; flex-direction:column; line-height:0.8; font-size:22px; color:var(--ink-faint); cursor:ns-resize; }
+.ed-inputs { display:flex; gap:12px; flex:1; }
+.ed-item-txt { flex:1; }
+.ed-item-cat { width:200px; }
+
 .rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
 @media(max-width:860px){
@@ -223,6 +230,13 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
   .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
+  
+  /* EDITOR RESPONSIVO */
+  .ed-item-row { flex-wrap:wrap; }
+  .ed-arrows { flex-direction:row; gap:16px; order:1; }
+  .ed-item-row > .danger { order:2; margin-left:auto; }
+  .ed-inputs { flex-direction:column; width:100%; order:3; margin-top:8px; }
+  .ed-item-cat { width:100%; }
 }
 
 @media print{
@@ -386,6 +400,73 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
+// Comprime a foto no navegador antes de salvar (Resolve o crash de Base64)
+function fileToCompressedDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = event => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200; // Resolução suficiente para laudos ambientais
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Retorna JPEG com 60% de qualidade para aliviar o banco
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = e => reject(e);
+    };
+    reader.onerror = e => reject(e);
+  });
+}
+
+// Centraliza o cálculo matemático das Não Conformidades (DRY)
+function analisarCriticidade(itens) {
+  let critMax = null;
+  const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
+  const peso = { critica: 4, alta: 3, media: 2, baixa: 1 };
+  
+  (itens || []).forEach(i => {
+    if (i.status === 'nc' && i.criticidade) {
+      counts[i.criticidade]++;
+      const val = peso[i.criticidade];
+      const maxVal = peso[critMax] || 0;
+      if (val > maxVal) critMax = i.criticidade;
+    }
+  });
+  return { critMax, counts };
+}
+
+// Listeners de Conexão e Autenticação (Auto-Sync)
+window.addEventListener('online', () => {
+  const statusEl = document.getElementById('status-sync');
+  if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
+  
+  const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
+  if (pendentes.length > 0 && state.ready) {
+    showToast('Conexão restabelecida. Sincronizando dados...');
+    sincronizarPendentes();
+  }
+});
+
+window.addEventListener('offline', () => {
+  const statusEl = document.getElementById('status-sync');
+  if(statusEl) statusEl.textContent = '🔴 Offline (Local)';
+});
+
+if (_supabase) {
+  _supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || !session) {
+      document.getElementById('login-screen').style.display = 'flex';
+    }
+  });
+}
+
 function renderFilterBar(prefix) {
   const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
   const mesesSet = new Set();
@@ -442,24 +523,24 @@ function aplicarFiltros(lista, prefix) {
 }
 
 /* ============================================================
-   BIBLIOTECA PADRÃO DE ESTRUTURAS (OFICIAIS MAPABASE)
+   BIBLIOTECA PADRÃO DE ESTRUTURAS (IDs Fixos)
    ============================================================ */
 const DEFAULT_ESTRUTURAS = [
-  { setor:'Geral', nome:'Balança', itens: mkItens([
+  { id: 'est-geral-balanca', setor:'Geral', nome:'Balança', itens: mkItens([
     {texto:'A plataforma e o fosso da balança estão limpos, sem acúmulo de terra, água ou resíduos?',cat:'Manutenção/Limpeza'},
     {texto:'O sistema de drenagem de águas pluviais do fosso da balança está desobstruído e funcional?',cat:'Drenagem'},
     {texto:'Há sinalização adequada de trânsito, limites de velocidade e parada?',cat:'Segurança'},
     {texto:'Os sensores, cabos e a estrutura apresentam danos físicos aparentes?',cat:'Integridade'},
     {texto:'Existem manchas de óleo ou derramamento de cargas na pista de acesso?',cat:'Limpeza/Vazamentos'},
   ])},
-  { setor:'Geral', nome:'Fossas Sépticas e Sumidouros', itens: mkItens([
+  { id: 'est-geral-fossa', setor:'Geral', nome:'Fossas Sépticas e Sumidouros', itens: mkItens([
     {texto:'As tampas de inspeção estão íntegras, bem vedadas e niveladas com o solo?',cat:'Integridade'},
     {texto:'Existem sinais de transbordamento, vazamento ou afloramento de efluente no solo ao redor?',cat:'Operação'},
     {texto:'Há odores excessivos ou anormais na área próxima ao sistema?',cat:'Odores'},
     {texto:'O sistema está localizado a uma distância segura de poços artesianos e cursos d\'água?',cat:'Locação/APP'},
     {texto:'Existem registros recentes (manifestos/recibos) de limpeza por caminhão limpa-fossa licenciado?',cat:'Manutenção/Documentação'},
   ])},
-  { setor:'Geral', nome:'Oficina Mecânica', itens: mkItens([
+  { id: 'est-geral-oficina', setor:'Geral', nome:'Oficina Mecânica', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
@@ -479,7 +560,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
     {texto:'Fichas de Dados de Segurança (FISPQ/FDS) de produtos químicos/lubrificantes estão disponíveis no setor?',cat:'Documentação / Segurança'}
   ])},
-  { setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
+  { id: 'est-geral-abastecimento', setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
@@ -506,7 +587,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existe kit de emergência ambiental para contenção de derramamentos (barreiras/absorventes) completo e disponível?',cat:'Segurança Ambiental'},
     {texto:'O aterramento elétrico das bombas e do tanque está instalado e em perfeitas condições?',cat:'Segurança'}
   ])},
-  { setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
+  { id: 'est-geral-lavador', setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
@@ -527,53 +608,53 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?',cat:'Estrutural / Efluentes'},
     {texto:'Existe sistema de reuso/recirculação de água de lavagem em operação normal?',cat:'Uso de Recursos Hídricos'}
   ])},
-  { setor:'Geral', nome:'Almoxarifado', itens: mkItens([
+  { id: 'est-geral-almoxarifado', setor:'Geral', nome:'Almoxarifado', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Os produtos químicos/inflamáveis estão armazenados em local segregado e ventilado?',cat:'Segurança Química'},
     {texto:'Há fichas de segurança (FISPQ/FDS) disponíveis para os produtos armazenados?',cat:'Documentação'},
     {texto:'Os produtos estão dispostos sobre estrados/pallets, sem contato direto com o piso?',cat:'Armazenamento'},
     {texto:'Existem vazamentos ou embalagens danificadas?',cat:'Controle de Vazamentos'},
   ])},
-  { setor:'Geral', nome:'Área Administrativa', itens: mkItens([
+  { id: 'est-geral-admin', setor:'Geral', nome:'Área Administrativa', itens: mkItens([
     {texto:'Há sinalização de emergência e rotas de fuga desobstruídas?',cat:'Segurança'},
     {texto:'Os extintores estão dentro da validade e devidamente sinalizados?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (coleta seletiva)?',cat:'Resíduos'},
     {texto:'Há vazamentos ou infiltrações visíveis nas instalações hidráulicas?',cat:'Estrutural'},
   ])},
-  { setor:'Geral', nome:'ETE - Estação de Tratamento de Esgoto', itens: mkItens([
+  { id: 'est-geral-ete', setor:'Geral', nome:'ETE - Estação de Tratamento de Esgoto', itens: mkItens([
     {texto:'Há sinalização adequada e restrição de acesso a pessoas não autorizadas?',cat:'Segurança'},
     {texto:'O sistema de tratamento está em funcionamento normal (sem odores excessivos ou transbordamento)?',cat:'Operação'},
     {texto:'Há descarte de efluente fora do padrão visual esperado (cor, espuma, odor)?',cat:'Qualidade de Efluente'},
     {texto:'Existem vazamentos nas tubulações, tanques ou reatores?',cat:'Integridade'},
     {texto:'O lodo gerado está sendo removido e destinado corretamente?',cat:'Resíduos'},
   ])},
-  { setor:'Geral', nome:'ETA - Estação de Tratamento de Água', itens: mkItens([
+  { id: 'est-geral-eta', setor:'Geral', nome:'ETA - Estação de Tratamento de Água', itens: mkItens([
     {texto:'Há sinalização adequada e restrição de acesso?',cat:'Segurança'},
     {texto:'Os produtos químicos de tratamento (cloro, coagulantes) estão armazenados corretamente?',cat:'Segurança Química'},
     {texto:'O sistema de filtração/tratamento está operando normalmente dentro da capacidade?',cat:'Operação'},
     {texto:'Existem vazamentos nas tubulações ou tanques de produto?',cat:'Integridade'},
   ])},
-  { setor:'Geral', nome:'Depósito de Resíduos Sólidos', itens: mkItens([
+  { id: 'est-geral-residuos', setor:'Geral', nome:'Depósito de Resíduos Sólidos', itens: mkItens([
     {texto:'Os resíduos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',cat:'Segregação'},
     {texto:'Há recipientes identificados, com tampa e em número suficiente?',cat:'Recipientes'},
     {texto:'Os resíduos perigosos estão protegidos de chuva e sol com piso impermeável?',cat:'Contenção'},
     {texto:'Existem resíduos em contato direto com o solo exposto?',cat:'Proteção do Solo'},
     {texto:'A capacidade máxima de armazenamento temporário está sendo respeitada?',cat:'Capacidade'},
   ])},
-  { setor:'Geral', nome:'Galpão de Máquinas e Equipamentos', itens: mkItens([
+  { id: 'est-geral-galpao', setor:'Geral', nome:'Galpão de Máquinas e Equipamentos', itens: mkItens([
     {texto:'Há extintores e sinalização de segurança adequados?',cat:'Segurança'},
     {texto:'Há manchas de óleo ou graxa no piso do galpão?',cat:'Limpeza/Efluentes'},
     {texto:'Existem vazamentos visíveis em máquinas ou equipamentos estacionados?',cat:'Manutenção'},
     {texto:'O piso apresenta trincas ou falhas de impermeabilização?',cat:'Estrutural'},
   ])},
-  { setor:'Geral', nome:'Estradas Internas e Vias', itens: mkItens([
+  { id: 'est-geral-estradas', setor:'Geral', nome:'Estradas Internas e Vias', itens: mkItens([
     {texto:'Está ocorrendo a umectação/molhamento periódico das vias para controle de poeira?',cat:'Qualidade do Ar'},
     {texto:'Foi identificado algum processo erosivo nas vias, canaletas laterais ou taludes?',cat:'Erosão'},
     {texto:'O sistema de drenagem lateral (valetas, bacias de sedimentação) está desobstruído?',cat:'Drenagem'},
     {texto:'Há sinalização adequada de velocidade e tráfego de veículos pesados?',cat:'Segurança'},
     {texto:'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?',cat:'Manutenção'},
   ])},
-  { setor:'Geral', nome:'Barragem de Recurso Hídrico', itens: mkItens([
+  { id: 'est-geral-barragem', setor:'Geral', nome:'Barragem de Recurso Hídrico', itens: mkItens([
     {texto:'A barragem possui sinalização, controle de acesso e cercamento em boas condições?', cat:'Segurança'},
     {texto:'Há processos erosivos, ravinamentos ou voçorocas nos taludes de montante, jusante ou ombreiras?', cat:'Estabilidade dos Taludes'},
     {texto:'Existem trincas, recalques, afundamentos, escorregamentos ou deformações no maciço?', cat:'Estabilidade dos Taludes'},
@@ -596,7 +677,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há indícios de mortandade de peixes ou fauna aquática?', cat:'Qualidade Ambiental'},
     {texto:'O entorno da barragem encontra-se limpo, sem resíduos ou materiais que possam comprometer a operação?', cat:'Manutenção'}
   ])},
-  { setor:'Mineração', nome:'Lavra', itens: mkItens([
+  { id: 'est-mina-lavra', setor:'Mineração', nome:'Lavra', itens: mkItens([
     {texto:'Há sinalização adequada de área operacional, desmonte e limites de bancada?',cat:'Sinalização'},
     {texto:'Foi identificado processo erosivo nos taludes de lavra ou praças de trabalho?',cat:'Erosão/Estabilidade'},
     {texto:'Está ocorrendo o molhamento constante das vias de lavra para controle de poeira?',cat:'Qualidade do Ar'},
@@ -606,7 +687,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O sistema de bombeamento e drenagem pluvial da cova está funcionando?',cat:'Drenagem'},
     {texto:'Há afloramento do lençol freático com necessidade de bombeamento monitorado?',cat:'Recursos Hídricos'},
   ])},
-  { setor:'Mineração', nome:'Beneficiamento', itens: mkItens([
+  { id: 'est-mina-beneficiamento', setor:'Mineração', nome:'Beneficiamento', itens: mkItens([
     {texto:'Há extintores e sinalização de segurança em todos os níveis do beneficiamento?',cat:'Segurança'},
     {texto:'Está ocorrendo aspersão de água/supressão de poeira nos britadores e correias?',cat:'Qualidade do Ar'},
     {texto:'Os resíduos de processo (rejeito úmido/seco) são direcionados para local licenciado?',cat:'Rejeitos'},
@@ -614,13 +695,13 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?',cat:'Contenção'},
     {texto:'As fossas e caixas de decantação do setor estão limpas e operacionais?',cat:'Efluentes'},
   ])},
-  { setor:'Mineração', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
+  { id: 'est-mina-pilha', setor:'Mineração', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
     {texto:'Há sinalização adequada nos acessos e praças de descarga?',cat:'Segurança'},
     {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
     {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
     {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
   ])},
-  { setor:'Agro', nome:'Fábrica de Rações', itens: mkItens([
+  { id: 'est-agro-racoes', setor:'Agro', nome:'Fábrica de Rações', itens: mkItens([
     {texto:'O sistema de captação de pó/exaustão está em pleno funcionamento e limpo?',cat:'Controle de Pó/Explosão'},
     {texto:'Há acúmulo excessivo de poeira orgânica em pisos, vigas ou painéis elétricos?',cat:'Limpeza/Risco Incêndio'},
     {texto:'Os insumos (vitaminas, minerais, medicamentos) estão armazenados corretamente, sobre estrados?',cat:'Armazenamento'},
@@ -628,21 +709,21 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'A caldeira (se houver) possui exaustão adequada, sem vazamentos de vapor?',cat:'Equipamentos/Vapor'},
     {texto:'Os resíduos de varrição e descarte (sacarias, pó) são destinados adequadamente?',cat:'Resíduos'},
   ])},
-  { setor:'Agro', nome:'Fertirrigação', itens: mkItens([
+  { id: 'est-agro-fertirrigacao', setor:'Agro', nome:'Fertirrigação', itens: mkItens([
     {texto:'O sistema de bombeamento e injeção de calda apresenta vazamentos aparentes?',cat:'Integridade'},
     {texto:'Os tanques de mistura possuem bacia de contenção ou piso impermeável no entorno?',cat:'Proteção do Solo'},
     {texto:'As tubulações de distribuição estão íntegras, sem rupturas ou vazamentos na linha?',cat:'Tubulações'},
     {texto:'Há empoçamento ou escoamento superficial da calda em direção a APPs ou cursos d\'água?',cat:'Proteção Hídrica'},
     {texto:'A área de preparo da mistura possui sinalização e os operadores utilizam EPI adequado?',cat:'Segurança'},
   ])},
-  { setor:'Agro', nome:'Compostagem', itens: mkItens([
+  { id: 'est-agro-compostagem', setor:'Agro', nome:'Compostagem', itens: mkItens([
     {texto:'A praça de compostagem possui piso impermeável ou compactado para evitar infiltração?',cat:'Proteção do Solo'},
     {texto:'Há canaletas para coleta e direcionamento do chorume/lixiviado para caixa de contenção?',cat:'Efluentes'},
     {texto:'A umidade e o revolvimento das leiras estão sendo monitorados (ausência de poças)?',cat:'Operação'},
     {texto:'Existe presença excessiva de moscas, urubus ou forte odor pútrido?',cat:'Controle de Vetores/Odor'},
     {texto:'As leiras estão alocadas respeitando distâncias de segurança de APPs e drenagens naturais?',cat:'Locação Ambiental'},
   ])},
-  { setor:'Agro', nome:'Biodigestor', itens: mkItens([
+  { id: 'est-agro-biodigestor', setor:'Agro', nome:'Biodigestor', itens: mkItens([
     {texto:'A lona/geomembrana superior (gasômetro) está íntegra, sem furos, ressecamento ou desgaste excessivo?',cat:'Estanqueidade'},
     {texto:'O sistema de queima de biogás (flare) está operante para queima de excedentes?',cat:'Segurança/Emissões'},
     {texto:'A tubulação de entrada de dejetos e saída de biofertilizante apresenta vazamentos?',cat:'Integridade'},
@@ -650,13 +731,13 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há placas de sinalização indicando "Perigo de Explosão" e "Gás Inflamável"?',cat:'Sinalização'},
     {texto:'O nível de operação do biodigestor respeita a margem de segurança contra transbordamentos?',cat:'Operação'},
   ])},
-  { setor:'Agro', nome:'Confinamento', itens: mkItens([
+  { id: 'est-agro-confinamento', setor:'Agro', nome:'Confinamento', itens: mkItens([
     {texto:'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?',cat:'Efluentes/Sanidade'},
     {texto:'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?',cat:'Drenagem Pluvial'},
     {texto:'Há controle sistemático de vetores (moscas, roedores e insetos)?',cat:'Controle de Pragas'},
     {texto:'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?',cat:'Resíduos Sanitários'},
   ])},
-  { setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
+  { id: 'est-agro-lagoas', setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
     {texto:'A lagoa possui impermeabilização (geomembrana ou revestimento)?', cat:'Impermeabilização'},
     {texto:'A impermeabilização apresenta rasgos, perfurações, deslocamentos ou desgaste?', cat:'Impermeabilização'},
     {texto:'Os taludes apresentam estabilidade adequada, sem erosões, deslizamentos ou recalques?', cat:'Taludes'},
@@ -676,7 +757,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há monitoramento de possíveis vazamentos ou infiltrações no entorno da lagoa?', cat:'Monitoramento Ambiental'},
     {texto:'A área ao redor da lagoa encontra-se limpa, organizada e sem resíduos?', cat:'Condições Gerais'}
   ])},
-  { setor:'Agro', nome:'Currais', itens: mkItens([
+  { id: 'est-agro-currais', setor:'Agro', nome:'Currais', itens: mkItens([
     {texto:'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?',cat:'Manejo de Efluentes'},
     {texto:'O efluente do curral é direcionado para esterqueira ou sistema de tratamento adequado?',cat:'Manejo de Efluentes'},
     {texto:'Há acúmulo excessivo de esterco/dejetos gerando odores intensos ou proliferação de moscas?',cat:'Controle Sanitário'},
@@ -684,7 +765,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Os bebedouros possuem sistema de boia funcional evitando vazamentos e desperdício de água?',cat:'Recursos Hídricos'},
     {texto:'Produtos veterinários, agulhas e seringas descartadas possuem recipiente rígido exclusivo?',cat:'Resíduos Perigosos'},
   ])},
-  { setor:'Agro', nome:'Silos', itens: mkItens([
+  { id: 'est-agro-silos', setor:'Agro', nome:'Silos', itens: mkItens([
     {texto:'O sistema de exaustão/captação de poeira de grãos (moegas e túneis) está limpo e funcional?',cat:'Qualidade do Ar/Segurança'},
     {texto:'Os resíduos de pré-limpeza de grãos (palhas, pó) possuem abrigo fechado e destinação adequada?',cat:'Gerenciamento de Resíduos'},
     {texto:'O expurgo/fumigação de grãos utiliza inseticidas registrados e armazenados sob tranca?',cat:'Uso de Químicos'},
@@ -692,7 +773,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há trincas, inclinações ou danos estruturais nas paredes dos silos ou moegas?',cat:'Integridade Estrutural'},
     {texto:'O sistema de drenagem de águas pluviais no entorno dos silos está desobstruído?',cat:'Drenagem'},
   ])},
-  { setor:'Agro', nome:'Depósito de Agrotóxicos', itens: mkItens([
+  { id: 'est-agro-agrotoxicos', setor:'Agro', nome:'Depósito de Agrotóxicos', itens: mkItens([
     {texto:'O depósito possui piso impermeável, liso, sem ralos direcionados à rede pública ou solo?',cat:'Estrutural/Contenção'},
     {texto:'Existe bacia ou rampa de contenção na porta para reter eventuais derramamentos?',cat:'Segurança Ambiental'},
     {texto:'A ventilação do galpão é adequada e os acessos mantidos trancados com sinalização de risco?',cat:'Segurança de Acesso'},
@@ -700,14 +781,14 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'As Fichas de Dados de Segurança (FDS/FISPQ) de todos os produtos estão disponíveis?',cat:'Documentação'},
     {texto:'O kit de mitigação de emergência (serragem/areia, pá, EPIs, tambor) está completo e acessível?',cat:'Plano de Emergência'},
   ])},
-  { setor:'Agro', nome:'Depósito de Vasilhames Vazios de Agrotóxico', itens: mkItens([
+  { id: 'est-agro-vasilhames', setor:'Agro', nome:'Depósito de Vasilhames Vazios de Agrotóxico', itens: mkItens([
     {texto:'O local é coberto, com piso impermeável, livre de inundações e trancado?',cat:'Estrutural'},
     {texto:'Há sinalização de segurança (caveira) informando "Embalagens Vazias"?',cat:'Sinalização'},
     {texto:'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?',cat:'Tratamento Prévio'},
     {texto:'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?',cat:'Armazenamento'},
     {texto:'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?',cat:'Documentação'},
   ])},
-  { setor:'Indústrias', nome:'Planta Industrial', itens: mkItens([
+  { id: 'est-ind-planta', setor:'Indústrias', nome:'Planta Industrial', itens: mkItens([
     {texto:'Os resíduos sólidos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
     {texto:'Os tornos mecânicos, prensas e máquinas apresentam vazamentos de óleo ou escoamento de efluentes oleosos?',cat:'Estrutural / Efluentes'},
     {texto:'Os colaboradores e operadores estão utilizando todos os EPIs obrigatórios para a atividade?',cat:'Segurança do Trabalho'},
@@ -716,7 +797,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Produtos químicos e solventes industriais possuem FISPQ/FDS e estão armazenados sobre bacia de contenção?',cat:'Segurança Química'},
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
-].map(e=>({ id:uid(), setor:e.setor, nome:e.nome, itens:e.itens }));
+];
   /* ============================================================
    ESTADO E ROTEAMENTO CORE
    ============================================================ */
@@ -782,7 +863,7 @@ function render() {
 }
 
 /* ============================================================
-   SINCRO E DADOS NUVEM (COM CORREÇÃO E MAPEAMENTO DE SETOR)
+   SINCRO E DADOS NUVEM
    ============================================================ */
 async function syncGlobalNuvem(){
   if(!_supabase || !navigator.onLine) return false;
@@ -802,7 +883,7 @@ async function syncGlobalNuvem(){
         let listItens = [];
         let setorVal = d.setor;
 
-        const defRef = DEFAULT_ESTRUTURAS.find(x => x.nome === d.nome);
+        const defRef = DEFAULT_ESTRUTURAS.find(x => x.nome === d.nome || x.id === d.id);
         if (defRef && (!setorVal || (setorVal === 'Geral' && defRef.setor !== 'Geral'))) {
           setorVal = defRef.setor;
         } else if (!setorVal) {
@@ -878,23 +959,14 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
-      let critMax = null;
-      const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
-      v.itens.forEach(i => {
-        if (i.status === 'nc' && i.criticidade) {
-          criticidadesCount[i.criticidade]++;
-          const val = {critica:4,alta:3,media:2,baixa:1}[i.criticidade];
-          const maxVal = {critica:4,alta:3,media:2,baixa:1}[critMax]||0;
-          if(val > maxVal) critMax = i.criticidade;
-        }
-      });
+      const analise = analisarCriticidade(v.itens);
 
       const { error } = await _supabase.from('vistorias').upsert({
         id: v.id, empreendimento_nome: v.empreendimentoNome, estrutura_nome: v.estruturaNome,
         responsavel: v.responsavel, data_hora: v.dataHora, gps: v.gps, itens: v.itens,
         total_itens: v.itens.length, total_nc: v.itens.filter(i=>i.status==='nc').length,
-        criticidade_max: critMax,
-        criticidades_map: criticidadesCount
+        criticidade_max: analise.critMax,
+        criticidades_map: analise.counts
       });
       if(!error) {
         v.syncStatus = 'synced'; p.syncStatus = 'synced';
@@ -911,17 +983,8 @@ window.sincronizarPendentes = async function() {
 async function saveVistoria(v) {
   let isOnline = navigator.onLine;
   let syncSuccess = false;
-  let critMax = null;
-
-  const criticidadesCount = { baixa: 0, media: 0, alta: 0, critica: 0 };
-  v.itens.forEach(i => {
-    if (i.status === 'nc' && i.criticidade) {
-      criticidadesCount[i.criticidade]++;
-      const val = {critica:4,alta:3,media:2,baixa:1}[i.criticidade];
-      const maxVal = {critica:4,alta:3,media:2,baixa:1}[critMax]||0;
-      if(val > maxVal) critMax = i.criticidade;
-    }
-  });
+  
+  const analise = analisarCriticidade(v.itens);
 
   if (isOnline && _supabase) {
     try {
@@ -935,8 +998,8 @@ async function saveVistoria(v) {
         itens: v.itens,
         total_itens: v.itens.length,
         total_nc: v.itens.filter(i=>i.status==='nc').length,
-        criticidade_max: critMax,
-        criticidades_map: criticidadesCount
+        criticidade_max: analise.critMax,
+        criticidades_map: analise.counts
       });
       if (!error) syncSuccess = true;
     } catch(e) {}
@@ -949,8 +1012,8 @@ async function saveVistoria(v) {
     responsavel: v.responsavel, dataHora: v.dataHora,
     totalNC: v.itens.filter(i=>i.status==='nc').length,
     totalItens: v.itens.length,
-    criticidades: criticidadesCount,
-    criticidadeMax: critMax,
+    criticidades: analise.counts,
+    criticidadeMax: analise.critMax,
     syncStatus: v.syncStatus
   };
 
@@ -1324,7 +1387,7 @@ window.removerItemEst = function(idx) {
 }
 
 /* ============================================================
-   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO)
+   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO COM ALTA PERFORMANCE)
    ============================================================ */
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
@@ -1408,7 +1471,7 @@ function viewNovaVistoria() {
       const isNC = resp.status === 'nc';
       
       return `
-      <div class="item-card">
+      <div class="item-card" data-item-id="${it.id}">
         <div class="item-top">
           <div style="flex:1;">
             <span class="item-num">Item ${i+1} ${it.categoria ? `· ${esc(it.categoria)}`:''}</span>
@@ -1545,14 +1608,35 @@ function bindNovaVistoria() {
       }
     });
 
+    // HOTFIX: ATUALIZAÇÃO GRANULAR DE DOM PARA PERFORMANCE NO CHECKLIST
     document.querySelectorAll('.seg button').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.target.dataset.id;
         const st = e.target.dataset.status;
+        
+        // Atualiza o estado lógico
         if(!nv.respostas[id]) nv.respostas[id] = { observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
         nv.respostas[id].status = st;
-        render(); 
-        setTimeout(()=> e.target.scrollIntoView({behavior: "smooth", block: "center"}), 50);
+        
+        // Atualiza apenas os nós visuais específicos (sem re-render total da página)
+        const parentCard = e.target.closest('.item-card');
+        
+        // Troca classe ativa nos botões
+        parentCard.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        // Mostra a div de extras e ajusta visibilidade de NC
+        const itemExtra = parentCard.querySelector('.item-extra');
+        const ncFields = parentCard.querySelector('.nc-fields');
+        
+        itemExtra.classList.remove('hidden');
+        if (st === 'nc') {
+          ncFields.classList.remove('hidden');
+        } else {
+          ncFields.classList.add('hidden');
+        }
+
+        setTimeout(()=> parentCard.scrollIntoView({behavior: "smooth", block: "center"}), 50);
       });
     });
 
@@ -1626,8 +1710,12 @@ window.addFoto = async function(event, itemId) {
     state.novaVistoria.respostas[itemId].fotos.push(base64);
     render();
     setTimeout(()=> document.getElementById('photos-'+itemId).scrollIntoView({behavior: "smooth", block: "center"}), 100);
-  } catch(e) { showToast('Erro ao processar foto.'); }
+  } catch(e) { 
+    console.error(e);
+    showToast('Erro ao processar foto.'); 
+  }
 }
+
 window.removeFoto = function(itemId, photoIdx) {
   state.novaVistoria.respostas[itemId].fotos.splice(photoIdx, 1);
   render();
