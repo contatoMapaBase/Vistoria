@@ -32,8 +32,8 @@
   --media:#D69E2E;
   --alta:#E2571D;
   --critica:#9B1C2E;
-  --radius:10px;
-  --shadow:0 1px 2px rgba(22,36,28,.06), 0 2px 12px rgba(22,36,28,.05);
+  --radius:12px;
+  --shadow:0 4px 12px rgba(22,36,28,.04), 0 1px 2px rgba(22,36,28,.04);
   --font-display:'Barlow Condensed',sans-serif;
   --font-body:'Inter',sans-serif;
   --font-mono:'IBM Plex Mono',monospace;
@@ -58,7 +58,7 @@ summary { list-style: none; }
   display:flex;align-items:center;justify-content:center;padding:20px;
 }
 .login-box{
-  background:var(--surface);border-radius:12px;padding:36px 32px;
+  background:var(--surface);border-radius:var(--radius);padding:36px 32px;
   width:100%;max-width:380px;box-shadow:0 20px 50px rgba(0,0,0,.3);
   text-align:center;
 }
@@ -66,48 +66,52 @@ summary { list-style: none; }
 /* SHELL LAYOUT */
 #shell{display:flex;min-height:100vh;}
 #sidebar{
-  width:220px;flex-shrink:0;background:var(--ink);color:#EDF1EA;
+  width:230px;flex-shrink:0;background:var(--ink);color:#EDF1EA;
   display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
 }
-.brand{padding:22px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;}
-.brand-mark img {max-width:100%;height:auto;max-height:40px;object-fit:contain;}
+.brand{padding:24px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;}
 .brand-sub{font-size:11px;color:#9FB0A2;margin-top:8px;letter-spacing:.06em;text-transform:uppercase;}
-nav.mainnav{padding:14px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto;}
+nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto;}
 .navbtn{
-  display:flex;align-items:center;gap:10px;padding:10px 12px;border:none;
+  display:flex;align-items:center;gap:12px;padding:10px 14px;border:none;
   background:transparent;color:#C7D2C7;border-radius:8px;font-size:14.5px;
-  font-weight:500;text-align:left;transition:background .12s, color .12s;
+  font-weight:500;text-align:left;transition:all .15s;
 }
 .navbtn:hover{background:rgba(255,255,255,.06);color:#fff;}
 .navbtn.active{background:var(--accent);color:var(--ink);font-weight:600;}
-.navbtn .ic{width:18px;text-align:center;flex-shrink:0;opacity:.9;}
-.sidebar-foot{padding:14px 20px 18px;font-size:11px;color:#7C8C7E;border-top:1px solid rgba(255,255,255,.08);}
+.navbtn .ic{width:20px;text-align:center;flex-shrink:0;font-size:16px;}
+.sidebar-foot{padding:16px 20px 20px;font-size:11px;color:#7C8C7E;border-top:1px solid rgba(255,255,255,.08);}
 #main{flex:1;min-width:0;display:flex;flex-direction:column;}
-#content{flex:1;padding:28px 34px 90px;max-width:1180px;width:100%;}
-.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
-.view-title{font-family:var(--font-display);font-size:32px;font-weight:600;line-height:1;margin:0;}
-.view-sub{color:var(--ink-soft);font-size:14px;margin-top:6px;}
-.eyebrow{text-transform:uppercase;letter-spacing:.09em;font-size:11px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+#content{flex:1;padding:32px 40px 90px;max-width:1200px;width:100%; margin:0 auto;}
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap;}
+.view-title{font-family:var(--font-display);font-size:36px;font-weight:600;line-height:1;margin:0;letter-spacing:-0.01em;}
+.view-sub{color:var(--ink-soft);font-size:14.5px;margin-top:8px;}
+.eyebrow{text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
 
 /* PRIMITIVES */
-.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;white-space:nowrap;justify-content:center;}
-.btn:hover{border-color:var(--ink-faint);}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:14px;font-weight:600;white-space:nowrap;justify-content:center; transition:all 0.15s;}
+.btn:hover{border-color:var(--ink-faint); box-shadow: 0 2px 4px rgba(0,0,0,0.02);}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--ink);}
-.btn.primary:hover{background:#6da838;}
+.btn.primary:hover{background:#6da838; border-color:#6da838;}
 .btn.ghost{border-color:transparent;background:transparent;}
+.btn.ghost:hover{background:var(--surface-2);}
 .btn.danger{color:var(--nc);border-color:var(--nc-bg);}
-.btn.sm{padding:6px 11px;font-size:12.5px;}
+.btn.danger:hover{background:var(--nc-bg);}
+.btn.sm{padding:6px 12px;font-size:12.5px;}
 .btn:disabled{opacity:.45;cursor:not-allowed;}
+
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
-.card-pad{padding:20px;}
-.grid{display:grid;gap:16px;}
+.card-pad{padding:24px;}
+.grid{display:grid;gap:20px;}
 .grid.cols-4{grid-template-columns:repeat(4,1fr);}
 .grid.cols-3{grid-template-columns:repeat(3,1fr);}
 .grid.cols-2{grid-template-columns:repeat(2,1fr);}
-.kpi{padding:18px 20px;}
-.kpi .num{font-family:var(--font-display);font-size:38px;font-weight:600;line-height:1;}
-.kpi .lbl{font-size:12.5px;color:var(--ink-soft);margin-top:6px;}
-.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.01em;}
+
+.kpi{padding:20px 24px;}
+.kpi .num{font-family:var(--font-display);font-size:42px;font-weight:600;line-height:1;}
+.kpi .lbl{font-size:13px;color:var(--ink-soft);margin-top:8px; font-weight:500;}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
 .badge.conforme{background:var(--conforme-bg);color:var(--conforme);}
 .badge.nc{background:var(--nc-bg);color:var(--nc);}
 .badge.na{background:var(--na-bg);color:var(--na);}
@@ -116,76 +120,103 @@ nav.mainnav{padding:14px 10px;display:flex;flex-direction:column;gap:2px;flex:1;
 .badge.alta{background:#FCE7DD;color:var(--alta);}
 .badge.critica{background:#F7DEE1;color:var(--critica);}
 .badge.pending{background:#FFF3CD;color:#975A16; border:1px solid #F6E05E;}
+
+/* CARDS VISUAIS (EMPREENDIMENTOS E ESTRUTURAS) */
+.visual-card { display:flex; flex-direction:column; overflow:hidden; transition:transform 0.2s, box-shadow 0.2s; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+.visual-card:hover { transform:translateY(-2px); box-shadow: 0 8px 24px rgba(22,36,28,.08); }
+.visual-card-cover { height:100px; display:flex; align-items:center; justify-content:center; font-size:40px; position:relative; }
+.cover-geral { background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); }
+.cover-agro { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
+.cover-mina { background: linear-gradient(135deg, #e6dada 0%, #274046 100%); }
+.visual-card-body { padding:18px 20px; flex:1; display:flex; flex-direction:column; }
+.visual-card-title { font-family:var(--font-display); font-size:22px; font-weight:600; margin:0 0 6px; color:var(--ink); line-height:1.1; }
+.visual-card-desc { font-size:13px; color:var(--ink-soft); margin-bottom:16px; flex:1; }
+.visual-card-foot { padding:12px 20px; border-top:1px solid var(--line); background:var(--surface-2); display:flex; gap:8px; justify-content:flex-end; }
+
+/* ACORDEÃO HISTÓRICO */
+.folder-details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px; overflow:hidden; box-shadow:var(--shadow); }
+.folder-summary { padding:18px 24px; background:var(--surface); cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; user-select:none; border-bottom:1px solid transparent; transition:background 0.2s; }
+.folder-details[open] .folder-summary { border-bottom-color:var(--line); background:#f9faf8; }
+.folder-summary:hover { background:var(--surface-2); }
+.folder-title { font-family:var(--font-display); font-size:24px; font-weight:600; display:flex; align-items:center; gap:12px; }
+.month-group { margin-top:20px; padding:0 24px 20px; }
+.month-header { font-size:13px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding-bottom:8px; border-bottom:2px solid var(--surface-2); }
+
+/* TABELAS */
 .table-wrapper { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:var(--radius); }
-table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:600px; }
-th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); padding:8px 10px; border-bottom:1px solid var(--line); }
-td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
+table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:600px; background:var(--surface); }
+th { text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); padding:12px 16px; border-bottom:1px solid var(--line); background:var(--surface-2); }
+td { padding:14px 16px; border-bottom:1px solid var(--line); vertical-align:middle; }
 tr:last-child td { border-bottom:none; }
-tr.clickable:hover { background:var(--surface-2); cursor:pointer; }
-.empty{text-align:center;padding:50px 20px;color:var(--ink-soft);}
-.empty .ic{font-size:34px;margin-bottom:10px;}
-input[type=text],input[type=email],input[type=password],input[type=datetime-local],input[type=number],select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--surface);font-size:14px;color:var(--ink);}
-textarea{resize:vertical;min-height:64px;}
-label.field-label{font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;display:block;}
-.field{margin-bottom:14px;}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:8px;font-size:13.5px;box-shadow:var(--shadow);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+tr.clickable:hover { background:#f9faf8; cursor:pointer; }
+
+.empty{text-align:center;padding:60px 20px;color:var(--ink-soft); display:flex; flex-direction:column; align-items:center; justify-content:center;}
+.empty .ic{font-size:48px;margin-bottom:16px; opacity:0.5;}
+
+input[type=text],input[type=email],input[type=password],input[type=datetime-local],input[type=number],select,textarea{width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:14.5px;color:var(--ink); transition:border-color 0.2s;}
+input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+textarea{resize:vertical;min-height:80px;}
+label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;}
+.field{margin-bottom:18px;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,0.2);z-index:200;opacity:0;pointer-events:none;transition:all .3s;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-8px);}
 
 /* MODAIS */
 .modal-backdrop{
-  position:fixed;inset:0;background:rgba(22,36,28,.45);
+  position:fixed;inset:0;background:rgba(22,36,28,.6); backdrop-filter:blur(2px);
   display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;
 }
 .modal{
-  background:var(--surface);border-radius:12px;max-width:520px;width:100%;
-  max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);
+  background:var(--surface);border-radius:16px;max-width:540px;width:100%;
+  max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);
 }
-.modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
-.modal-head h3{margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;}
-.modal-body{padding:20px 22px;}
-.modal-foot{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px;}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;}
+.modal-head h3{margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;}
+.modal-body{padding:24px;}
+.modal-foot{padding:16px 24px 24px;display:flex;justify-content:flex-end;gap:12px; background:var(--surface-2); border-top:1px solid var(--line);}
 
 /* CHECKLIST ITENS (NOVA VISTORIA) */
-.item-card{border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:10px;overflow:hidden;}
-.item-top{padding:14px 16px;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
-.item-num{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);margin-bottom:3px;display:block;}
-.item-txt{font-size:14.5px;line-height:1.4;font-weight:500;}
+.item-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden; box-shadow:var(--shadow);}
+.item-top{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
+.item-num{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--ink-faint);margin-bottom:6px;display:block;}
+.item-txt{font-size:15px;line-height:1.5;font-weight:500;}
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-shrink:0;}
-.seg button{border:none;background:var(--surface);padding:8px 13px;font-size:12.5px;font-weight:700;color:var(--ink-soft);border-right:1px solid var(--line);}
+.seg button{border:none;background:var(--surface);padding:10px 16px;font-size:13px;font-weight:700;color:var(--ink-soft);border-right:1px solid var(--line); transition:all 0.1s;}
 .seg button:last-child{border-right:none;}
 .seg button.c.active{background:var(--conforme);color:#fff;}
 .seg button.n.active{background:var(--nc);color:#fff;}
 .seg button.a.active{background:var(--na);color:#fff;}
-.item-extra{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:0;padding-top:14px;}
+.item-extra{padding:0 20px 20px;border-top:1px dashed var(--line);margin-top:0;padding-top:16px; background:#fafbf9;}
 .item-extra.hidden, .nc-fields.hidden{display:none;}
-.photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
-.photo-thumb{width:64px;height:64px;border-radius:7px;object-fit:cover;border:1px solid var(--line);position:relative;}
+.photo-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+.photo-thumb{width:80px;height:80px;border-radius:8px;object-fit:cover;border:1px solid var(--line);position:relative; box-shadow:var(--shadow);}
 .photo-add{
-  width:64px;height:64px;border-radius:7px;border:1.5px dashed var(--line);
-  display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink-faint);
-  background:var(--surface-2);cursor:pointer;
+  width:80px;height:80px;border-radius:8px;border:2px dashed var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--ink-faint);
+  background:var(--surface-2);cursor:pointer; transition:all 0.2s;
 }
+.photo-add:hover{border-color:var(--accent); color:var(--accent);}
 
-.rowflex{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
 @media(max-width:860px){
-  #sidebar{position:fixed;bottom:0;left:0;right:0;top:auto;width:100%;height:auto;flex-direction:row;z-index:50;box-shadow:0 -2px 14px rgba(0,0,0,.12);}
+  #sidebar{position:fixed;bottom:0;left:0;right:0;top:auto;width:100%;height:auto;flex-direction:row;z-index:50;box-shadow:0 -4px 20px rgba(0,0,0,.15);}
   .brand,.sidebar-foot{display:none;}
-  nav.mainnav{flex-direction:row; padding:6px; overflow-x:auto; width:100%; -webkit-overflow-scrolling:touch; scroll-snap-type:x mandatory;}
-  .navbtn{flex-direction:column;font-size:10px;padding:8px 10px;gap:3px;min-width:64px; scroll-snap-align:start;}
-  .navbtn .ic{font-size:17px;}
-  #content{padding:18px 16px 90px;}
+  nav.mainnav{flex-direction:row; padding:8px; overflow-x:auto; width:100%; -webkit-overflow-scrolling:touch; scroll-snap-type:x mandatory;}
+  .navbtn{flex-direction:column;font-size:10.5px;padding:8px;gap:4px;min-width:72px; scroll-snap-align:start; justify-content:center;}
+  .navbtn .ic{font-size:20px;}
+  #content{padding:20px 16px 100px;}
   .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns:1fr; }
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
-  .seg button { flex:1; text-align:center; padding:12px 0; font-size:11.5px;}
+  .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
 }
 @media print{
   .print-only-title { display:block !important; margin-bottom: 20px; }
   #sidebar, .no-print, nav.mainnav, .view-head, #modal-root { display:none !important; }
-  #content { padding:0; max-width:100%; width:100%; }
+  #content { padding:0; max-width:100%; width:100%; margin:0; }
   body { background:#fff; margin:0; }
-  .card { border:1px solid #ddd; box-shadow:none; }
+  .card, .folder-details { border:1px solid #ddd; box-shadow:none; }
   .table-wrapper { overflow:visible !important; }
   table { min-width:100%; }
   * { -webkit-print-color-adjust:exact !important; color-adjust:exact !important; }
@@ -197,9 +228,9 @@ label.field-label{font-size:12px;font-weight:600;color:var(--ink-soft);margin-bo
 <div id="login-screen">
   <div class="login-box">
     <div style="margin-bottom: 24px;">
-      <h1 style="font-family:var(--font-display); font-size: 32px; margin:0; color: var(--accent);">MapaBase</h1>
+      <h1 style="font-family:var(--font-display); font-size: 36px; margin:0; color: var(--accent);">MapaBase</h1>
     </div>
-    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:20px;">Acesso Restrito - Equipe de Inspeção</p>
+    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:24px;">Acesso Restrito - Equipe de Inspeção</p>
     <div class="field" style="text-align:left;">
       <label class="field-label">E-mail Corporativo</label>
       <input type="email" id="login-email" placeholder="nome@mapabase.com.br">
@@ -208,20 +239,20 @@ label.field-label{font-size:12px;font-weight:600;color:var(--ink-soft);margin-bo
       <label class="field-label">Senha de Acesso</label>
       <input type="password" id="login-pass" placeholder="Digite a senha">
     </div>
-    <button class="btn primary" id="btn-entrar" style="width:100%;justify-content:center;margin-top:6px;">Entrar na Plataforma</button>
+    <button class="btn primary" id="btn-entrar" style="width:100%;justify-content:center;margin-top:8px; padding:12px;">Entrar na Plataforma</button>
   </div>
 </div>
 
 <div id="shell">
   <aside id="sidebar">
     <div class="brand">
-      <h1 style="font-family:var(--font-display); font-size: 26px; margin:0; color: var(--accent);">MapaBase</h1>
+      <h1 style="font-family:var(--font-display); font-size: 32px; margin:0; color: var(--accent);">MapaBase</h1>
       <div class="brand-sub">Ambiente em Nuvem</div>
     </div>
     <nav class="mainnav" id="mainnav"></nav>
     <div class="sidebar-foot">
       <div id="status-sync">Verificando...</div>
-      <button class="btn ghost sm" id="btn-logout" style="margin-top:10px; width:100%; color: var(--ink-soft);">Sair do Sistema</button>
+      <button class="btn ghost sm" id="btn-logout" style="margin-top:12px; width:100%; color: var(--ink-soft); border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
     </div>
   </aside>
   <div id="main">
@@ -300,6 +331,15 @@ function fmtDate(iso) {
 function criticidadeLabel(val) {
   const map = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
   return map[val] || val;
+}
+
+function getSetorVisual(setor) {
+  const map = {
+    'Mineração': { class: 'cover-mina', icon: '⛏️' },
+    'Agro': { class: 'cover-agro', icon: '🌾' },
+    'Geral': { class: 'cover-geral', icon: '🏭' }
+  };
+  return map[setor] || map['Geral'];
 }
 
 function showToast(msg) {
@@ -455,7 +495,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O sistema de descarga de fundo encontra-se íntegro e operacional?', cat:'Descarga de Fundo'},
     {texto:'Existem vazamentos, corrosão ou dificuldades de operação das comportas/registros?', cat:'Descarga de Fundo'},
     {texto:'Existe sistema de captação superficial instalado na barragem?', cat:'Captação de Água'},
-    {texto:'A structure de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
+    {texto:'A estrutura de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
     {texto:'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat:'Captação de Água'},
     {texto:'As mangueiras, conexões e tubulações apresentam bom estado de conservação?', cat:'Captação de Água'},
     {texto:'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat:'Monitoramento'},
@@ -806,7 +846,7 @@ async function saveVistoria(v) {
 }
 
 /* ============================================================
-   TELAS: EMPREENDIMENTOS E MODAL
+   TELAS: EMPREENDIMENTOS E MODAL (COM CARDS VISUAIS)
    ============================================================ */
 function viewEmpreendimentos() {
   return `
@@ -817,24 +857,28 @@ function viewEmpreendimentos() {
     </div>
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
-  <div class="card table-wrapper">
-    <table>
-      <thead><tr><th>Nome</th><th>Tipo</th><th>Estruturas Vinculadas</th><th>Ações</th></tr></thead>
-      <tbody>
-        ${state.empreendimentos.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Nenhum cadastrado.</td></tr>' : ''}
-        ${state.empreendimentos.map((e, idx) => `
-          <tr>
-            <td style="font-weight:600;">${esc(e.nome)}</td>
-            <td>${esc(e.tipo || 'Geral')}</td>
-            <td>${(e.estruturas||[]).length} estruturas</td>
-            <td style="width:100px;">
-              <button class="btn ghost sm danger" onclick="excluirEmpreendimento('${e.id}')">Excluir</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  ${state.empreendimentos.length === 0 ? '<div class="empty card"><div class="ic">🏢</div>Nenhum empreendimento cadastrado.</div>' : `
+  <div class="grid cols-3">
+    ${state.empreendimentos.map((e, idx) => {
+      const visual = getSetorVisual(e.tipo);
+      return `
+      <div class="visual-card">
+        <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
+        <div class="visual-card-body">
+          <h3 class="visual-card-title">${esc(e.nome)}</h3>
+          <div class="visual-card-desc">
+            <span class="badge na" style="margin-bottom:8px;">${esc(e.tipo || 'Geral')}</span><br>
+            ${(e.estruturas||[]).length} estruturas vinculadas
+          </div>
+        </div>
+        <div class="visual-card-foot">
+          <button class="btn ghost sm danger" onclick="excluirEmpreendimento('${e.id}')">Excluir</button>
+        </div>
+      </div>
+      `
+    }).join('')}
+  </div>`}
+  `;
 }
 
 function bindEmpreendimentos() {
@@ -858,10 +902,10 @@ function bindEmpreendimentos() {
           </div>
           <div class="field">
             <label class="field-label">Vincular Estruturas Existentes (Opcional)</label>
-            <div style="max-height:150px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:10px;">
+            <div style="max-height:180px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:10px;">
               ${state.estruturas.map(est => `
-                <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:13px;">
-                  <input type="checkbox" class="mod-emp-est" value="${esc(est.nome)}"> ${esc(est.nome)}
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; cursor:pointer;">
+                  <input type="checkbox" class="mod-emp-est" value="${esc(est.nome)}" style="width:auto;"> ${esc(est.nome)}
                 </label>
               `).join('')}
             </div>
@@ -901,7 +945,7 @@ window.excluirEmpreendimento = async function(id) {
 }
 
 /* ============================================================
-   TELAS: ESTRUTURAS (EDITOR COMPLETO)
+   TELAS: ESTRUTURAS (EDITOR COMPLETO COM CARDS)
    ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
@@ -910,29 +954,34 @@ function viewEstruturas() {
   <div class="view-head">
     <div>
       <div class="eyebrow">Biblioteca</div>
-      <h1 class="view-title">Editor de Estruturas</h1>
+      <h1 class="view-title">Estruturas Padrão</h1>
     </div>
     <button class="btn primary" id="btn-add-est">+ Nova Estrutura</button>
   </div>
-  <div class="card table-wrapper">
-    <table>
-      <thead><tr><th>Setor</th><th>Nome da Estrutura</th><th>Itens</th><th>Ações</th></tr></thead>
-      <tbody>
-        ${state.estruturas.map((e) => `
-          <tr>
-            <td><span class="badge na">${esc(e.setor || 'Geral')}</span></td>
-            <td style="font-weight:600;">${esc(e.nome)}</td>
-            <td>${(e.itens||[]).length} itens</td>
-            <td style="display:flex;gap:8px;">
-              <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">Editar</button>
-              <button class="btn ghost sm" onclick="duplicarEstrutura('${e.id}')">Duplicar</button>
-              <button class="btn ghost sm danger" onclick="excluirEstrutura('${e.id}')">Excluir</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  ${state.estruturas.length === 0 ? '<div class="empty card"><div class="ic">🏗️</div>Nenhuma estrutura cadastrada.</div>' : `
+  <div class="grid cols-3">
+    ${state.estruturas.map((e) => {
+      const visual = getSetorVisual(e.setor);
+      return `
+      <div class="visual-card">
+        <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
+        <div class="visual-card-body">
+          <h3 class="visual-card-title">${esc(e.nome)}</h3>
+          <div class="visual-card-desc">
+            <span class="badge na" style="margin-bottom:8px;">${esc(e.setor || 'Geral')}</span><br>
+            ${(e.itens||[]).length} itens de verificação
+          </div>
+        </div>
+        <div class="visual-card-foot">
+          <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">✏️ Editar</button>
+          <button class="btn ghost sm" onclick="duplicarEstrutura('${e.id}')">📋 Duplicar</button>
+          <button class="btn ghost sm danger" onclick="excluirEstrutura('${e.id}')">✕</button>
+        </div>
+      </div>
+      `
+    }).join('')}
+  </div>`}
+  `;
 }
 
 function bindEstruturas() {
@@ -1003,11 +1052,12 @@ function viewEditorEstrutura() {
 
   <div id="ed-est-itens-list">
     ${est.itens.map((it, i) => `
-      <div class="item-card" style="padding:14px; display:flex; gap:10px; align-items:center;">
-        <div style="font-family:var(--font-mono); color:var(--ink-faint); cursor:ns-resize;" onclick="moverItemEst(${i}, -1)">▲</div>
-        <div style="font-family:var(--font-mono); color:var(--ink-faint); cursor:ns-resize;" onclick="moverItemEst(${i}, 1)">▼</div>
+      <div class="item-card" style="padding:16px; display:flex; gap:12px; align-items:center;">
+        <div style="font-size:18px; color:var(--ink-faint); cursor:ns-resize; display:flex; flex-direction:column; line-height:0.8;">
+          <span onclick="moverItemEst(${i}, -1)">▲</span><span onclick="moverItemEst(${i}, 1)">▼</span>
+        </div>
         <input type="text" class="ed-item-txt" data-idx="${i}" value="${esc(it.texto)}" style="flex:1;">
-        <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria||'')}" placeholder="Categoria (Opcional)" style="width:160px;">
+        <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria||'')}" placeholder="Categoria (Opcional)" style="width:200px;">
         <button class="btn ghost sm danger" onclick="removerItemEst(${i})">✕</button>
       </div>
     `).join('')}
@@ -1100,14 +1150,14 @@ function viewNovaVistoria() {
         <label class="field-label">Nome do Responsável/Inspetor</label>
         <input type="text" id="nv-resp" value="${esc(nv.resp)}">
       </div>
-      <div class="field" style="margin-top:16px;">
+      <div class="field" style="margin-top:20px;">
         <label class="field-label">Localização (GPS)</label>
         <div class="rowflex">
           <button class="btn ghost sm" id="btn-gps">📍 ${nv.gps ? 'Recapturar GPS' : 'Capturar GPS Agora'}</button>
-          <span style="font-size:12px; color:var(--ink-soft);" id="gps-status">${nv.gps ? `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}` : 'Não capturado'}</span>
+          <span style="font-size:13px; color:var(--ink-soft);" id="gps-status">${nv.gps ? `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}` : 'Não capturado'}</span>
         </div>
       </div>
-      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 20px;">Iniciar Checklist</button>
+      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">Iniciar Checklist</button>
     </div>`;
   }
 
@@ -1117,7 +1167,7 @@ function viewNovaVistoria() {
       <div><div class="eyebrow">Execução</div><h1 class="view-title">Checklist de Vistoria</h1></div>
       <button class="btn ghost" id="btn-nv-back">← Resumo</button>
     </div>
-    <div class="card card-pad no-print" style="margin-bottom: 20px; background:var(--surface-2);">
+    <div class="card card-pad no-print" style="margin-bottom: 24px; background:var(--surface-2);">
       <strong>Local:</strong> ${esc(nv.emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(nv.est)}
     </div>
     ${nv.itens.map((it, i) => {
@@ -1177,9 +1227,9 @@ function viewNovaVistoria() {
       </div>`;
     }).join('')}
     
-    <div class="sticky-footer no-print">
-      <div style="font-size:12px; color:var(--ink-soft);">Revise antes de salvar.</div>
-      <button class="btn primary" id="btn-nv-save">✔️ Concluir e Salvar Vistoria</button>
+    <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; position:sticky; bottom:16px; box-shadow:var(--shadow); z-index:10;">
+      <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.</div>
+      <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Vistoria</button>
     </div>`;
   }
 }
@@ -1294,13 +1344,20 @@ function viewDashboard() {
   const totalNC = state.vistoriasIndex.reduce((s,v)=>s+(v.totalNC||0),0);
   
   const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
+  const porEmp = {};
+
   state.vistoriasIndex.forEach(v => {
+    // Globais
     if (v.criticidades) {
       porCrit.baixa += v.criticidades.baixa || 0;
       porCrit.media += v.criticidades.media || 0;
       porCrit.alta += v.criticidades.alta || 0;
       porCrit.critica += v.criticidades.critica || 0;
     }
+    // Por Empreendimento
+    if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0 };
+    porEmp[v.empreendimentoNome].vist++;
+    porEmp[v.empreendimentoNome].nc += (v.totalNC||0);
   });
   
   const maxCrit = Math.max(1, ...Object.values(porCrit));
@@ -1309,25 +1366,44 @@ function viewDashboard() {
   <div class="view-head">
     <div><div class="eyebrow">Visão Geral</div><h1 class="view-title">Painel de Inspeções</h1></div>
     <div class="rowflex">
-      <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Geral (Excel)</button>
       <button class="btn primary" onclick="setView('nova')">+ Nova Vistoria</button>
     </div>
   </div>
-  <div class="grid cols-2">
+  <div class="grid cols-2" style="margin-bottom:24px;">
     <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias Realizadas</div></div>
-    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades Globais</div></div>
+    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades (Total)</div></div>
   </div>
   
-  <div class="card card-pad" style="margin-top: 20px;">
-    <h3 style="margin:0 0 14px;font-family:var(--font-display);font-size:20px;font-weight:600;">Não conformidades por criticidade</h3>
-    ${['critica','alta','media','baixa'].map(k=>`
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-        <div style="width:70px;font-size:12.5px;color:var(--ink-soft);">${criticidadeLabel(k)}</div>
-        <div style="flex:1;background:var(--surface-2);border-radius:6px;height:16px;overflow:hidden;">
-          <div style="width:${(porCrit[k]/maxCrit*100)||0}%;height:100%;background:var(--${k});"></div>
-        </div>
-        <div style="width:24px;text-align:right;font-family:var(--font-mono);font-size:12.5px;">${porCrit[k]}</div>
-      </div>`).join('')}
+  <div class="grid cols-2" style="align-items:start;">
+    <div class="card card-pad">
+      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Desempenho por Empreendimento</h3>
+      <div class="table-wrapper">
+        <table style="min-width:100%;">
+          <thead><tr><th>Empreendimento</th><th>Vistorias</th><th>NCs</th></tr></thead>
+          <tbody>
+            ${Object.entries(porEmp).sort((a,b)=>b[1].nc - a[1].nc).map(([nome, stat]) => `
+              <tr>
+                <td style="font-weight:600;">${esc(nome)}</td>
+                <td>${stat.vist}</td>
+                <td>${stat.nc > 0 ? `<span style="color:var(--nc);font-weight:700;">${stat.nc}</span>` : `<span style="color:var(--conforme);">0</span>`}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="3" class="empty" style="padding:20px;">Sem dados</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="card card-pad">
+      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Distribuição de Criticidade</h3>
+      ${['critica','alta','media','baixa'].map(k=>`
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:80px;font-size:13px;font-weight:600;color:var(--ink-soft);">${criticidadeLabel(k)}</div>
+          <div style="flex:1;background:var(--surface-2);border-radius:8px;height:16px;overflow:hidden;">
+            <div style="width:${(porCrit[k]/maxCrit*100)||0}%;height:100%;background:var(--${k});"></div>
+          </div>
+          <div style="width:30px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:500;">${porCrit[k]}</div>
+        </div>`).join('')}
+    </div>
   </div>`;
 }
 function bindDashboard() {}
@@ -1355,6 +1431,8 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
        if (isNaN(d)) return false;
        return d.toISOString().slice(0, 7) === valor; 
      });
+  } else if (tipo === 'vist') {
+     indexVists = state.vistoriasIndex.filter(v => v.id === valor);
   }
 
   if (indexVists.length === 0) return showToast('Nenhum dado encontrado.');
@@ -1385,7 +1463,7 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  let filename = `mapabase_inspecoes_${new Date().getTime()}.csv`;
+  let filename = `mapabase_${tipo}_${new Date().getTime()}.csv`;
   link.setAttribute("download", filename);
   document.body.appendChild(link);
   link.click();
@@ -1394,40 +1472,87 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
 };
 
 /* ============================================================
-   TELA: HISTÓRICO DE VISTORIAS
+   TELA: HISTÓRICO DE VISTORIAS (ACORDEÃO E AGRUPADO)
    ============================================================ */
 function viewVistorias() {
   const rows = [...state.vistoriasIndex].sort((a,b)=> new Date(b.dataHora)-new Date(a.dataHora));
   const temPendentes = rows.some(v => v.syncStatus === 'pending');
   
+  if(rows.length === 0) {
+    return `
+    <div class="view-head no-print"><div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div></div>
+    <div class="empty card"><div class="ic">📋</div>Nenhuma vistoria registrada.</div>`;
+  }
+
+  // Agrupar por Empreendimento -> Mês
+  const porEmp = {};
+  rows.forEach(v => {
+    const emp = v.empreendimentoNome || 'Sem Empreendimento';
+    if(!porEmp[emp]) porEmp[emp] = {};
+    const d = new Date(v.dataHora);
+    const mesIso = isNaN(d) ? 'Data Inválida' : d.toISOString().slice(0, 7);
+    if(!porEmp[emp][mesIso]) porEmp[emp][mesIso] = [];
+    porEmp[emp][mesIso].push(v);
+  });
+
   return `
   <div class="view-head no-print">
-    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Salvas</h1></div>
+    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div>
     <div class="rowflex">
       ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
     </div>
   </div>
-  <div class="card table-wrapper">
-    <table>
-      <thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Status</th><th>Ações / PDF</th></tr></thead>
-      <tbody>
-        ${rows.length === 0 ? '<tr><td colspan="5" class="empty">Nenhuma vistoria.</td></tr>' : ''}
-        ${rows.map(v => {
-          const d = new Date(v.dataHora);
-          const mesIso = !isNaN(d) ? d.toISOString().slice(0, 7) : '';
-          return `
-          <tr>
-            <td class="clickable" onclick="abrirVistoria('${v.id}')"><strong>${fmtDate(v.dataHora)}</strong></td>
-            <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.empreendimentoNome)}</td>
-            <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.estruturaNome)}</td>
-            <td>${v.syncStatus==='pending'?'⏳ Pendente':'✅ Nuvem'}</td>
-            <td>
-              <button class="btn ghost sm" onclick="window.gerarPdfMes('${esc(mesIso)}', '${esc(v.empreendimentoNome)}')">🖨️ PDF Mês</button>
-            </td>
-          </tr>`
-        }).join('')}
-      </tbody>
-    </table>
+  
+  <div style="display:flex; flex-direction:column;">
+    ${Object.entries(porEmp).map(([empNome, meses]) => {
+      const totalVists = Object.values(meses).flat().length;
+      return `
+      <details class="folder-details" open>
+        <summary class="folder-summary">
+          <div class="folder-title">📁 ${esc(empNome)} <span style="font-size:13px; font-weight:500; color:var(--ink-soft); background:var(--surface-2); padding:4px 10px; border-radius:12px; margin-left:8px;">${totalVists} vistorias</span></div>
+          <div class="rowflex">
+            <button class="btn ghost sm" onclick="event.preventDefault(); exportarExcel('emp', '${esc(empNome)}')">📊 Excel Total</button>
+            <span style="color:var(--ink-faint); margin-left:8px;">▼</span>
+          </div>
+        </summary>
+        <div class="month-wrapper">
+          ${Object.entries(meses).map(([mesIso, vists]) => `
+            <div class="month-group">
+              <div class="month-header">
+                <span>🗓️ Período: ${esc(mesIso)}</span>
+                <div class="rowflex">
+                  <button class="btn ghost sm" onclick="exportarExcel('mes', '${esc(mesIso)}', '${esc(empNome)}')">📊 Excel Mês</button>
+                  <button class="btn ghost sm" onclick="window.gerarPdfMes('${esc(mesIso)}', '${esc(empNome)}')">🖨️ PDF Mês</button>
+                </div>
+              </div>
+              <div class="table-wrapper" style="box-shadow:none; border:1px solid var(--line);">
+                <table>
+                  <thead><tr><th>Data</th><th>Estrutura</th><th>Status</th><th>NCs</th><th style="text-align:right;">Ações na Vistoria</th></tr></thead>
+                  <tbody>
+                    ${vists.map(v => `
+                      <tr>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')" style="width:140px;"><strong>${fmtDate(v.dataHora).split(' às')[0]}</strong><br><span style="font-size:11.5px;color:var(--ink-faint);">${fmtDate(v.dataHora).split('às ')[1]}</span></td>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.estruturaNome)}</td>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.syncStatus==='pending'?'<span class="badge pending">⏳ Local</span>':'<span class="badge conforme">✅ Nuvem</span>'}</td>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.totalNC > 0 ? `<span class="badge nc">${v.totalNC}</span>` : `<span class="badge conforme">OK</span>`}</td>
+                        <td style="text-align:right; width:220px;">
+                          <div class="rowflex" style="justify-content:flex-end; gap:6px;">
+                            <button class="btn ghost sm" onclick="abrirVistoria('${v.id}')">🔍 Abrir</button>
+                            <button class="btn ghost sm" onclick="window.gerarPdfUnico('${v.id}')">🖨️ PDF</button>
+                            <button class="btn ghost sm" onclick="exportarExcel('vist', '${v.id}')">📊 CSV</button>
+                          </div>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+      `
+    }).join('')}
   </div>`;
 }
 function bindVistorias() {}
@@ -1457,26 +1582,28 @@ function viewVistoriaDetalhe(vistoriaParam) {
   </div>
   
   <div class="print-only-title" style="display:none; text-align:center;">
-    <h1 style="font-family:var(--font-display);font-size:24px;margin:0;">Relatório de Inspeção - ${esc(v.estruturaNome)}</h1>
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório de Inspeção - ${esc(v.estruturaNome)}</h1>
+    <p style="color:var(--ink-soft); margin-top:8px;">${esc(v.empreendimentoNome)}</p>
   </div>
 
-  <div class="card card-pad" style="margin-bottom:20px;">
-    <strong>Empreendimento:</strong> ${esc(v.empreendimentoNome)}<br>
-    <strong>Responsável:</strong> ${esc(v.responsavel)}<br>
-    <strong>Data:</strong> ${fmtDate(v.dataHora)}<br>
-    <strong>GPS:</strong> ${v.gps ? `${v.gps.lat.toFixed(5)}, ${v.gps.lng.toFixed(5)}` : 'N/A'}
+  <div class="card card-pad" style="margin-bottom:24px; background:var(--surface-2);">
+    <div class="grid cols-3">
+      <div><span class="eyebrow">Data e Hora</span><br><strong>${fmtDate(v.dataHora)}</strong></div>
+      <div><span class="eyebrow">Responsável</span><br><strong>${esc(v.responsavel)}</strong></div>
+      <div><span class="eyebrow">Geolocalização (GPS)</span><br><strong>${v.gps ? `${v.gps.lat.toFixed(5)}, ${v.gps.lng.toFixed(5)}` : 'N/A'}</strong></div>
+    </div>
   </div>
 
-  <h3 style="margin:0 0 10px; font-family:var(--font-display); font-size:20px;">Checklist Completo</h3>
-  <div class="card table-wrapper" style="margin-bottom:20px;">
+  <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Checklist Completo</h3>
+  <div class="card table-wrapper" style="margin-bottom:28px;">
     <table>
       <thead><tr><th>Item</th><th>Status</th><th>Observação</th></tr></thead>
       <tbody>
         ${v.itens.map(it => `
           <tr style="break-inside: avoid;">
-            <td style="width:50%;">${esc(it.texto)}</td>
+            <td style="width:50%; font-weight:500;">${esc(it.texto)}</td>
             <td><span class="badge ${it.status==='conforme'?'conforme':it.status==='nc'?'nc':'na'}">${it.status.toUpperCase()}</span></td>
-            <td style="font-size:12.5px;">${esc(it.observacao)||'—'}</td>
+            <td style="font-size:13px; color:var(--ink-soft);">${esc(it.observacao)||'—'}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -1484,16 +1611,16 @@ function viewVistoriaDetalhe(vistoriaParam) {
   </div>
 
   ${ncs.length > 0 ? `
-    <h3 style="margin:0 0 10px; font-family:var(--font-display); font-size:20px; color:var(--nc);">Plano de Ação (NCs)</h3>
-    <div class="card table-wrapper" style="margin-bottom:20px; border-color:var(--nc-bg);">
+    <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px; color:var(--nc);">Plano de Ação (Não Conformidades)</h3>
+    <div class="card table-wrapper" style="margin-bottom:28px; border-color:var(--nc-bg);">
       <table>
-        <thead><tr><th>Problema (Item)</th><th>Criticidade</th><th>Recomendação</th></tr></thead>
+        <thead><tr><th>Problema (Item)</th><th>Criticidade</th><th>Recomendação Técnica</th></tr></thead>
         <tbody>
           ${ncs.map(it => `
             <tr style="break-inside: avoid;">
-              <td>${esc(it.texto)}</td>
+              <td style="font-weight:600;">${esc(it.texto)}</td>
               <td><span class="badge ${it.criticidade}">${criticidadeLabel(it.criticidade)}</span></td>
-              <td style="font-size:12.5px;">${esc(it.recomendacao)||'—'}</td>
+              <td style="font-size:13.5px;">${esc(it.recomendacao)||'—'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1502,13 +1629,13 @@ function viewVistoriaDetalhe(vistoriaParam) {
   ` : ''}
 
   ${v.itens.some(i=>i.fotos?.length) ? `
-    <h3 style="margin:0 0 10px; font-family:var(--font-display); font-size:20px;">Relatório Fotográfico</h3>
-    <div style="display:flex; flex-direction:column; gap:16px;">
+    <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Relatório Fotográfico</h3>
+    <div class="grid cols-2">
       ${v.itens.filter(i=>i.fotos?.length).map(it => `
         <div class="card card-pad" style="break-inside: avoid;">
-          <div style="font-weight:600;margin-bottom:8px;">Ref: ${esc(it.texto)}</div>
+          <div style="font-weight:600;margin-bottom:12px; font-size:13px;">Ref: ${esc(it.texto)}</div>
           <div class="photo-row">
-            ${it.fotos.map(f => `<img src="${f}" style="width:200px; height:200px; object-fit:cover; border-radius:8px; border:1px solid var(--line);">`).join('')}
+            ${it.fotos.map(f => `<img src="${f}" style="width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line);">`).join('')}
           </div>
         </div>
       `).join('')}
@@ -1545,6 +1672,22 @@ window.editarVistoriaAtual = function() {
   setView('nova');
 }
 
+window.gerarPdfUnico = async function(id) {
+  const v = await loadVistoria(id);
+  if(v) {
+    const originalAberta = state.vistoriaAberta;
+    const originalView = state.view;
+    state.vistoriaAberta = v;
+    
+    const content = document.getElementById('content');
+    content.innerHTML = `
+      <div class="no-print view-head"><button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button><button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button></div>
+      ${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}
+    `;
+    state.vistoriaAberta = originalAberta;
+  }
+};
+
 window.gerarPdfMes = async function(mesIso, empNome) {
   const vistsIdx = state.vistoriasIndex.filter(v => v.empreendimentoNome === empNome && new Date(v.dataHora).toISOString().slice(0, 7) === mesIso);
   const vists = [];
@@ -1559,11 +1702,12 @@ window.gerarPdfMes = async function(mesIso, empNome) {
       <button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button>
       <button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button>
     </div>
-    <div class="print-only-title" style="display:block; text-align:center; margin-bottom:30px;">
-      <h1 style="font-family:var(--font-display);font-size:26px;margin:0;">Relatório Mensal - ${esc(empNome)} (${mesIso})</h1>
+    <div class="print-only-title" style="display:block; text-align:center; margin-bottom:40px;">
+      <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Inspeções</h1>
+      <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${mesIso}</p>
     </div>
-    ${vists.map((v, i) => {
-      return `<div style="page-break-after:always; margin-bottom:40px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
+    ${vists.map((v) => {
+      return `<div style="page-break-after:always; margin-bottom:60px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
     }).join('')}
   `;
 };
@@ -1604,7 +1748,7 @@ function viewEvolucao() {
   </div>`;
 
   if(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) {
-    return html + `<div class="empty card">Utilize os filtros acima.</div>`;
+    return html + `<div class="empty card"><div class="ic">📈</div>Utilize os filtros acima para visualizar a linha do tempo.</div>`;
   }
 
   const history = state.vistoriasIndex.filter(vi => vi.empreendimentoNome === state.evolucaoFiltroEmp && vi.estruturaNome === state.evolucaoFiltroEst)
@@ -1613,19 +1757,19 @@ function viewEvolucao() {
   if(history.length === 0) return html + `<div class="empty card">Nenhuma vistoria encontrada para esta combinação.</div>`;
 
   html += `
-  <div class="card card-pad" style="margin-bottom:30px; height: 300px; display:flex; align-items:center; justify-content:center;">
+  <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
     <canvas id="evoChart"></canvas>
   </div>
   <div class="card table-wrapper">
     <table>
-      <thead><tr><th>Data</th><th>Resp.</th><th>NCs</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Data da Inspeção</th><th>Responsável</th><th>Status (NCs)</th><th>Ação</th></tr></thead>
       <tbody>
         ${[...history].reverse().map(h => `
           <tr>
-            <td>${fmtDate(h.dataHora)}</td>
+            <td style="font-weight:600;">${fmtDate(h.dataHora)}</td>
             <td>${esc(h.responsavel)}</td>
-            <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} NC</span>` : `<span class="badge conforme">OK</span>`}</td>
-            <td><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">Ver</button></td>
+            <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} Não Conformidades</span>` : `<span class="badge conforme">100% Conforme</span>`}</td>
+            <td><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">🔍 Ver Relatório</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -1667,11 +1811,11 @@ function viewNcs() {
     <div><div class="eyebrow">Consolidado</div><h1 class="view-title">Mapeamento de NCs</h1></div>
     <div class="rowflex">
       <button class="btn primary" onclick="carregarNcsNaTela()">🔍 Carregar Relatório de NCs</button>
-      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Consolidade</button>
     </div>
   </div>
   <div id="ncs-container">
-    <div class="empty card">Clique no botão acima para ler o banco de dados e agrupar todas as pendências.</div>
+    <div class="empty card"><div class="ic">⚠️</div>Clique no botão acima para compilar todas as pendências.</div>
   </div>`;
 }
 
@@ -1692,7 +1836,7 @@ window.carregarNcsNaTela = async function() {
   }
 
   if(allNcs.length === 0) {
-    container.innerHTML = '<div class="empty card" style="color:var(--conforme);">Nenhuma não conformidade encontrada no sistema! Parabéns!</div>';
+    container.innerHTML = '<div class="empty card" style="color:var(--conforme);"><div class="ic">✨</div>Nenhuma não conformidade encontrada no sistema!</div>';
     return;
   }
 
@@ -1702,15 +1846,15 @@ window.carregarNcsNaTela = async function() {
   container.innerHTML = `
   <div class="card table-wrapper" style="border-color:var(--nc-bg);">
     <table>
-      <thead><tr><th>Criticidade</th><th>Empreendimento / Estrutura</th><th>Item Reprovado</th><th>Recomendação</th><th>Data</th><th>Ação</th></tr></thead>
+      <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Item Reprovado</th><th>Recomendação</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
       <tbody>
         ${allNcs.map(nc => `
           <tr style="break-inside:avoid;">
             <td><span class="badge ${nc.item.criticidade}">${criticidadeLabel(nc.item.criticidade)}</span></td>
             <td><strong>${esc(nc.emp)}</strong><br><span style="font-size:12px;color:var(--ink-soft);">${esc(nc.est)}</span></td>
-            <td style="max-width:250px;">${esc(nc.item.texto)}<br><em style="font-size:12px;color:var(--nc);">Obs: ${esc(nc.item.observacao)}</em></td>
-            <td style="font-size:12.5px;">${esc(nc.item.recomendacao)||'—'}</td>
-            <td style="font-size:12.5px;">${fmtDate(nc.data).split(' às')[0]}</td>
+            <td style="max-width:280px; font-weight:500;">${esc(nc.item.texto)}<br><em style="font-size:12.5px;color:var(--nc); margin-top:4px; display:block;">Obs: ${esc(nc.item.observacao)}</em></td>
+            <td style="font-size:13px; color:var(--ink-soft);">${esc(nc.item.recomendacao)||'—'}</td>
+            <td style="font-size:13px;">${fmtDate(nc.data).split(' às')[0]}</td>
             <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${nc.vistId}')">Abrir</button></td>
           </tr>
         `).join('')}
@@ -1725,7 +1869,7 @@ function bindNcs() {}
    INICIALIZAÇÃO E AUTENTICAÇÃO
    ============================================================ */
 async function iniciarApp() {
-  showToast('Carregando dados...');
+  showToast('Carregando dados da nuvem...');
   const syncOk = await syncGlobalNuvem();
   
   if(!syncOk) {
@@ -1769,7 +1913,7 @@ async function checkAuth() {
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
     const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) alert('Falha no login.');
+    if (error) alert('Falha no login. Verifique as credenciais.');
     else { loginScreen.style.display = 'none'; iniciarApp(); }
   };
 }
