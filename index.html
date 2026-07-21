@@ -188,7 +188,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 .modal-body{padding:24px;}
 .modal-foot{padding:16px 24px 24px;display:flex;justify-content:flex-end;gap:12px; background:var(--surface-2); border-top:1px solid var(--line);}
 
-/* CHECKLIST ITENS E EDITOR */
+/* CHECKLIST ITENS */
 .item-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:12px;overflow:hidden; box-shadow:var(--shadow);}
 .item-top{padding:16px 20px;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;}
 .item-num{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--ink-faint);margin-bottom:6px;display:block;}
@@ -230,13 +230,6 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
   .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
-  
-  /* EDITOR RESPONSIVO */
-  .ed-item-row { flex-wrap:wrap; }
-  .ed-arrows { flex-direction:row; gap:16px; order:1; }
-  .ed-item-row > .danger { order:2; margin-left:auto; }
-  .ed-inputs { flex-direction:column; width:100%; order:3; margin-top:8px; }
-  .ed-item-cat { width:100%; }
 }
 
 @media print{
@@ -400,28 +393,91 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
-// Comprime a foto no navegador antes de salvar (Resolve o crash de Base64)
+// Comprime a foto no navegador antes de salvar.
+// - clamp: nunca amplia foto menor que MAX_WIDTH (evita inflar/borrar)
+// - EXIF: respeita a orientação de câmera de celular (evita foto deitada no laudo)
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = event => {
+    const MAX_WIDTH = 1200;   // resolução suficiente para laudos ambientais
+    const QUALITY   = 0.6;    // JPEG 60% — alivia o banco
+
+    // Lê a orientação EXIF direto dos bytes do arquivo (JPEG).
+    // Retorna 1 (normal) se não houver tag ou não for JPEG.
+    function getOrientation(buffer) {
+      const view = new DataView(buffer);
+      if (view.getUint16(0, false) !== 0xFFD8) return 1; // não é JPEG
+      const length = view.byteLength;
+      let offset = 2;
+      while (offset < length) {
+        const marker = view.getUint16(offset, false);
+        offset += 2;
+        if (marker === 0xFFE1) { // APP1 (onde vive o EXIF)
+          if (view.getUint32(offset + 2, false) !== 0x45786966) return 1; // "Exif"
+          const little = view.getUint16(offset + 8, false) === 0x4949;
+          const tiff = offset + 10;
+          const tags = view.getUint16(tiff + view.getUint32(tiff + 4, little), little);
+          const dirStart = tiff + view.getUint32(tiff + 4, little) + 2;
+          for (let i = 0; i < tags; i++) {
+            const entry = dirStart + i * 12;
+            if (view.getUint16(entry, little) === 0x0112) { // tag Orientation
+              return view.getUint16(entry + 8, little);
+            }
+          }
+        } else if ((marker & 0xFF00) !== 0xFF00) {
+          break;
+        } else {
+          offset += view.getUint16(offset, false);
+        }
+      }
+      return 1;
+    }
+
+    const arrbufReader = new FileReader();
+    arrbufReader.onload = e => {
+      const orientation = getOrientation(e.target.result);
+
       const img = new Image();
-      img.src = event.target.result;
       img.onload = () => {
+        // dimensões de destino, sem upscale
+        const scale = Math.min(1, MAX_WIDTH / img.width);
+        let w = Math.round(img.width * scale);
+        let h = Math.round(img.height * scale);
+
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200; // Resolução suficiente para laudos ambientais
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = MAX_WIDTH;
-        canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // Retorna JPEG com 60% de qualidade para aliviar o banco
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
+
+        // orientações 5-8 trocam largura/altura (imagem rotacionada 90°)
+        if (orientation >= 5 && orientation <= 8) {
+          canvas.width = h; canvas.height = w;
+        } else {
+          canvas.width = w; canvas.height = h;
+        }
+
+        // aplica a transformação correspondente à flag EXIF
+        switch (orientation) {
+          case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
+          case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
+          case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
+          case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+          case 6: ctx.transform(0, 1, -1, 0, h, 0); break;
+          case 7: ctx.transform(0, -1, -1, 0, h, w); break;
+          case 8: ctx.transform(0, -1, 1, 0, 0, w); break;
+          default: break; // 1 = normal, nada a fazer
+        }
+
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', QUALITY));
       };
-      img.onerror = e => reject(e);
+      img.onerror = reject;
+
+      // usa um segundo reader para gerar a dataURL que a <img> consome
+      const dataReader = new FileReader();
+      dataReader.onload = ev => { img.src = ev.target.result; };
+      dataReader.onerror = reject;
+      dataReader.readAsDataURL(file);
     };
-    reader.onerror = e => reject(e);
+    arrbufReader.onerror = reject;
+    arrbufReader.readAsArrayBuffer(file); // lê os bytes para o parser EXIF
   });
 }
 
@@ -580,7 +636,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
     {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
     {texto:'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?',cat:'Estrutural / Efluentes'},
-    {texto:'A estrutura da bomba de abastecimento está íntegra?',cat:'Estrutural / Efluentes'},
+    {texto:'A structure da bomba de abastecimento está íntegra?',cat:'Estrutural / Efluentes'},
     {texto:'O sump da bomba está seco, sem líquidos acumulados?',cat:'Estrutural / Efluentes'},
     {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural / Efluentes'},
     {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural / Efluentes'},
