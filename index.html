@@ -209,13 +209,6 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 }
 .photo-add:hover{border-color:var(--accent); color:var(--accent);}
 
-/* EDITOR DE ESTRUTURA ROW */
-.ed-item-row { padding:16px; display:flex; gap:12px; align-items:center; }
-.ed-arrows { display:flex; flex-direction:column; line-height:0.8; font-size:22px; color:var(--ink-faint); cursor:ns-resize; }
-.ed-inputs { display:flex; gap:12px; flex:1; }
-.ed-item-txt { flex:1; }
-.ed-item-cat { width:200px; }
-
 .rowflex{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
 @media(max-width:860px){
@@ -788,7 +781,7 @@ function render() {
 }
 
 /* ============================================================
-   SINCRO E DADOS NUVEM (COM CORREÇÃO E MAPEAMENTO DE SETOR)
+   SINCRO E DADOS NUVEM
    ============================================================ */
 async function syncGlobalNuvem(){
   if(!_supabase || !navigator.onLine) return false;
@@ -971,7 +964,7 @@ async function saveVistoria(v) {
 }
 
 /* ============================================================
-   TELAS: EMPREENDIMENTOS E MODAL (COM CARDS VISUAIS E MAPEAMENTO)
+   TELAS: EMPREENDIMENTOS E MODAL
    ============================================================ */
 function viewEmpreendimentos() {
   return `
@@ -1102,7 +1095,7 @@ window.excluirEmpreendimento = async function(id) {
 }
 
 /* ============================================================
-   TELAS: ESTRUTURAS (SEPARADAS POR SETOR, LIMPAS E SEM EMOJIS NOS CARDS)
+   TELAS: ESTRUTURAS
    ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
@@ -1202,9 +1195,6 @@ window.excluirEstrutura = async function(id) {
   }
 }
 
-/* ============================================================
-   EDITOR DE ESTRUTURAS
-   ============================================================ */
 function viewEditorEstrutura() {
   const est = state.estruturaEditando;
   return `
@@ -1640,30 +1630,40 @@ window.removeFoto = function(itemId, photoIdx) {
 }
 
 /* ============================================================
-   TELA: DASHBOARD COM GRÁFICOS MELHORADOS
+   TELA: DASHBOARD GERAL COM NOVOS GRÁFICOS
    ============================================================ */
 function viewDashboard() {
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
   
-  const total = filtradas.length;
-  const totalNC = filtradas.reduce((s,v)=>s+(v.totalNC||0),0);
-  
+  const totalVist = filtradas.length;
+  let totalItens = 0;
+  let totalNC = 0;
   const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
   const porEmp = {};
 
   filtradas.forEach(v => {
+    totalItens += (v.totalItens || 0);
+    totalNC += (v.totalNC || 0);
+
     if (v.criticidades) {
       porCrit.baixa += v.criticidades.baixa || 0;
       porCrit.media += v.criticidades.media || 0;
       porCrit.alta += v.criticidades.alta || 0;
       porCrit.critica += v.criticidades.critica || 0;
     }
-    if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0 };
+    
+    if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0, critMax: null };
     porEmp[v.empreendimentoNome].vist++;
     porEmp[v.empreendimentoNome].nc += (v.totalNC||0);
+
+    const critWeight = {critica:4, alta:3, media:2, baixa:1};
+    const currWeight = critWeight[v.criticidadeMax] || 0;
+    const existWeight = critWeight[porEmp[v.empreendimentoNome].critMax] || 0;
+    if(currWeight > existWeight) porEmp[v.empreendimentoNome].critMax = v.criticidadeMax;
   });
   
-  const maxCrit = Math.max(1, ...Object.values(porCrit));
+  const totalConforme = totalItens - totalNC;
+  const taxaConf = totalItens > 0 ? ((totalConforme / totalItens) * 100).toFixed(1) : 100;
 
   return `
   <div class="view-head no-print">
@@ -1681,38 +1681,47 @@ function viewDashboard() {
 
   ${renderFilterBar('dash')}
 
-  <div class="grid cols-2" style="margin-bottom:24px;">
-    <div class="card kpi"><div class="num">${total}</div><div class="lbl">Vistorias Filtradas</div></div>
-    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades no Período</div></div>
+  <div class="grid cols-4" style="margin-bottom:24px;">
+    <div class="card kpi"><div class="num">${totalVist}</div><div class="lbl">Inspeções Realizadas</div></div>
+    <div class="card kpi"><div class="num" style="color:var(--conforme);">${taxaConf}%</div><div class="lbl">Taxa de Conformidade</div></div>
+    <div class="card kpi"><div class="num" style="color:var(--nc);">${totalNC}</div><div class="lbl">Não Conformidades (NC)</div></div>
+    <div class="card kpi"><div class="num" style="color:var(--alta);">${porCrit.critica + porCrit.alta}</div><div class="lbl">NCs Críticas/Altas</div></div>
   </div>
   
-  <div class="grid cols-2" style="align-items:start;">
-    <div class="card card-pad">
-      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Desempenho por Empreendimento</h3>
-      <div style="width:100%; height:250px; position:relative;">
-         <canvas id="dashBarChart"></canvas>
-         ${total === 0 ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--ink-faint); text-align:center;">Sem Dados</div>' : ''}
+  <div class="grid cols-2" style="align-items:start; margin-bottom:24px;">
+    <div class="card card-pad" style="break-inside: avoid;">
+      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Status das Verificações</h3>
+      <div style="height:250px; position:relative;">
+         <canvas id="dashDonutChart"></canvas>
+         ${totalItens === 0 ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--ink-faint); text-align:center;">Sem Dados</div>' : ''}
       </div>
     </div>
     
-    <div class="card card-pad">
-      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Distribuição de Criticidade</h3>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:24px;">
-        <div style="width:200px; height:200px; position:relative;">
-           <canvas id="dashPieChart"></canvas>
-           ${totalNC === 0 ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--ink-faint); text-align:center;">0 NCs</div>' : ''}
-        </div>
-        <div style="width:100%;">
-          ${['critica','alta','media','baixa'].map(k=>`
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-              <div style="width:80px;font-size:13px;font-weight:600;color:var(--ink-soft);">${criticidadeLabel(k)}</div>
-              <div style="flex:1;background:var(--surface-2);border-radius:8px;height:16px;overflow:hidden;">
-                <div style="width:${(porCrit[k]/maxCrit*100)||0}%;height:100%;background:var(--${k});"></div>
-              </div>
-              <div style="width:30px;text-align:right;font-family:var(--font-mono);font-size:13px;font-weight:500;">${porCrit[k]}</div>
-            </div>`).join('')}
-        </div>
+    <div class="card card-pad" style="break-inside: avoid;">
+      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução Histórica</h3>
+      <div style="height:250px; position:relative;">
+         <canvas id="dashEvoChart"></canvas>
+         ${totalVist === 0 ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--ink-faint); text-align:center;">Sem Dados</div>' : ''}
       </div>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="break-inside: avoid;">
+    <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Ranking de Empreendimentos</h3>
+    <div class="table-wrapper">
+      <table style="min-width:100%;">
+        <thead><tr><th>Empreendimento</th><th>Vistorias</th><th>Não Conformidades</th><th>Risco Máximo Encontrado</th></tr></thead>
+        <tbody>
+          ${Object.entries(porEmp).sort((a,b)=>b[1].nc - a[1].nc).map(([nome, stat]) => `
+            <tr>
+              <td style="font-weight:600;">${esc(nome)}</td>
+              <td>${stat.vist}</td>
+              <td>${stat.nc > 0 ? `<span style="color:var(--nc);font-weight:700;">${stat.nc}</span>` : `<span style="color:var(--conforme);">0</span>`}</td>
+              <td>${stat.critMax ? `<span class="badge ${stat.critMax}">${criticidadeLabel(stat.critMax)}</span>` : '—'}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="4" class="empty" style="padding:20px;">Sem dados para o filtro</td></tr>'}
+        </tbody>
+      </table>
     </div>
   </div>`;
 }
@@ -1720,58 +1729,39 @@ function viewDashboard() {
 function bindDashboard() { 
   bindFilterBar('dash'); 
   
-  const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
-  const porCrit = { baixa: 0, media: 0, alta: 0, critica: 0 };
-  const porEmp = {};
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+  
+  let totalItens = 0;
+  let totalNC = 0;
+  const evolucaoMap = {};
 
   filtradas.forEach(v => {
-    if (v.criticidades) {
-      porCrit.baixa += v.criticidades.baixa || 0;
-      porCrit.media += v.criticidades.media || 0;
-      porCrit.alta += v.criticidades.alta || 0;
-      porCrit.critica += v.criticidades.critica || 0;
+    totalItens += (v.totalItens || 0);
+    totalNC += (v.totalNC || 0);
+
+    const d = new Date(v.dataHora);
+    if(!isNaN(d)) {
+      const mesAno = ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
+      if(!evolucaoMap[mesAno]) evolucaoMap[mesAno] = { vist: 0, nc: 0 };
+      evolucaoMap[mesAno].vist++;
+      evolucaoMap[mesAno].nc += (v.totalNC || 0);
     }
-    if(!porEmp[v.empreendimentoNome]) porEmp[v.empreendimentoNome] = { vist:0, nc:0 };
-    porEmp[v.empreendimentoNome].vist++;
-    porEmp[v.empreendimentoNome].nc += (v.totalNC||0);
   });
 
-  const barCanvas = document.getElementById('dashBarChart');
-  if(barCanvas) {
-      if(window.dashBarChartInstance) window.dashBarChartInstance.destroy();
-      const labels = Object.keys(porEmp).slice(0, 10);
-      const dataVist = labels.map(l => porEmp[l].vist);
-      const dataNC = labels.map(l => porEmp[l].nc);
+  const totalConforme = totalItens - totalNC;
 
-      const ctx = barCanvas.getContext('2d');
-      window.dashBarChartInstance = new Chart(ctx, {
-          type: 'bar',
-          data: {
-              labels: labels.map(l => l.length > 15 ? l.slice(0, 15) + '...' : l),
-              datasets: [
-                  { label: 'Vistorias', data: dataVist, backgroundColor: '#5B9A78' },
-                  { label: 'Não Conformidades', data: dataNC, backgroundColor: '#C4332C' }
-              ]
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-          }
-      });
-  }
-
-  const pieCanvas = document.getElementById('dashPieChart');
-  if(pieCanvas) {
-      if(window.dashPieChartInstance) window.dashPieChartInstance.destroy();
-      const ctx = pieCanvas.getContext('2d');
-      window.dashPieChartInstance = new Chart(ctx, {
+  // Render Donut Chart
+  const donutCanvas = document.getElementById('dashDonutChart');
+  if(donutCanvas) {
+      if(window.dashDonutChartInstance) window.dashDonutChartInstance.destroy();
+      const ctx = donutCanvas.getContext('2d');
+      window.dashDonutChartInstance = new Chart(ctx, {
           type: 'doughnut',
           data: {
-              labels: ['Crítica', 'Alta', 'Média', 'Baixa'],
+              labels: ['Conformes / N.A.', 'Não Conformidades'],
               datasets: [{
-                  data: [porCrit.critica, porCrit.alta, porCrit.media, porCrit.baixa],
-                  backgroundColor: ['#9B1C2E', '#E2571D', '#D69E2E', '#5B9A78'],
+                  data: [totalConforme, totalNC],
+                  backgroundColor: ['#2F9E44', '#C4332C'],
                   borderWidth: 2,
                   borderColor: '#ffffff'
               }]
@@ -1779,8 +1769,55 @@ function bindDashboard() {
           options: {
               responsive: true,
               maintainAspectRatio: false,
-              cutout: '65%',
-              plugins: { legend: { display: false } }
+              cutout: '70%',
+              plugins: { legend: { position: 'bottom' } }
+          }
+      });
+  }
+
+  // Render Evolution Combo Chart
+  const evoCanvas = document.getElementById('dashEvoChart');
+  if(evoCanvas) {
+      if(window.dashEvoChartInstance) window.dashEvoChartInstance.destroy();
+      const labels = Object.keys(evolucaoMap);
+      const dataVist = labels.map(l => evolucaoMap[l].vist);
+      const dataNC = labels.map(l => evolucaoMap[l].nc);
+
+      const ctx = evoCanvas.getContext('2d');
+      window.dashEvoChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+              labels: labels,
+              datasets: [
+                  {
+                      type: 'line',
+                      label: 'Total de NCs',
+                      data: dataNC,
+                      borderColor: '#C4332C',
+                      backgroundColor: '#C4332C',
+                      borderWidth: 3,
+                      tension: 0.3,
+                      yAxisID: 'y1'
+                  },
+                  {
+                      type: 'bar',
+                      label: 'Vistorias Realizadas',
+                      data: dataVist,
+                      backgroundColor: 'rgba(91, 154, 120, 0.7)',
+                      borderRadius: 4,
+                      yAxisID: 'y'
+                  }
+              ]
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              scales: {
+                  y: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: {display: true, text: 'Vistorias'}, ticks: {precision:0} },
+                  y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: {drawOnChartArea: false}, title: {display: true, text: 'NCs'}, ticks:{precision:0} }
+              },
+              plugins: { legend: { position: 'bottom' } }
           }
       });
   }
