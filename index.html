@@ -17,7 +17,7 @@
   --ink-soft:#546056;
   --ink-faint:#8A9389;
   --line:#D7DED2;
-  --accent:#7ebf41; /* Verde MapaBase Ajustado */
+  --accent:#7ebf41; 
   --accent-ink:#f0f8e9;
   --conforme:#2F9E44;
   --conforme-bg:#E9F7EC;
@@ -182,6 +182,7 @@ nav.mainnav{
   font-size:14px;
   font-weight:600;
   white-space:nowrap;
+  justify-content: center;
 }
 .btn:hover{border-color:var(--ink-faint);}
 .btn.primary{
@@ -207,11 +208,6 @@ nav.mainnav{
 .grid.cols-4{grid-template-columns:repeat(4,1fr);}
 .grid.cols-3{grid-template-columns:repeat(3,1fr);}
 .grid.cols-2{grid-template-columns:repeat(2,1fr);}
-@media(max-width:900px){
-  .grid.cols-4{grid-template-columns:repeat(2,1fr);}
-  .grid.cols-3{grid-template-columns:repeat(2,1fr);}
-  .grid.cols-2{grid-template-columns:1fr;}
-}
 
 .kpi{padding:18px 20px;}
 .kpi .num{font-family:var(--font-display);font-size:38px;font-weight:600;line-height:1;}
@@ -247,11 +243,13 @@ nav.mainnav{
   color:var(--ink-soft);
 }
 
-table{width:100%;border-collapse:collapse;font-size:13.5px;}
-th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);padding:8px 10px;border-bottom:1px solid var(--line);}
-td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;}
-tr:last-child td{border-bottom:none;}
-tr.clickable:hover{background:var(--surface-2);cursor:pointer;}
+/* Tabelas Responsivas */
+.table-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 600px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr.clickable:hover { background: var(--surface-2); cursor: pointer; }
 
 .empty{
   text-align:center;
@@ -351,19 +349,36 @@ label.field-label{
 .rowflex{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
 .spacer{flex:1;}
 
+/* ---------- MOBILE RESPONSIVE TWEAKS ---------- */
 @media(max-width:860px){
   #sidebar{
     position:fixed;bottom:0;left:0;right:0;top:auto;width:100%;height:auto;
     flex-direction:row;z-index:50;box-shadow:0 -2px 14px rgba(0,0,0,.12);
   }
   .brand,.sidebar-foot{display:none;}
-  nav.mainnav{flex-direction:row;padding:6px;overflow-x:auto;width:100%;}
-  .navbtn{flex-direction:column;font-size:10px;padding:8px 10px;gap:3px;min-width:64px;}
+  nav.mainnav{
+    flex-direction:row; padding:6px; overflow-x:auto; width:100%;
+    -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory;
+  }
+  .navbtn{flex-direction:column;font-size:10px;padding:8px 10px;gap:3px;min-width:64px; scroll-snap-align: start;}
   .navbtn .ic{font-size:17px;}
   #content{padding:18px 16px 90px;}
   .view-title{font-size:26px;}
-  .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr 1fr;}
-  .sticky-footer{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;}
+  
+  /* Grids to single column on mobile */
+  .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+  
+  /* Checklist Segment Mobile Tweak */
+  .item-top { flex-direction: column; gap: 12px; }
+  .seg { width: 100%; display: flex; }
+  .seg button { flex: 1; text-align: center; padding: 12px 0; font-size: 11.5px;}
+
+  /* Header Buttons Row */
+  .view-head .rowflex { width: 100%; flex-direction: column; align-items: stretch; }
+  .view-head .rowflex button { width: 100%; }
+
+  .sticky-footer{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px; flex-direction: column; text-align: center;}
+  .sticky-footer button { width: 100%; }
 }
 
 /* ---------- REGRAS DE IMPRESSÃO (PDF) ---------- */
@@ -373,6 +388,8 @@ label.field-label{
   #content { padding:0; max-width:100%; width:100%; }
   body { background:#fff; margin:0; }
   .card { border:1px solid #ddd; box-shadow:none; }
+  .table-wrapper { overflow: visible !important; }
+  table { min-width: 100%; }
   * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
   .badge { border:1px solid rgba(0,0,0,0.1); }
   @page { margin: 1cm; }
@@ -491,7 +508,9 @@ const state = {
   dashFiltroEmp: '', 
   dashFiltroMes: '', 
   vistoriasConsolidadas: [], 
-  tituloConsolidado: ''
+  tituloConsolidado: '',
+  evolucaoFiltroEmp: '',
+  evolucaoFiltroEst: ''
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -829,7 +848,7 @@ function viewRelatorioConsolidado() {
       </div>
 
       <h3 style="font-family:var(--font-display);font-size:20px;font-weight:600;margin:0 0 12px;">📋 Checklist Analisado</h3>
-      <div class="card" style="margin-bottom:24px; box-shadow:none;"><table>
+      <div class="card table-wrapper" style="margin-bottom:24px; box-shadow:none;"><table>
         <thead><tr><th style="width:40px;">#</th><th>Item de Inspeção</th><th>Status</th><th>Observação Registrada</th></tr></thead>
         <tbody>
           ${v.itens.map((it,idx)=>`
@@ -848,7 +867,7 @@ function viewRelatorioConsolidado() {
 
       ${nc.length ? `
       <h3 style="font-family:var(--font-display);font-size:20px;font-weight:600;margin:0 0 12px; color:var(--nc);">⚠️ Não Conformidades e Recomendações</h3>
-      <div class="card" style="margin-bottom:24px; box-shadow:none; border-color:var(--nc-bg);"><table>
+      <div class="card table-wrapper" style="margin-bottom:24px; box-shadow:none; border-color:var(--nc-bg);"><table>
         <thead><tr><th>Item Apontado</th><th>Criticidade</th><th>Recomendação Técnica / Ação</th></tr></thead><tbody>
         ${nc.map(it=>`
           <tr style="break-inside: avoid;">
@@ -956,7 +975,7 @@ async function iniciarApp(){
     const est = await storageGet('estruturas');
     state.empreendimentos = emp || [];
     state.estruturas = est || [];
-    await loadVistoriasNuvem(); // Tenta carregar o cache local
+    await loadVistoriasNuvem(); 
   }
 
   if(state.estruturas.length === 0){
@@ -1289,6 +1308,7 @@ const NAV = [
   {id:'nova', label:'Nova vistoria', ic:'&#10133;'},
   {id:'vistorias', label:'Vistorias', ic:'&#128203;'},
   {id:'naoconformidades', label:'Não conformidades', ic:'&#9888;'},
+  {id:'evolucao', label:'Evolução', ic:'&#128200;'},
   {id:'empreendimentos', label:'Empreendimentos', ic:'&#127970;'},
   {id:'estruturas', label:'Biblioteca de estruturas', ic:'&#128218;'},
 ];
@@ -1304,7 +1324,7 @@ function renderNav(){
     b.addEventListener('click', async ()=> {
       if(b.dataset.nav === 'nova') state.novaVistoria = null;
       
-      if((b.dataset.nav === 'dashboard' || b.dataset.nav === 'vistorias') && _supabase && navigator.onLine){
+      if((b.dataset.nav === 'dashboard' || b.dataset.nav === 'vistorias' || b.dataset.nav === 'evolucao') && _supabase && navigator.onLine){
         showToast('Atualizando dados da Nuvem...');
         await syncGlobalNuvem();
       }
@@ -1329,8 +1349,120 @@ function render(){
     case 'vistoria-detalhe': c.innerHTML = viewVistoriaDetalhe(); bindVistoriaDetalhe(); break;
     case 'relatorio-consolidado': c.innerHTML = viewRelatorioConsolidado(); bindRelatorioConsolidado(); break;
     case 'naoconformidades': c.innerHTML = viewNaoConformidades(); bindNaoConformidades(); break;
+    case 'evolucao': c.innerHTML = viewEvolucao(); bindEvolucao(); break;
     default: c.innerHTML = '<div class="empty">Não encontrado</div>';
   }
+}
+
+/* ============================================================
+   ABA EVOLUÇÃO DAS INSPEÇÕES
+   ============================================================ */
+function viewEvolucao(){
+  // Pega apenas empreendimentos que já tiveram alguma vistoria
+  const empComVistoria = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
+  
+  let html = `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Acompanhamento e Auditoria</div>
+      <h1 class="view-title">Evolução das Inspeções</h1>
+      <div class="view-sub">Selecione um empreendimento e uma estrutura para ver o histórico e comparar vistorias ao longo do tempo.</div>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:24px; background:var(--surface-2);">
+    <div class="grid cols-2" style="align-items:center;">
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Empreendimento</label>
+        <select id="evo-filter-emp">
+          <option value="">-- Selecione o Empreendimento --</option>
+          ${empComVistoria.map(e => `<option value="${esc(e)}" ${state.evolucaoFiltroEmp===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+  `;
+
+  // Se um empreendimento está selecionado, filtra as estruturas que ele já inspecionou
+  let estOptions = [];
+  if(state.evolucaoFiltroEmp){
+    estOptions = [...new Set(state.vistoriasIndex
+      .filter(v => v.empreendimentoNome === state.evolucaoFiltroEmp)
+      .map(v => v.estruturaNome).filter(Boolean)
+    )].sort();
+  }
+
+  html += `
+      <div class="field" style="margin-bottom:0;">
+        <label class="field-label">Estrutura Inspecionada</label>
+        <select id="evo-filter-est" ${!state.evolucaoFiltroEmp ? 'disabled' : ''}>
+          <option value="">-- Selecione a Estrutura --</option>
+          ${estOptions.map(e => `<option value="${esc(e)}" ${state.evolucaoFiltroEst===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>
+  `;
+
+  if(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) {
+    html += `<div class="empty card"><div class="ic">&#128200;</div>Utilize os filtros acima para visualizar a linha do tempo da estrutura.</div>`;
+    return html;
+  }
+
+  const history = state.vistoriasIndex.filter(vi => 
+    vi.empreendimentoNome === state.evolucaoFiltroEmp && 
+    vi.estruturaNome === state.evolucaoFiltroEst
+  ).sort((a,b)=> new Date(b.dataHora) - new Date(a.dataHora));
+
+  if(history.length === 0) {
+    html += `<div class="empty card">Nenhuma vistoria encontrada para esta combinação.</div>`;
+    return html;
+  }
+
+  html += `
+  <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">📈 Linha do Tempo: ${esc(state.evolucaoFiltroEst)}</h3>
+  <div class="card table-wrapper" style="margin-bottom:22px;">
+    <table>
+      <thead><tr><th>Data / Hora</th><th>Responsável</th><th>Status Nuvem</th><th>NCs</th><th>Criticidade Máx.</th><th class="no-print">Ação</th></tr></thead>
+      <tbody>
+        ${history.map(h => `
+          <tr class="clickable" data-openevo="${h.id}">
+            <td><strong>${fmtDate(h.dataHora)}</strong></td>
+            <td>${esc(h.responsavel || '—')}</td>
+            <td>${h.syncStatus==='pending'?'⏳ Pendente':'✅ Nuvem'}</td>
+            <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} NC</span>` : `<span class="badge conforme">OK</span>`}</td>
+            <td>${h.criticidadeMax ? `<span class="badge ${h.criticidadeMax}">${criticidadeLabel(h.criticidadeMax)}</span>` : '—'}</td>
+            <td class="no-print"><button class="btn ghost sm">Ver Relatório</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+  `;
+
+  return html;
+}
+
+function bindEvolucao() {
+  document.getElementById('evo-filter-emp')?.addEventListener('change', (e)=>{
+    state.evolucaoFiltroEmp = e.target.value;
+    state.evolucaoFiltroEst = ''; // Reseta estrutura ao trocar empreendimento
+    render();
+  });
+
+  document.getElementById('evo-filter-est')?.addEventListener('change', (e)=>{
+    state.evolucaoFiltroEst = e.target.value;
+    render();
+  });
+
+  document.querySelectorAll('[data-openevo]').forEach(tr=>{
+    tr.addEventListener('click', async ()=>{
+      const v = await loadVistoria(tr.dataset.openevo);
+      if(v) {
+        state.vistoriaAberta = v;
+        setView('vistoria-detalhe');
+        window.scrollTo(0,0);
+      }
+    });
+  });
 }
 
 /* ============================================================
@@ -1443,7 +1575,7 @@ function viewDashboard(){
 
   <div class="card" style="margin-top:20px;">
     <div style="padding:16px 20px 0;"><h3 style="margin:0 0 4px;font-family:var(--font-display);font-size:20px;font-weight:600;">Vistorias Recentes (Filtro Ativo)</h3></div>
-    ${recentes.length ? `<table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>Status Nuvem</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
+    ${recentes.length ? `<div class="table-wrapper"><table style="margin-top:8px;"><thead><tr><th>Data</th><th>Empreendimento</th><th>Estrutura</th><th>Responsável</th><th>Status Nuvem</th><th>NC</th><th>Criticidade</th></tr></thead><tbody>
       ${recentes.map(v=>`
         <tr class="clickable" data-open="${v.id}">
           <td>${fmtDate(v.dataHora)}</td>
@@ -1454,7 +1586,7 @@ function viewDashboard(){
           <td>${v.totalNC>0?`<span class="badge nc">${v.totalNC} NC</span>`:`<span class="badge conforme">OK</span>`}</td>
           <td>${v.criticidadeMax ? `<span class="badge ${v.criticidadeMax}">${criticidadeLabel(v.criticidadeMax)}</span>` : '—'}</td>
         </tr>`).join('')}
-    </tbody></table>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria encontrada para os filtros selecionados.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
+    </tbody></table></div>` : `<div class="empty"><div class="ic">&#128203;</div>Nenhuma vistoria encontrada para os filtros selecionados.<br><br><button class="btn primary" id="btn-nova-vazio">Iniciar primeira vistoria</button></div>`}
   </div>`;
 }
 
@@ -1904,7 +2036,7 @@ function viewNovaVistoria(){
     <div class="steps"><div class="done"></div><div></div><div></div></div>
     ${state.empreendimentos.length ? `<div class="grid cols-3">
       ${state.empreendimentos.map(e=>`
-        <div class="card card-pad clickable" data-pickemp="${e.id}" style="cursor:pointer;">
+        <div class="card card-pad clickable" data-pickemp="${e.id}">
           <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
           <div class="hint" style="margin-top:4px;">${e.estruturas.length} estrutura(s) disponível(is)</div>
         </div>`).join('')}
@@ -1916,11 +2048,11 @@ function viewNovaVistoria(){
     const opts = emp.estruturas.map(id=>estruturaById(id)).filter(Boolean);
     return `
     <div class="view-head"><div><div class="eyebrow">${esc(emp.nome)}</div><h1 class="view-title">Selecione a estrutura</h1></div>
-    <button class="btn ghost" id="btn-voltar-1">← Trocar empreendimento</button></div>
+    <div class="rowflex"><button class="btn ghost" id="btn-voltar-1">← Trocar empreendimento</button></div></div>
     <div class="steps"><div class="done"></div><div class="done"></div><div></div></div>
     ${opts.length ? `<div class="grid cols-3">
       ${opts.map(e=>`
-        <div class="card card-pad" data-pickest="${e.id}" style="cursor:pointer;">
+        <div class="card card-pad clickable" data-pickest="${e.id}">
           <div style="font-family:var(--font-display);font-size:20px;font-weight:600;">${esc(e.nome)}</div>
           <div class="hint" style="margin-top:4px;">${e.itens.length} item(ns) de checklist</div>
         </div>`).join('')}
@@ -1951,7 +2083,7 @@ function viewNovaVistoria(){
   return `
   <div class="view-head">
     <div><div class="eyebrow">${esc(emp.nome)} · ${esc(est.nome)}</div><h1 class="view-title">${nv.id ? 'Editar Vistoria' : 'Checklist de inspeção'}</h1></div>
-    ${!nv.id ? `<button class="btn ghost" id="btn-voltar-2">← Trocar estrutura</button>` : ''}
+    ${!nv.id ? `<div class="rowflex"><button class="btn ghost" id="btn-voltar-2">← Trocar estrutura</button></div>` : ''}
   </div>
   <div class="steps"><div class="done"></div><div class="done"></div><div class="done"></div></div>
 
@@ -2088,7 +2220,7 @@ function bindNovaVistoria(){
       btn.addEventListener('click', ()=>{
         const id = seg.dataset.seg;
         state.novaVistoria.respostas[id].status = btn.dataset.status;
-        render(); // Re-renderiza para abrir/fechar as caixas de observação automaticamente
+        render(); 
       });
     });
   });
@@ -2134,7 +2266,6 @@ async function finalizarVistoria(){
     return;
   }
   
-  // Validação: Proibir finalização se houver NC sem observação
   const respostasArray = Object.values(nv.respostas);
   const faltouObs = respostasArray.some(r => r.status === 'nc' && (!r.observacao || !r.observacao.trim()));
   if(faltouObs) {
@@ -2234,7 +2365,7 @@ function viewVistorias(){
             <span class="badge na" style="font-size:11.5px;">${vists.length} vistoria(s)</span>
             ${totalNcEmp > 0 ? `<span class="badge nc" style="font-size:11.5px;">${totalNcEmp} NC(s)</span>` : `<span class="badge conforme" style="font-size:11.5px;">100% OK</span>`}
           </div>
-          <div class="no-print" style="display:flex; align-items:center; gap:14px;">
+          <div class="no-print" style="display:flex; align-items:center; gap:14px; flex-wrap: wrap;">
             <button class="btn ghost sm" style="font-size:11.5px; border-color:var(--line);" onclick="event.preventDefault(); window.openRelatorioConsolidado('emp', '${esc(empNome)}', '')">🖨️ PDF Total (Empreendimento)</button>
             <span style="font-size:12px; color:var(--ink-soft); font-weight:500;">▾</span>
           </div>
@@ -2242,13 +2373,13 @@ function viewVistorias(){
         <div style="padding:16px 20px; background:var(--bg);">
           ${Object.entries(porData).map(([mesAno, listaVist]) => `
             <div style="margin-bottom:18px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap: wrap; gap: 8px;">
                 <div style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.06em; display:flex; align-items:center; gap:6px;">
                   <span>🗓️</span> ${esc(mesAno)}
                 </div>
                 <button class="btn ghost sm no-print" onclick="window.openRelatorioConsolidado('mes', '${esc(mesAno)}', '${esc(empNome)}')" style="font-size:11px; padding:4px 8px;">🖨️ PDF do Mês</button>
               </div>
-              <div class="card" style="overflow-x:auto;">
+              <div class="card table-wrapper">
                 <table>
                   <thead>
                     <tr>
@@ -2303,7 +2434,6 @@ function viewVistoriaDetalhe(){
   if(!v) return '<div class="empty">Vistoria não encontrada.</div>';
   const nc = v.itens.filter(i=>i.status==='nc');
   
-  // FILTRAR HISTÓRICO DESSA ESTRUTURA NESTE EMPREENDIMENTO
   const history = state.vistoriasIndex.filter(vi => 
     vi.empreendimentoNome === v.empreendimentoNome && 
     vi.estruturaNome === v.estruturaNome && 
@@ -2340,7 +2470,7 @@ function viewVistoriaDetalhe(){
   </div>
 
   <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">Checklist</h3>
-  <div class="card" style="margin-bottom:22px;"><table>
+  <div class="card table-wrapper" style="margin-bottom:22px;"><table>
     <thead><tr><th>Item</th><th>Status</th><th>Observação</th></tr></thead>
     <tbody>
       ${v.itens.map((it,idx)=>`
@@ -2353,7 +2483,7 @@ function viewVistoriaDetalhe(){
   </table></div>
 
   <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">Não conformidades e plano de ação</h3>
-  ${nc.length ? `<div class="card" style="margin-bottom:22px;"><table>
+  ${nc.length ? `<div class="card table-wrapper" style="margin-bottom:22px;"><table>
     <thead><tr><th>Item</th><th>Criticidade</th><th>Recomendação técnica</th></tr></thead><tbody>
     ${nc.map(it=>`
       <tr>
@@ -2373,7 +2503,7 @@ function viewVistoriaDetalhe(){
   ${history.length > 0 ? `
   <div style="page-break-before: auto; margin-top:40px;">
     <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;margin:0 0 10px;">📈 Evolução das Inspeções (Histórico da Estrutura)</h3>
-    <div class="card" style="margin-bottom:22px; overflow-x:auto;">
+    <div class="card table-wrapper" style="margin-bottom:22px;">
       <table>
         <thead><tr><th>Data / Hora</th><th>Responsável</th><th>Status Nuvem</th><th>NCs</th><th>Criticidade Máx.</th><th class="no-print">Ação</th></tr></thead>
         <tbody>
@@ -2421,7 +2551,7 @@ function viewNaoConformidades(){
   <div class="view-head no-print">
     <div><div class="eyebrow">Consolidado</div><h1 class="view-title">Não conformidades</h1>
     <div class="view-sub">Itens não conformes organizados por pastas de empreendimento e vistoria.</div></div>
-    <button class="btn primary" onclick="window.print()">🖨️ Exportar PDF de NCs</button>
+    <div class="rowflex"><button class="btn primary" onclick="window.print()">🖨️ Exportar PDF de NCs</button></div>
   </div>
   
   <div class="print-only-title" style="display:none; text-align:center; margin-bottom:30px;">
@@ -2481,7 +2611,7 @@ async function bindNaoConformidades(){
             <span>🛠️ ${esc(vData.estrutura)}</span>
             <span style="color:var(--ink-soft); font-weight:600;">🗓️ Data: ${fmtDate(vData.dataHora)}</span>
           </div>
-          <div class="card" style="overflow-x:auto; box-shadow:none;">
+          <div class="card table-wrapper" style="box-shadow:none;">
             <table>
               <thead><tr><th style="width:80px;">Criticidade</th><th>Item apontado (Não Conforme)</th><th>Observação Registrada</th><th>Recomendação Técnica</th><th class="no-print" style="width:60px;">Ação</th></tr></thead>
               <tbody>
@@ -2510,6 +2640,7 @@ async function bindNaoConformidades(){
       const v = await loadVistoria(btn.dataset.openvist);
       state.vistoriaAberta = v;
       setView('vistoria-detalhe');
+      window.scrollTo(0,0);
     });
   });
 }
