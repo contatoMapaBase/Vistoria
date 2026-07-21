@@ -1004,43 +1004,33 @@ async function loadVistoriasNuvem(){
   }
 }
 
-async function loadVistoria(id) { 
+async function loadVistoria(id) {
   try {
-    let v = await storageGet('vistoria:'+id); 
-    
-    // Ignora o cache local se ele estiver pela metade/corrompido e força o download da nuvem
-    if (v && Array.isArray(v.itens) && v.itens.length > 0) {
-      return v; 
-    }
-    
+    // Online: nuvem é a fonte de verdade (resolve edição cross-device)
     if (_supabase && navigator.onLine) {
       const { data, error } = await _supabase.from('vistorias').select('*').eq('id', id).single();
-      
-      if (error) throw new Error(error.message);
-      
-      if (data) {
-        // Garante a conversão correta dos dados
+      if (!error && data) {
         let itensParsed = typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens;
-        let gpsParsed = typeof data.gps === 'string' ? JSON.parse(data.gps) : data.gps;
-        
-        v = {
-          id: data.id, 
-          empreendimentoNome: data.empreendimento_nome, 
-          estruturaNome: data.estrutura_nome,
-          responsavel: data.responsavel, 
-          dataHora: data.data_hora, 
-          gps: gpsParsed, 
-          itens: Array.isArray(itensParsed) ? itensParsed : [], 
-          syncStatus: 'synced'
+        let gpsParsed  = typeof data.gps  === 'string' ? JSON.parse(data.gps)  : data.gps;
+        const v = {
+          id: data.id, empreendimentoNome: data.empreendimento_nome, estruturaNome: data.estrutura_nome,
+          responsavel: data.responsavel, dataHora: data.data_hora, gps: gpsParsed,
+          itens: Array.isArray(itensParsed) ? itensParsed : [], syncStatus: 'synced'
         };
-        await storageSet('vistoria:'+id, v);
+        await storageSet('vistoria:'+id, v);  // atualiza o cache local
         return v;
       }
-    } else if (!v) {
-      alert("Você está offline e este relatório não está salvo na memória deste aparelho.");
     }
+    // Offline (ou nuvem falhou): usa o que tiver salvo localmente
+    const local = await storageGet('vistoria:'+id);
+    if (local) return local;
+    
+    showToast('Relatório indisponível offline neste aparelho.');
   } catch(e) {
-    alert("Falha de conexão ao baixar a vistoria: " + e.message);
+    // Se a nuvem deu erro mas existe local, devolve o local em vez de falhar
+    const local = await storageGet('vistoria:'+id);
+    if (local) return local;
+    showToast('Falha ao carregar: ' + e.message);
   }
   return null;
 }
@@ -1758,7 +1748,7 @@ function bindNovaVistoria() {
 
       const isEdit = !!nv.id;
 
-      const vistoriaObj = {
+      const vistObj = {
         id: isEdit ? nv.id : uid(),
         empreendimentoNome: nv.emp,
         estruturaNome: nv.est,
@@ -1768,7 +1758,7 @@ function bindNovaVistoria() {
         itens: finalItens
       };
 
-      await saveVistoria(vistoriaObj);
+      await saveVistoria(vistObj);
       state.novaVistoria = null;
       setView('vistorias');
     });
@@ -2164,18 +2154,19 @@ function viewVistorias() {
 function bindVistorias() { bindFilterBar('hist'); }
 
 window.abrirVistoria = async function(id) {
+  showToast('Carregando relatório...'); 
   try {
-    showToast('Baixando relatório da nuvem...'); 
     const v = await loadVistoria(id);
-    
     if (v && v.itens && v.itens.length > 0) { 
       state.vistoriaAberta = v; 
       setView('vistoria-detalhe'); 
     } else if (v) {
-      alert('O relatório foi baixado, mas a lista de perguntas (checklist) está corrompida.');
+      showToast('O relatório foi baixado, mas a lista de perguntas está vazia.');
+    } else {
+      console.warn('Ação interrompida: vistoria retornou null.');
     }
   } catch (e) {
-    alert('Erro fatal ao abrir tela: ' + e.message);
+    showToast('Erro ao abrir tela: ' + e.message);
   }
 }
 
@@ -2294,7 +2285,7 @@ window.editarVistoriaAtual = function() {
   try {
     const v = state.vistoriaAberta;
     if(!v || !v.itens) {
-      alert('Erro: Os dados dessa vistoria estão corrompidos ou incompletos no seu aparelho.');
+      showToast('Erro: Os dados dessa vistoria estão corrompidos ou incompletos.');
       return;
     }
     
@@ -2316,7 +2307,7 @@ window.editarVistoriaAtual = function() {
     };
     setView('nova');
   } catch (e) {
-    alert('Erro na abertura do painel de edição: ' + e.message);
+    showToast('Erro na abertura do painel de edição: ' + e.message);
   }
 }
 
