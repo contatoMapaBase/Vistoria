@@ -779,7 +779,17 @@ async function syncGlobalNuvem(){
       await storageSet('empreendimentos', state.empreendimentos);
     }
     if(estReq.data && estReq.data.length > 0) {
-      state.estruturas = estReq.data.map(d => ({ id: d.id, nome: d.nome, setor: d.itens?.setor || 'Geral', itens: d.itens?.list || d.itens || [] }));
+      state.estruturas = estReq.data.map(d => {
+        let listItens = [];
+        let setorVal = d.setor || 'Geral';
+        if (Array.isArray(d.itens)) {
+          listItens = d.itens;
+        } else if (d.itens && typeof d.itens === 'object') {
+          listItens = d.itens.list || [];
+          if (d.itens.setor) setorVal = d.itens.setor;
+        }
+        return { id: d.id, nome: d.nome, setor: setorVal, itens: listItens };
+      });
       await storageSet('estruturas', state.estruturas);
     }
     await loadVistoriasNuvem();
@@ -1128,6 +1138,7 @@ window.editarEstrutura = function(id) {
   const est = state.estruturas.find(e => e.id === id);
   if(est) { state.estruturaEditando = JSON.parse(JSON.stringify(est)); render(); }
 }
+
 window.duplicarEstrutura = async function(id) {
   const est = state.estruturas.find(e => e.id === id);
   if(est) {
@@ -1137,10 +1148,18 @@ window.duplicarEstrutura = async function(id) {
     clone.itens = clone.itens.map(i => ({...i, id: uid()}));
     state.estruturas.push(clone);
     await storageSet('estruturas', state.estruturas);
-    if(_supabase && navigator.onLine) await _supabase.from('estruturas').upsert({id: clone.id, nome: clone.nome, itens: {setor: clone.setor, list: clone.itens}});
-    render(); showToast('Estrutura duplicada!');
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('estruturas').upsert({
+        id: clone.id,
+        nome: clone.nome,
+        setor: clone.setor,
+        itens: { setor: clone.setor, list: clone.itens }
+      });
+    }
+    render(); showToast('Estrutura duplicada na nuvem e local!');
   }
 }
+
 window.excluirEstrutura = async function(id) {
   if(confirm('Tem certeza? Essa exclusão afetará novas vistorias (as antigas mantêm o histórico salvo).')) {
     state.estruturas = state.estruturas.filter(e => e.id !== id);
@@ -1237,17 +1256,33 @@ function bindEditorEstrutura() {
     const est = state.estruturaEditando;
     est.nome = document.getElementById('ed-est-nome').value.trim();
     est.setor = document.getElementById('ed-est-setor').value;
-    if(!est.nome) return showToast('Nome obrigatório!');
+    if(!est.nome) return showToast('Nome da estrutura é obrigatório!');
     
     const idx = state.estruturas.findIndex(x => x.id === est.id);
     if(idx >= 0) state.estruturas[idx] = est;
     else state.estruturas.push(est);
     
     await storageSet('estruturas', state.estruturas);
-    if(_supabase && navigator.onLine) await _supabase.from('estruturas').upsert({id: est.id, nome: est.nome, itens: {setor: est.setor, list: est.itens}});
+    
+    if(_supabase && navigator.onLine) {
+      const { error } = await _supabase.from('estruturas').upsert({
+        id: est.id,
+        nome: est.nome,
+        setor: est.setor,
+        itens: { setor: est.setor, list: est.itens }
+      });
+      if(error) {
+        console.error('Erro ao salvar no Supabase:', error);
+        showToast('Salvo localmente! Aviso: erro de sincro com nuvem.');
+      } else {
+        showToast('Estrutura salva na Nuvem e localmente!');
+      }
+    } else {
+      showToast('Estrutura salva localmente!');
+    }
     
     state.estruturaEditando = null;
-    render(); showToast('Estrutura salva com sucesso!');
+    render();
   });
 }
 
@@ -1727,7 +1762,6 @@ function viewVistorias() {
     return html + `<div class="empty card"><div class="ic">📋</div>Nenhuma vistoria registrada com estes filtros.</div>`;
   }
 
-  // Agrupar por Empreendimento -> Mês
   const porEmp = {};
   filtradas.forEach(v => {
     const emp = v.empreendimentoNome || 'Sem Empreendimento';
@@ -2126,7 +2160,12 @@ async function iniciarApp() {
     await storageSet('estruturas', state.estruturas);
     if(_supabase && navigator.onLine) {
       for(let e of state.estruturas) {
-        await _supabase.from('estruturas').upsert({id: e.id, nome: e.nome, itens: {setor: e.setor, list: e.itens}});
+        await _supabase.from('estruturas').upsert({
+          id: e.id, 
+          nome: e.nome, 
+          setor: e.setor, 
+          itens: { setor: e.setor, list: e.itens }
+        });
       }
     }
   }
