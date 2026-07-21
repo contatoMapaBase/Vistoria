@@ -352,6 +352,7 @@ function getSetorVisual(setor) {
   const map = {
     'Mineração': { class: 'cover-mina', icon: '⛏️' },
     'Agro': { class: 'cover-agro', icon: '🌾' },
+    'Indústrias': { class: 'cover-mina', icon: '⚙️' },
     'Geral': { class: 'cover-geral', icon: '🏭⛏️🌾' }
   };
   return map[setor] || { class: 'cover-geral', icon: '🏭' };
@@ -432,7 +433,7 @@ function aplicarFiltros(lista, prefix) {
 }
 
 /* ============================================================
-   BIBLIOTECA PADRÃO DE ESTRUTURAS (ATUALIZADA E COMPLETA)
+   BIBLIOTECA PADRÃO DE ESTRUTURAS (OFICIAIS MAPABASE)
    ============================================================ */
 const DEFAULT_ESTRUTURAS = [
   { setor:'Geral', nome:'Balança', itens: mkItens([
@@ -466,7 +467,8 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
     {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
     {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'}
+    {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
+    {texto:'Fichas de Dados de Segurança (FISPQ/FDS) de produtos químicos/lubrificantes estão disponíveis no setor?',cat:'Documentação / Segurança'}
   ])},
   { setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
@@ -491,7 +493,9 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'A estrutura da bomba de abastecimento está íntegra?',cat:'Estrutural / Efluentes'},
     {texto:'O sump da bomba está seco, sem líquidos acumulados?',cat:'Estrutural / Efluentes'},
     {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural / Efluentes'},
-    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural / Efluentes'}
+    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural / Efluentes'},
+    {texto:'Existe kit de emergência ambiental para contenção de derramamentos (barreiras/absorventes) completo e disponível?',cat:'Segurança Ambiental'},
+    {texto:'O aterramento elétrico das bombas e do tanque está instalado e em perfeitas condições?',cat:'Segurança'}
   ])},
   { setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
@@ -511,7 +515,8 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
     {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
     {texto:'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
-    {texto:'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?',cat:'Estrutural / Efluentes'}
+    {texto:'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?',cat:'Estrutural / Efluentes'},
+    {texto:'Existe sistema de reuso/recirculação de água de lavagem em operação normal?',cat:'Uso de Recursos Hídricos'}
   ])},
   { setor:'Geral', nome:'Almoxarifado', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
@@ -1000,6 +1005,7 @@ function abrirModalEmpreendimento(empExistente = null) {
             <option value="Geral" ${tipo==='Geral'?'selected':''}>Geral</option>
             <option value="Mineração" ${tipo==='Mineração'?'selected':''}>Mineração</option>
             <option value="Agro" ${tipo==='Agro'?'selected':''}>Agro</option>
+            <option value="Indústrias" ${tipo==='Indústrias'?'selected':''}>Indústrias</option>
           </select>
         </div>
         <div class="field">
@@ -1061,7 +1067,8 @@ function viewEstruturas() {
   const setoresDef = [
     { id: 'Geral', icon: '🏭⛏️🌾', title: 'Setor Geral / Misto' },
     { id: 'Mineração', icon: '⛏️', title: 'Mineração e Processamento' },
-    { id: 'Agro', icon: '🌾', title: 'Agronegócio e Criação' }
+    { id: 'Agro', icon: '🌾', title: 'Agronegócio e Criação' },
+    { id: 'Indústrias', icon: '⚙️', title: 'Indústrias e Manufatura' }
   ];
 
   let html = `
@@ -1168,6 +1175,7 @@ function viewEditorEstrutura() {
           <option value="Geral" ${est.setor==='Geral'?'selected':''}>Geral (Misto)</option>
           <option value="Mineração" ${est.setor==='Mineração'?'selected':''}>Mineração</option>
           <option value="Agro" ${est.setor==='Agro'?'selected':''}>Agro</option>
+          <option value="Indústrias" ${est.setor==='Indústrias'?'selected':''}>Indústrias</option>
         </select>
       </div>
     </div>
@@ -1194,7 +1202,7 @@ function viewEditorEstrutura() {
             <textarea class="ed-item-txt" data-idx="${i}" style="width:100%; min-height:64px; font-size:14px; font-family:inherit; padding:10px; border:1px solid var(--line); border-radius:8px;" placeholder="Digite o texto da pergunta...">${esc(it.texto)}</textarea>
           </div>
           <div style="grid-column: 1 / -1;">
-            <label class="field-label">Categoria / Tipologia (Ex: Segurança, Gerenciamento de Resíduos...)</label>
+            <label class="field-label">Categoria / Tipologia (Ex: Segurança, Gerenciamento de Resíduos Sólidos...)</label>
             <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria||'')}" placeholder="Digite a categoria...">
           </div>
         </div>
