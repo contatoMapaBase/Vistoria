@@ -167,6 +167,7 @@ tr.clickable:hover { background:#f9faf8; cursor:pointer; }
 
 input[type=text],input[type=email],input[type=password],input[type=datetime-local],input[type=number],select,textarea{width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:14.5px;color:var(--ink); transition:border-color 0.2s;}
 input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent); }
+input:disabled, select:disabled { background: var(--surface-2); color: var(--ink-faint); cursor: not-allowed; }
 textarea{resize:vertical;min-height:80px;}
 label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block;}
 .field{margin-bottom:18px;}
@@ -781,7 +782,7 @@ function render() {
 }
 
 /* ============================================================
-   SINCRO E DADOS NUVEM
+   SINCRO E DADOS NUVEM (COM CORREÇÃO E MAPEAMENTO DE SETOR)
    ============================================================ */
 async function syncGlobalNuvem(){
   if(!_supabase || !navigator.onLine) return false;
@@ -1334,6 +1335,7 @@ function viewNovaVistoria() {
   if (nv.step === 1) {
     const dataHoraVal = toDatetimeLocalValue(nv.dataHora);
     const empObj = state.empreendimentos.find(e => e.nome === nv.emp);
+    const isEdit = !!nv.id;
 
     let estruturasExibidas = state.estruturas;
     let possuiVinculo = false;
@@ -1347,12 +1349,12 @@ function viewNovaVistoria() {
 
     return `
     <div class="view-head">
-      <div><div class="eyebrow">Nova Inspeção</div><h1 class="view-title">Iniciar Vistoria</h1></div>
+      <div><div class="eyebrow">${isEdit ? 'Edição' : 'Nova Inspeção'}</div><h1 class="view-title">${isEdit ? 'Editar Dados da Vistoria' : 'Iniciar Vistoria'}</h1></div>
     </div>
     <div class="card card-pad" style="max-width: 600px;">
       <div class="field">
         <label class="field-label">Empreendimento Inspecionado</label>
-        <select id="nv-emp">
+        <select id="nv-emp" ${isEdit ? 'disabled' : ''}>
           <option value="">-- Selecione --</option>
           ${state.empreendimentos.map(e => `<option value="${e.nome}" ${nv.emp===e.nome?'selected':''}>${esc(e.nome)}</option>`).join('')}
         </select>
@@ -1360,18 +1362,18 @@ function viewNovaVistoria() {
       <div class="field">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <label class="field-label" style="margin-bottom:0;">Estrutura Alvo</label>
-          ${possuiVinculo ? `
+          ${possuiVinculo && !isEdit ? `
             <button type="button" class="btn ghost sm" id="btn-toggle-todas-est" style="font-size:11.5px; padding:2px 8px; border:1px solid var(--line);">
               ${nv.mostrarTodasEstruturas ? '🔒 Ver Apenas Vinculadas' : '🌐 Outras Estruturas'}
             </button>
           ` : ''}
         </div>
-        <select id="nv-est" ${!nv.emp ? 'disabled' : ''}>
+        <select id="nv-est" ${(!nv.emp || isEdit) ? 'disabled' : ''}>
           <option value="">${nv.emp ? '-- Selecione a Estrutura --' : '-- Primeiro selecione o Empreendimento --'}</option>
           ${estruturasExibidas.map(e => `<option value="${e.nome}" ${nv.est===e.nome?'selected':''}>${esc(e.nome)}</option>`).join('')}
         </select>
-        ${possuiVinculo && !nv.mostrarTodasEstruturas ? `<div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Exibindo apenas a(s) ${estruturasExibidas.length} estrutura(s) vinculada(s) a este empreendimento.</div>` : ''}
-        ${possuiVinculo && nv.mostrarTodasEstruturas ? `<div class="hint" style="font-size:12px; color:var(--alta); margin-top:4px;">Exibindo toda a biblioteca de estruturas.</div>` : ''}
+        ${possuiVinculo && !nv.mostrarTodasEstruturas && !isEdit ? `<div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Exibindo apenas a(s) ${estruturasExibidas.length} estrutura(s) vinculada(s) a este empreendimento.</div>` : ''}
+        ${possuiVinculo && nv.mostrarTodasEstruturas && !isEdit ? `<div class="hint" style="font-size:12px; color:var(--alta); margin-top:4px;">Exibindo toda a biblioteca de estruturas.</div>` : ''}
       </div>
       <div class="field">
         <label class="field-label">Data e Hora da Vistoria</label>
@@ -1388,7 +1390,7 @@ function viewNovaVistoria() {
           <span style="font-size:13px; color:var(--ink-soft);" id="gps-status">${nv.gps ? `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}` : 'Não capturado'}</span>
         </div>
       </div>
-      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">Iniciar Checklist</button>
+      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">${isEdit ? 'Continuar Edição do Checklist' : 'Iniciar Checklist'}</button>
     </div>`;
   }
 
@@ -1396,7 +1398,7 @@ function viewNovaVistoria() {
     return `
     <div class="view-head no-print">
       <div><div class="eyebrow">Execução</div><h1 class="view-title">Checklist de Vistoria</h1></div>
-      <button class="btn ghost" id="btn-nv-back">← Resumo</button>
+      <button class="btn ghost" id="btn-nv-back">← Retornar aos Dados</button>
     </div>
     <div class="card card-pad no-print" style="margin-bottom: 24px; background:var(--surface-2);">
       <strong>Local:</strong> ${esc(nv.emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(nv.est)} &nbsp;|&nbsp; <strong>Data:</strong> ${fmtDate(nv.dataHora)}
@@ -1504,8 +1506,10 @@ function bindNovaVistoria() {
     });
 
     document.getElementById('btn-nv-start')?.addEventListener('click', () => {
-      nv.emp = document.getElementById('nv-emp').value;
-      nv.est = document.getElementById('nv-est').value;
+      if (!nv.id) {
+         nv.emp = document.getElementById('nv-emp').value;
+         nv.est = document.getElementById('nv-est').value;
+      }
       nv.resp = document.getElementById('nv-resp').value;
       const dataHoraInput = document.getElementById('nv-data-hora').value;
       
@@ -2098,9 +2102,9 @@ window.editarVistoriaAtual = function() {
     respostas[it.id] = { status: it.status, observacao: it.observacao||'', criticidade: it.criticidade||'media', recomendacao: it.recomendacao||'', fotos: it.fotos||[] };
   });
   state.novaVistoria = {
-    id: v.id, step: 2, emp: v.empreendimentoNome, est: v.estruturaNome,
+    id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
     resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
-    itens: v.itens, respostas: respostas
+    itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
   };
   setView('nova');
 }
