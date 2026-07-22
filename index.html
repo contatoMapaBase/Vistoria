@@ -257,7 +257,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
 <div id="login-screen">
   <div class="login-box">
     <div style="margin-bottom: 24px;">
-      <img src="LOGO_VERT.png" alt="MapaBase Gestão Ambiental" style="max-width: 100%; height: auto; max-height: 90px; object-fit: contain;">
+      <h1 style="font-family:var(--font-display); font-size: 38px; margin:0; color: var(--accent);">MapaBase</h1>
     </div>
     <p style="font-size:14px;color:var(--ink-soft);margin-bottom:24px;">Acesso Restrito - Equipe de Inspeção</p>
     <div class="field" style="text-align:left;">
@@ -276,7 +276,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   <aside id="sidebar">
     <div class="brand">
       <div class="brand-mark">
-        <img src="LOGO_VERT.png" alt="MapaBase" style="max-height: 44px; width: auto; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); margin-bottom: 4px;">
+        <h1 style="font-family:var(--font-display); font-size: 32px; margin:0; color: var(--accent);">MapaBase</h1>
       </div>
       <div class="brand-sub">Ambiente em Nuvem</div>
     </div>
@@ -412,32 +412,28 @@ function formatMesIsoParaExtenso(iso) {
 }
 
 // Comprime a foto no navegador antes de salvar.
-// - clamp: nunca amplia foto menor que MAX_WIDTH (evita inflar/borrar)
-// - EXIF: respeita a orientação de câmera de celular (evita foto deitada no laudo)
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
-    const MAX_WIDTH = 1200;   // resolução suficiente para laudos ambientais
-    const QUALITY   = 0.6;    // JPEG 60% — alivia o banco
+    const MAX_WIDTH = 1200;   
+    const QUALITY   = 0.6;    
 
-    // Lê a orientação EXIF direto dos bytes do arquivo (JPEG).
-    // Retorna 1 (normal) se não houver tag ou não for JPEG.
     function getOrientation(buffer) {
       const view = new DataView(buffer);
-      if (view.getUint16(0, false) !== 0xFFD8) return 1; // não é JPEG
+      if (view.getUint16(0, false) !== 0xFFD8) return 1; 
       const length = view.byteLength;
       let offset = 2;
       while (offset < length) {
         const marker = view.getUint16(offset, false);
         offset += 2;
-        if (marker === 0xFFE1) { // APP1 (onde vive o EXIF)
-          if (view.getUint32(offset + 2, false) !== 0x45786966) return 1; // "Exif"
+        if (marker === 0xFFE1) { 
+          if (view.getUint32(offset + 2, false) !== 0x45786966) return 1; 
           const little = view.getUint16(offset + 8, false) === 0x4949;
           const tiff = offset + 10;
           const tags = view.getUint16(tiff + view.getUint32(tiff + 4, little), little);
           const dirStart = tiff + view.getUint32(tiff + 4, little) + 2;
           for (let i = 0; i < tags; i++) {
             const entry = dirStart + i * 12;
-            if (view.getUint16(entry, little) === 0x0112) { // tag Orientation
+            if (view.getUint16(entry, little) === 0x0112) { 
               return view.getUint16(entry + 8, little);
             }
           }
@@ -456,7 +452,6 @@ function fileToCompressedDataURL(file) {
 
       const img = new Image();
       img.onload = () => {
-        // dimensões de destino, sem upscale
         const scale = Math.min(1, MAX_WIDTH / img.width);
         let w = Math.round(img.width * scale);
         let h = Math.round(img.height * scale);
@@ -464,14 +459,12 @@ function fileToCompressedDataURL(file) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
-        // orientações 5-8 trocam largura/altura (imagem rotacionada 90°)
         if (orientation >= 5 && orientation <= 8) {
           canvas.width = h; canvas.height = w;
         } else {
           canvas.width = w; canvas.height = h;
         }
 
-        // aplica a transformação correspondente à flag EXIF
         switch (orientation) {
           case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
           case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
@@ -480,7 +473,7 @@ function fileToCompressedDataURL(file) {
           case 6: ctx.transform(0, 1, -1, 0, h, 0); break;
           case 7: ctx.transform(0, -1, -1, 0, h, w); break;
           case 8: ctx.transform(0, -1, 1, 0, 0, w); break;
-          default: break; // 1 = normal, nada a fazer
+          default: break; 
         }
 
         ctx.drawImage(img, 0, 0, w, h);
@@ -488,14 +481,13 @@ function fileToCompressedDataURL(file) {
       };
       img.onerror = reject;
 
-      // usa um segundo reader para gerar a dataURL que a <img> consome
       const dataReader = new FileReader();
       dataReader.onload = ev => { img.src = ev.target.result; };
       dataReader.onerror = reject;
       dataReader.readAsDataURL(file);
     };
     arrbufReader.onerror = reject;
-    arrbufReader.readAsArrayBuffer(file); // lê os bytes para o parser EXIF
+    arrbufReader.readAsArrayBuffer(file); 
   });
 }
 
@@ -600,135 +592,104 @@ function aplicarFiltros(lista, prefix) {
    BIBLIOTECA PADRÃO DE ESTRUTURAS (IDs Fixos)
    ============================================================ */
 const DEFAULT_ESTRUTURAS = [
-  { id: 'est-geral-balanca', setor:'Geral', nome:'Balança', itens: mkItens([
+  { setor:'Geral', nome:'Balança', itens: mkItens([
     {texto:'A plataforma e o fosso da balança estão limpos, sem acúmulo de terra, água ou resíduos?',cat:'Manutenção/Limpeza'},
     {texto:'O sistema de drenagem de águas pluviais do fosso da balança está desobstruído e funcional?',cat:'Drenagem'},
     {texto:'Há sinalização adequada de trânsito, limites de velocidade e parada?',cat:'Segurança'},
     {texto:'Os sensores, cabos e a estrutura apresentam danos físicos aparentes?',cat:'Integridade'},
     {texto:'Existem manchas de óleo ou derramamento de cargas na pista de acesso?',cat:'Limpeza/Vazamentos'},
   ])},
-  { id: 'est-geral-fossa', setor:'Geral', nome:'Fossas Sépticas e Sumidouros', itens: mkItens([
+  { setor:'Geral', nome:'Fossas Sépticas e Sumidouros', itens: mkItens([
     {texto:'As tampas de inspeção estão íntegras, bem vedadas e niveladas com o solo?',cat:'Integridade'},
     {texto:'Existem sinais de transbordamento, vazamento ou afloramento de efluente no solo ao redor?',cat:'Operação'},
     {texto:'Há odores excessivos ou anormais na área próxima ao sistema?',cat:'Odores'},
     {texto:'O sistema está localizado a uma distância segura de poços artesianos e cursos d\'água?',cat:'Locação/APP'},
     {texto:'Existem registros recentes (manifestos/recibos) de limpeza por caminhão limpa-fossa licenciado?',cat:'Manutenção/Documentação'},
   ])},
-  { id: 'est-geral-oficina', setor:'Geral', nome:'Oficina Mecânica', itens: mkItens([
+  { setor:'Geral', nome:'Oficina Mecânica', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?',cat:'Estrutural / Efluentes'},
-    {texto:'Há manchas de óleo no solo?',cat:'Estrutural / Efluentes'},
-    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural / Efluentes'},
-    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural / Efluentes'},
-    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
-    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
-    {texto:'Fichas de Dados de Segurança (FISPQ/FDS) de produtos químicos/lubrificantes estão disponíveis no setor?',cat:'Documentação / Segurança'}
+    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Há resíduos contaminantes (estopas, galões de óleo, bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?',cat:'Estrutural/Efluentes'},
+    {texto:'Há manchas de óleo no solo?',cat:'Estrutural/Efluentes'},
+    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
+    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
+    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural/Efluentes'},
+    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural/Efluentes'},
+    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
+    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural/Efluentes'},
   ])},
-  { id: 'est-geral-abastecimento', setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
+  { setor:'Geral', nome:'Ponto de Abastecimento', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?',cat:'Estrutural / Efluentes'},
-    {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural / Efluentes'},
-    {texto:'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?',cat:'Estrutural / Efluentes'},
-    {texto:'A estrutura de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
-    {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural / Efluentes'},
-    {texto:'A altura da bacia de contenção é adequada ao volume do tanque?',cat:'Estrutural / Efluentes'},
-    {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural / Efluentes'},
-    {texto:'O sistema de drenagem oleosa da bacia está funcionando adequadamente?',cat:'Estrutural / Efluentes'},
-    {texto:'Há trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
-    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
-    {texto:'As canaletas estão íntegras e desobstruídas?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?',cat:'Estrutural / Efluentes'},
-    {texto:'A estrutura da bomba de abastecimento está íntegra?',cat:'Estrutural / Efluentes'},
-    {texto:'O sump da bomba está seco, sem líquidos acumulados?',cat:'Estrutural / Efluentes'},
-    {texto:'As tubulações são aéreas e visíveis para inspeção?',cat:'Estrutural / Efluentes'},
-    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural / Efluentes'},
-    {texto:'Existe kit de emergência ambiental para contenção de derramamentos (barreiras/absorventes) completo e disponível?',cat:'Segurança Ambiental'},
-    {texto:'O aterramento elétrico das bombas e do tanque está instalado e em perfeitas condições?',cat:'Segurança'}
+    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos'},
+    {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento impermeabilizada?',cat:'Estrutural/Efluentes'},
+    {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural/Efluentes'},
+    {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural/Efluentes'},
+    {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural/Efluentes'},
+    {texto:'O sistema de drenagem oleosa da bacia está direcionando ao sistema adequado (CSAO)?',cat:'Estrutural/Efluentes'},
+    {texto:'As tubulações estão íntegras e sem vazamentos?',cat:'Estrutural/Efluentes'},
   ])},
-  { id: 'est-geral-lavador', setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
+  { setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
-    {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
-    {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área?',cat:'Estrutural / Efluentes'},
-    {texto:'Há manchas de óleo no solo?',cat:'Estrutural / Efluentes'},
-    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural / Efluentes'},
-    {texto:'As canaletas foram limpas recentemente?',cat:'Estrutural / Efluentes'},
-    {texto:'Existem vazamentos em equipamentos ou veículos estacionados?',cat:'Estrutural / Efluentes'},
-    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de efluentes fora do sistema de drenagem previsto?',cat:'Estrutural / Efluentes'},
-    {texto:'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?',cat:'Estrutural / Efluentes'},
-    {texto:'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?',cat:'Estrutural / Efluentes'},
-    {texto:'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?',cat:'Estrutural / Efluentes'},
-    {texto:'Existe sistema de reuso/recirculação de água de lavagem em operação normal?',cat:'Uso de Recursos Hídricos'}
+    {texto:'Há resíduos contaminantes fora das áreas designadas?',cat:'Gerenciamento de Resíduos'},
+    {texto:'Os equipamentos e/ou veículos estão passando por lavagem fora da área impermeabilizada?',cat:'Estrutural/Efluentes'},
+    {texto:'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?',cat:'Estrutural/Efluentes'},
+    {texto:'As canaletas de drenagem estão desobstruídas e íntegras?',cat:'Estrutural/Efluentes'},
+    {texto:'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?',cat:'Estrutural/Efluentes'},
+    {texto:'O fosso/rampa de lavagem está desobstruído e sem trincas?',cat:'Estrutural/Efluentes'},
   ])},
-  { id: 'est-geral-almoxarifado', setor:'Geral', nome:'Almoxarifado', itens: mkItens([
+  { setor:'Geral', nome:'Almoxarifado', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
     {texto:'Os produtos químicos/inflamáveis estão armazenados em local segregado e ventilado?',cat:'Segurança Química'},
     {texto:'Há fichas de segurança (FISPQ/FDS) disponíveis para os produtos armazenados?',cat:'Documentação'},
     {texto:'Os produtos estão dispostos sobre estrados/pallets, sem contato direto com o piso?',cat:'Armazenamento'},
     {texto:'Existem vazamentos ou embalagens danificadas?',cat:'Controle de Vazamentos'},
   ])},
-  { id: 'est-geral-admin', setor:'Geral', nome:'Área Administrativa', itens: mkItens([
+  { setor:'Geral', nome:'Área Administrativa', itens: mkItens([
     {texto:'Há sinalização de emergência e rotas de fuga desobstruídas?',cat:'Segurança'},
     {texto:'Os extintores estão dentro da validade e devidamente sinalizados?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (coleta seletiva)?',cat:'Resíduos'},
     {texto:'Há vazamentos ou infiltrações visíveis nas instalações hidráulicas?',cat:'Estrutural'},
   ])},
-  { id: 'est-geral-ete', setor:'Geral', nome:'ETE - Estação de Tratamento de Esgoto', itens: mkItens([
+  { setor:'Geral', nome:'ETE - Estação de Tratamento de Esgoto', itens: mkItens([
     {texto:'Há sinalização adequada e restrição de acesso a pessoas não autorizadas?',cat:'Segurança'},
     {texto:'O sistema de tratamento está em funcionamento normal (sem odores excessivos ou transbordamento)?',cat:'Operação'},
     {texto:'Há descarte de efluente fora do padrão visual esperado (cor, espuma, odor)?',cat:'Qualidade de Efluente'},
     {texto:'Existem vazamentos nas tubulações, tanques ou reatores?',cat:'Integridade'},
     {texto:'O lodo gerado está sendo removido e destinado corretamente?',cat:'Resíduos'},
   ])},
-  { id: 'est-geral-eta', setor:'Geral', nome:'ETA - Estação de Tratamento de Água', itens: mkItens([
+  { setor:'Geral', nome:'ETA - Estação de Tratamento de Água', itens: mkItens([
     {texto:'Há sinalização adequada e restrição de acesso?',cat:'Segurança'},
     {texto:'Os produtos químicos de tratamento (cloro, coagulantes) estão armazenados corretamente?',cat:'Segurança Química'},
     {texto:'O sistema de filtração/tratamento está operando normalmente dentro da capacidade?',cat:'Operação'},
     {texto:'Existem vazamentos nas tubulações ou tanques de produto?',cat:'Integridade'},
   ])},
-  { id: 'est-geral-residuos', setor:'Geral', nome:'Depósito de Resíduos Sólidos', itens: mkItens([
+  { setor:'Geral', nome:'Depósito de Resíduos Sólidos', itens: mkItens([
     {texto:'Os resíduos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',cat:'Segregação'},
     {texto:'Há recipientes identificados, com tampa e em número suficiente?',cat:'Recipientes'},
     {texto:'Os resíduos perigosos estão protegidos de chuva e sol com piso impermeável?',cat:'Contenção'},
     {texto:'Existem resíduos em contato direto com o solo exposto?',cat:'Proteção do Solo'},
     {texto:'A capacidade máxima de armazenamento temporário está sendo respeitada?',cat:'Capacidade'},
   ])},
-  { id: 'est-geral-galpao', setor:'Geral', nome:'Galpão de Máquinas e Equipamentos', itens: mkItens([
+  { setor:'Geral', nome:'Galpão de Máquinas e Equipamentos', itens: mkItens([
     {texto:'Há extintores e sinalização de segurança adequados?',cat:'Segurança'},
     {texto:'Há manchas de óleo ou graxa no piso do galpão?',cat:'Limpeza/Efluentes'},
     {texto:'Existem vazamentos visíveis em máquinas ou equipamentos estacionados?',cat:'Manutenção'},
     {texto:'O piso apresenta trincas ou falhas de impermeabilização?',cat:'Estrutural'},
   ])},
-  { id: 'est-geral-estradas', setor:'Geral', nome:'Estradas Internas e Vias', itens: mkItens([
+  { setor:'Geral', nome:'Estradas Internas e Vias', itens: mkItens([
     {texto:'Está ocorrendo a umectação/molhamento periódico das vias para controle de poeira?',cat:'Qualidade do Ar'},
     {texto:'Foi identificado algum processo erosivo nas vias, canaletas laterais ou taludes?',cat:'Erosão'},
     {texto:'O sistema de drenagem lateral (valetas, bacias de sedimentação) está desobstruído?',cat:'Drenagem'},
     {texto:'Há sinalização adequada de velocidade e tráfego de veículos pesados?',cat:'Segurança'},
     {texto:'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?',cat:'Manutenção'},
   ])},
-  { id: 'est-geral-barragem', setor:'Geral', nome:'Barragem de Recurso Hídrico', itens: mkItens([
+  { setor:'Geral', nome:'Barragem de Recurso Hídrico', itens: mkItens([
     {texto:'A barragem possui sinalização, controle de acesso e cercamento em boas condições?', cat:'Segurança'},
     {texto:'Há processos erosivos, ravinamentos ou voçorocas nos taludes de montante, jusante ou ombreiras?', cat:'Estabilidade dos Taludes'},
     {texto:'Existem trincas, recalques, afundamentos, escorregamentos ou deformações no maciço?', cat:'Estabilidade dos Taludes'},
@@ -743,7 +704,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existe sistema de captação superficial instalado na barragem?', cat:'Captação de Água'},
     {texto:'A estrutura de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
     {texto:'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat:'Captação de Água'},
-    {texto:'As mangueiras, conexões e tubulações apresenta bom estado de conservação?', cat:'Captação de Água'},
+    {texto:'As mangueiras, conexões e tubulações apresentam bom estado de conservação?', cat:'Captação de Água'},
     {texto:'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat:'Monitoramento'},
     {texto:'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', cat:'Monitoramento'},
     {texto:'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', cat:'Qualidade Ambiental'},
@@ -751,7 +712,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há indícios de mortandade de peixes ou fauna aquática?', cat:'Qualidade Ambiental'},
     {texto:'O entorno da barragem encontra-se limpo, sem resíduos ou materiais que possam comprometer a operação?', cat:'Manutenção'}
   ])},
-  { id: 'est-mina-lavra', setor:'Mineração', nome:'Lavra', itens: mkItens([
+  { setor:'Mineração', nome:'Lavra', itens: mkItens([
     {texto:'Há sinalização adequada de área operacional, desmonte e limites de bancada?',cat:'Sinalização'},
     {texto:'Foi identificado processo erosivo nos taludes de lavra ou praças de trabalho?',cat:'Erosão/Estabilidade'},
     {texto:'Está ocorrendo o molhamento constante das vias de lavra para controle de poeira?',cat:'Qualidade do Ar'},
@@ -761,7 +722,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O sistema de bombeamento e drenagem pluvial da cova está funcionando?',cat:'Drenagem'},
     {texto:'Há afloramento do lençol freático com necessidade de bombeamento monitorado?',cat:'Recursos Hídricos'},
   ])},
-  { id: 'est-mina-beneficiamento', setor:'Mineração', nome:'Beneficiamento', itens: mkItens([
+  { setor:'Mineração', nome:'Beneficiamento', itens: mkItens([
     {texto:'Há extintores e sinalização de segurança em todos os níveis do beneficiamento?',cat:'Segurança'},
     {texto:'Está ocorrendo aspersão de água/supressão de poeira nos britadores e correias?',cat:'Qualidade do Ar'},
     {texto:'Os resíduos de processo (rejeito úmido/seco) são direcionados para local licenciado?',cat:'Rejeitos'},
@@ -769,13 +730,13 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?',cat:'Contenção'},
     {texto:'As fossas e caixas de decantação do setor estão limpas e operacionais?',cat:'Efluentes'},
   ])},
-  { id: 'est-mina-pilha', setor:'Mineração', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
+  { setor:'Mineração', nome:'Pilha de Estéril / Áreas Adjacentes', itens: mkItens([
     {texto:'Há sinalização adequada nos acessos e praças de descarga?',cat:'Segurança'},
     {texto:'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?',cat:'Estabilidade'},
     {texto:'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?',cat:'Drenagem'},
     {texto:'Existe bacia de sedimentação na saída do efluente pluvial da pilha?',cat:'Controle de Sólidos'},
   ])},
-  { id: 'est-agro-racoes', setor:'Agro', nome:'Fábrica de Rações', itens: mkItens([
+  { setor:'Agro', nome:'Fábrica de Rações', itens: mkItens([
     {texto:'O sistema de captação de pó/exaustão está em pleno funcionamento e limpo?',cat:'Controle de Pó/Explosão'},
     {texto:'Há acúmulo excessivo de poeira orgânica em pisos, vigas ou painéis elétricos?',cat:'Limpeza/Risco Incêndio'},
     {texto:'Os insumos (vitaminas, minerais, medicamentos) estão armazenados corretamente, sobre estrados?',cat:'Armazenamento'},
@@ -783,21 +744,21 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'A caldeira (se houver) possui exaustão adequada, sem vazamentos de vapor?',cat:'Equipamentos/Vapor'},
     {texto:'Os resíduos de varrição e descarte (sacarias, pó) são destinados adequadamente?',cat:'Resíduos'},
   ])},
-  { id: 'est-agro-fertirrigacao', setor:'Agro', nome:'Fertirrigação', itens: mkItens([
+  { setor:'Agro', nome:'Fertirrigação', itens: mkItens([
     {texto:'O sistema de bombeamento e injeção de calda apresenta vazamentos aparentes?',cat:'Integridade'},
     {texto:'Os tanques de mistura possuem bacia de contenção ou piso impermeável no entorno?',cat:'Proteção do Solo'},
     {texto:'As tubulações de distribuição estão íntegras, sem rupturas ou vazamentos na linha?',cat:'Tubulações'},
     {texto:'Há empoçamento ou escoamento superficial da calda em direção a APPs ou cursos d\'água?',cat:'Proteção Hídrica'},
     {texto:'A área de preparo da mistura possui sinalização e os operadores utilizam EPI adequado?',cat:'Segurança'},
   ])},
-  { id: 'est-agro-compostagem', setor:'Agro', nome:'Compostagem', itens: mkItens([
+  { setor:'Agro', nome:'Compostagem', itens: mkItens([
     {texto:'A praça de compostagem possui piso impermeável ou compactado para evitar infiltração?',cat:'Proteção do Solo'},
     {texto:'Há canaletas para coleta e direcionamento do chorume/lixiviado para caixa de contenção?',cat:'Efluentes'},
     {texto:'A umidade e o revolvimento das leiras estão sendo monitorados (ausência de poças)?',cat:'Operação'},
     {texto:'Existe presença excessiva de moscas, urubus ou forte odor pútrido?',cat:'Controle de Vetores/Odor'},
     {texto:'As leiras estão alocadas respeitando distâncias de segurança de APPs e drenagens naturais?',cat:'Locação Ambiental'},
   ])},
-  { id: 'est-agro-biodigestor', setor:'Agro', nome:'Biodigestor', itens: mkItens([
+  { setor:'Agro', nome:'Biodigestor', itens: mkItens([
     {texto:'A lona/geomembrana superior (gasômetro) está íntegra, sem furos, ressecamento ou desgaste excessivo?',cat:'Estanqueidade'},
     {texto:'O sistema de queima de biogás (flare) está operante para queima de excedentes?',cat:'Segurança/Emissões'},
     {texto:'A tubulação de entrada de dejetos e saída de biofertilizante apresenta vazamentos?',cat:'Integridade'},
@@ -805,13 +766,13 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há placas de sinalização indicando "Perigo de Explosão" e "Gás Inflamável"?',cat:'Sinalização'},
     {texto:'O nível de operação do biodigestor respeita a margem de segurança contra transbordamentos?',cat:'Operação'},
   ])},
-  { id: 'est-agro-confinamento', setor:'Agro', nome:'Confinamento', itens: mkItens([
+  { setor:'Agro', nome:'Confinamento', itens: mkItens([
     {texto:'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?',cat:'Efluentes/Sanidade'},
     {texto:'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?',cat:'Drenagem Pluvial'},
     {texto:'Há controle sistemático de vetores (moscas, roedores e insetos)?',cat:'Controle de Pragas'},
     {texto:'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?',cat:'Resíduos Sanitários'},
   ])},
-  { id: 'est-agro-lagoas', setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
+  { setor:'Agro', nome:'Lagoas de Tratamento de Dejetos', itens: mkItens([
     {texto:'A lagoa possui impermeabilização (geomembrana ou revestimento)?', cat:'Impermeabilização'},
     {texto:'A impermeabilização apresenta rasgos, perfurações, deslocamentos ou desgaste?', cat:'Impermeabilização'},
     {texto:'Os taludes apresentam estabilidade adequada, sem erosões, deslizamentos ou recalques?', cat:'Taludes'},
@@ -831,7 +792,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há monitoramento de possíveis vazamentos ou infiltrações no entorno da lagoa?', cat:'Monitoramento Ambiental'},
     {texto:'A área ao redor da lagoa encontra-se limpa, organizada e sem resíduos?', cat:'Condições Gerais'}
   ])},
-  { id: 'est-agro-currais', setor:'Agro', nome:'Currais', itens: mkItens([
+  { setor:'Agro', nome:'Currais', itens: mkItens([
     {texto:'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?',cat:'Manejo de Efluentes'},
     {texto:'O efluente do curral é direcionado para esterqueira ou sistema de tratamento adequado?',cat:'Manejo de Efluentes'},
     {texto:'Há acúmulo excessivo de esterco/dejetos gerando odores intensos ou proliferação de moscas?',cat:'Controle Sanitário'},
@@ -839,7 +800,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Os bebedouros possuem sistema de boia funcional evitando vazamentos e desperdício de água?',cat:'Recursos Hídricos'},
     {texto:'Produtos veterinários, agulhas e seringas descartadas possuem recipiente rígido exclusivo?',cat:'Resíduos Perigosos'},
   ])},
-  { id: 'est-agro-silos', setor:'Agro', nome:'Silos', itens: mkItens([
+  { setor:'Agro', nome:'Silos', itens: mkItens([
     {texto:'O sistema de exaustão/captação de poeira de grãos (moegas e túneis) está limpo e funcional?',cat:'Qualidade do Ar/Segurança'},
     {texto:'Os resíduos de pré-limpeza de grãos (palhas, pó) possuem abrigo fechado e destinação adequada?',cat:'Gerenciamento de Resíduos'},
     {texto:'O expurgo/fumigação de grãos utiliza inseticidas registrados e armazenados sob tranca?',cat:'Uso de Químicos'},
@@ -847,7 +808,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Há trincas, inclinações ou danos estruturais nas paredes dos silos ou moegas?',cat:'Integridade Estrutural'},
     {texto:'O sistema de drenagem de águas pluviais no entorno dos silos está desobstruído?',cat:'Drenagem'},
   ])},
-  { id: 'est-agro-agrotoxicos', setor:'Agro', nome:'Depósito de Agrotóxicos', itens: mkItens([
+  { setor:'Agro', nome:'Depósito de Agrotóxicos', itens: mkItens([
     {texto:'O depósito possui piso impermeável, liso, sem ralos direcionados à rede pública ou solo?',cat:'Estrutural/Contenção'},
     {texto:'Existe bacia ou rampa de contenção na porta para reter eventuais derramamentos?',cat:'Segurança Ambiental'},
     {texto:'A ventilação do galpão é adequada e os acessos mantidos trancados com sinalização de risco?',cat:'Segurança de Acesso'},
@@ -855,23 +816,14 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'As Fichas de Dados de Segurança (FDS/FISPQ) de todos os produtos estão disponíveis?',cat:'Documentação'},
     {texto:'O kit de mitigação de emergência (serragem/areia, pá, EPIs, tambor) está completo e acessível?',cat:'Plano de Emergência'},
   ])},
-  { id: 'est-agro-vasilhames', setor:'Agro', nome:'Depósito de Vasilhames Vazios de Agrotóxico', itens: mkItens([
+  { setor:'Agro', nome:'Depósito de Vasilhames Vazios de Agrotóxico', itens: mkItens([
     {texto:'O local é coberto, com piso impermeável, livre de inundações e trancado?',cat:'Estrutural'},
     {texto:'Há sinalização de segurança (caveira) informando "Embalagens Vazias"?',cat:'Sinalização'},
     {texto:'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?',cat:'Tratamento Prévio'},
     {texto:'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?',cat:'Armazenamento'},
     {texto:'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?',cat:'Documentação'},
-  ])},
-  { id: 'est-ind-planta', setor:'Indústrias', nome:'Planta Industrial', itens: mkItens([
-    {texto:'Os resíduos sólidos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
-    {texto:'Os tornos mecânicos, prensas e máquinas apresentam vazamentos de óleo ou escoamento de efluentes oleosos?',cat:'Estrutural / Efluentes'},
-    {texto:'Os colaboradores e operadores estão utilizando todos os EPIs obrigatórios para a atividade?',cat:'Segurança do Trabalho'},
-    {texto:'Há sinalização adequada de segurança, placas informativas e rotas de fuga desobstruídas?',cat:'Segurança / Sinalização'},
-    {texto:'Os banheiros, vestiários e refeitórios estão limpos, organizados e em boas condições sanitárias?',cat:'Instalações Sanitárias'},
-    {texto:'Produtos químicos e solventes industriais possuem FISPQ/FDS e estão armazenados sobre bacia de contenção?',cat:'Segurança Química'},
-    {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
-];
+].map(e=>({ id:uid(), setor:e.setor, nome:e.nome, itens:e.itens }));
   /* ============================================================
    ESTADO E ROTEAMENTO CORE
    ============================================================ */
@@ -1006,7 +958,6 @@ async function loadVistoriasNuvem(){
 
 async function loadVistoria(id) {
   try {
-    // Online: nuvem é a fonte de verdade (resolve edição cross-device)
     if (_supabase && navigator.onLine) {
       const { data, error } = await _supabase.from('vistorias').select('*').eq('id', id).single();
       if (!error && data) {
@@ -1017,17 +968,15 @@ async function loadVistoria(id) {
           responsavel: data.responsavel, dataHora: data.data_hora, gps: gpsParsed,
           itens: Array.isArray(itensParsed) ? itensParsed : [], syncStatus: 'synced'
         };
-        await storageSet('vistoria:'+id, v);  // atualiza o cache local
+        await storageSet('vistoria:'+id, v);  
         return v;
       }
     }
-    // Offline (ou nuvem falhou): usa o que tiver salvo localmente
     const local = await storageGet('vistoria:'+id);
     if (local) return local;
     
     showToast('Relatório indisponível offline neste aparelho.');
   } catch(e) {
-    // Se a nuvem deu erro mas existe local, devolve o local em vez de falhar
     const local = await storageGet('vistoria:'+id);
     if (local) return local;
     showToast('Falha ao carregar: ' + e.message);
@@ -1694,24 +1643,18 @@ function bindNovaVistoria() {
       }
     });
 
-    // HOTFIX: ATUALIZAÇÃO GRANULAR DE DOM PARA PERFORMANCE NO CHECKLIST
     document.querySelectorAll('.seg button').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.target.dataset.id;
         const st = e.target.dataset.status;
         
-        // Atualiza o estado lógico
         if(!nv.respostas[id]) nv.respostas[id] = { observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
         nv.respostas[id].status = st;
         
-        // Atualiza apenas os nós visuais específicos (sem re-render total da página)
         const parentCard = e.target.closest('.item-card');
-        
-        // Troca classe ativa nos botões
         parentCard.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         
-        // Mostra a div de extras e ajusta visibilidade de NC
         const itemExtra = parentCard.querySelector('.item-extra');
         const ncFields = parentCard.querySelector('.nc-fields');
         
@@ -1808,7 +1751,7 @@ window.removeFoto = function(itemId, photoIdx) {
 }
 
 /* ============================================================
-   TELA: DASHBOARD GERAL COM NOVOS GRÁFICOS
+   TELA: DASHBOARD GERAL COM NOVOS GRÁFICOS (E LINHA VERDE DE CONFORMIDADE)
    ============================================================ */
 function viewDashboard() {
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
@@ -1920,15 +1863,16 @@ function bindDashboard() {
     const d = new Date(v.dataHora);
     if(!isNaN(d)) {
       const mesAno = ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();
-      if(!evolucaoMap[mesAno]) evolucaoMap[mesAno] = { vist: 0, nc: 0 };
+      if(!evolucaoMap[mesAno]) evolucaoMap[mesAno] = { vist: 0, nc: 0, conf: 0 };
+      
       evolucaoMap[mesAno].vist++;
       evolucaoMap[mesAno].nc += (v.totalNC || 0);
+      evolucaoMap[mesAno].conf += ((v.totalItens || 0) - (v.totalNC || 0)); 
     }
   });
 
   const totalConforme = totalItens - totalNC;
 
-  // Render Donut Chart
   const donutCanvas = document.getElementById('dashDonutChart');
   if(donutCanvas) {
       if(window.dashDonutChartInstance) window.dashDonutChartInstance.destroy();
@@ -1953,13 +1897,14 @@ function bindDashboard() {
       });
   }
 
-  // Render Evolution Combo Chart
   const evoCanvas = document.getElementById('dashEvoChart');
   if(evoCanvas) {
       if(window.dashEvoChartInstance) window.dashEvoChartInstance.destroy();
+      
       const labels = Object.keys(evolucaoMap);
       const dataVist = labels.map(l => evolucaoMap[l].vist);
       const dataNC = labels.map(l => evolucaoMap[l].nc);
+      const dataConf = labels.map(l => evolucaoMap[l].conf); 
 
       const ctx = evoCanvas.getContext('2d');
       window.dashEvoChartInstance = new Chart(ctx, {
@@ -1969,19 +1914,35 @@ function bindDashboard() {
               datasets: [
                   {
                       type: 'line',
-                      label: 'Total de NCs',
-                      data: dataNC,
-                      borderColor: '#C4332C',
-                      backgroundColor: '#C4332C',
+                      label: 'Conformidades (OK)',
+                      data: dataConf,
+                      borderColor: '#2e7d32',
+                      backgroundColor: 'rgba(46, 125, 50, 0.15)', 
+                      fill: true,
                       borderWidth: 3,
                       tension: 0.3,
+                      pointRadius: 4,
+                      pointHoverRadius: 6,
+                      yAxisID: 'y1'
+                  },
+                  {
+                      type: 'line',
+                      label: 'Não Conformidades (NC)',
+                      data: dataNC,
+                      borderColor: '#e53935',
+                      backgroundColor: 'rgba(229, 57, 53, 0.15)', 
+                      fill: true,
+                      borderWidth: 3,
+                      tension: 0.3,
+                      pointRadius: 4,
+                      pointHoverRadius: 6,
                       yAxisID: 'y1'
                   },
                   {
                       type: 'bar',
                       label: 'Vistorias Realizadas',
                       data: dataVist,
-                      backgroundColor: 'rgba(91, 154, 120, 0.7)',
+                      backgroundColor: 'rgba(91, 154, 120, 0.3)', 
                       borderRadius: 4,
                       yAxisID: 'y'
                   }
@@ -1990,12 +1951,22 @@ function bindDashboard() {
           options: {
               responsive: true,
               maintainAspectRatio: false,
-              interaction: { mode: 'index', intersect: false },
+              interaction: { mode: 'index', intersect: false }, 
               scales: {
-                  y: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: {display: true, text: 'Vistorias'}, ticks: {precision:0} },
-                  y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: {drawOnChartArea: false}, title: {display: true, text: 'NCs'}, ticks:{precision:0} }
+                  y: { 
+                      type: 'linear', display: true, position: 'left', beginAtZero: true, 
+                      title: {display: true, text: 'Vistorias'}, ticks: {precision:0} 
+                  },
+                  y1: { 
+                      type: 'linear', display: true, position: 'right', beginAtZero: true, 
+                      grid: {drawOnChartArea: false}, 
+                      title: {display: true, text: 'Itens Avaliados'}, ticks:{precision:0} 
+                  }
               },
-              plugins: { legend: { position: 'bottom' } }
+              plugins: { 
+                  legend: { display: true, position: 'bottom' },
+                  tooltip: { mode: 'index', intersect: false } 
+              }
           }
       });
   }
@@ -2532,7 +2503,7 @@ async function iniciarApp() {
     await loadVistoriasNuvem();
   }
 
-  // Garantir que novas estruturas padrão (ex: Planta Industrial) sejam injetadas se não existirem
+  // Garantir que novas estruturas padrão sejam injetadas se não existirem
   let adicionouNova = false;
   DEFAULT_ESTRUTURAS.forEach(def => {
     if (!state.estruturas.some(e => e.nome === def.nome || e.id === def.id)) {
