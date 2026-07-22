@@ -305,7 +305,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-// IndexedDB Blindado
 const idb = {
   db: null,
   async init() {
@@ -492,7 +491,6 @@ function fileToCompressedDataURL(file) {
   });
 }
 
-// Centraliza o cálculo matemático das Não Conformidades e Categorias (DRY & Otimizado)
 function analisarCriticidade(itens) {
   let critMax = null;
   const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
@@ -515,7 +513,6 @@ function analisarCriticidade(itens) {
   return { critMax, counts, categorias };
 }
 
-// Listeners de Conexão e Autenticação (Auto-Sync)
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -642,7 +639,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?',cat:'Estrutural / Efluentes'},
     {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural / Efluentes'},
     {texto:'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?',cat:'Estrutural / Efluentes'},
-    {texto:'A estrutura de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
+    {texto:'A structure de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
     {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural / Efluentes'},
     {texto:'A altura da bacia de contenção é adequada ao volume do tanque?',cat:'Estrutural / Efluentes'},
     {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural / Efluentes'},
@@ -871,7 +868,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
-/* ============================================================
+  /* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -912,8 +909,19 @@ function serieEvolucaoAgrupada(index, modo) {
       if (isNaN(d)) return '';
       return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
     };
+    
+    // Detecta se o conjunto filtrado abrange mais de um mês/ano
+    const mesesDistintos = new Set(vs.map(v => {
+      const d = new Date(v.dataHora);
+      return isNaN(d) ? '' : d.getFullYear() + '-' + d.getMonth();
+    }));
+    const mostrarData = mesesDistintos.size > 1;
+
     return {
-      labels: vs.map(v => `${v.estruturaNome || 'Estrutura'} ${dataCurta(v.dataHora)}`),
+      labels: vs.map(v => {
+        const nome = v.estruturaNome || 'Estrutura';
+        return mostrarData ? `${nome} ${dataCurta(v.dataHora)}` : nome;
+      }),
       taxa:   vs.map(v => Math.round(_taxaConf(v)*10)/10),
       ncs:    vs.map(v => v.totalNC||0)
     };
@@ -2847,4 +2855,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html>  
+</html>
