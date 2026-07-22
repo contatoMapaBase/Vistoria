@@ -305,6 +305,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+// IndexedDB Blindado
 const idb = {
   db: null,
   async init() {
@@ -412,6 +413,7 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
+// Comprime a foto no navegador antes de salvar.
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
     const MAX_WIDTH = 1200;   
@@ -449,6 +451,7 @@ function fileToCompressedDataURL(file) {
     const arrbufReader = new FileReader();
     arrbufReader.onload = e => {
       const orientation = getOrientation(e.target.result);
+
       const img = new Image();
       img.onload = () => {
         const scale = Math.min(1, MAX_WIDTH / img.width);
@@ -490,6 +493,7 @@ function fileToCompressedDataURL(file) {
   });
 }
 
+// Centraliza o cálculo matemático das Não Conformidades e Categorias (DRY & Otimizado)
 function analisarCriticidade(itens) {
   let critMax = null;
   const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
@@ -512,6 +516,7 @@ function analisarCriticidade(itens) {
   return { critMax, counts, categorias };
 }
 
+// Listeners de Conexão e Autenticação (Auto-Sync)
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -658,7 +663,7 @@ const DEFAULT_ESTRUTURAS = [
   ])},
   { id: 'est-geral-lavador', setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
-    {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
+    {texto:'Há sinalização adequada no local, auto placas e avisos informativos?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
     {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
     {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
@@ -867,7 +872,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
- /* ============================================================
+  /* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -987,55 +992,67 @@ window.gerarRelatorioGerencial = function(){
   }, 1000);
 };
 
-// REMOVER APÓS RODAR UMA VEZ
-window.rodarBackfillCategorias = async function() {
-  if (!confirm('Isto vai reprocessar a categoria de todas as vistorias. As datas e respostas NÃO serão alteradas. Continuar?')) return;
-  
-  showToast('Iniciando backfill...');
-  let sucesso = 0;
-  let falha = 0;
-
-  for (let i = 0; i < state.vistoriasIndex.length; i++) {
-    const idx = state.vistoriasIndex[i];
-    try {
-      if (idx.totalNC === 0) {
-        idx.categorias = {};
-        sucesso++;
-        continue;
-      }
-
-      const v = await loadVistoria(idx.id);
-      if (!v || !Array.isArray(v.itens)) {
-        falha++;
-        continue;
-      }
-
-      const analise = analisarCriticidade(v.itens);
-      idx.categorias = analise.categorias;
-      
-      if (_supabase && navigator.onLine && idx.syncStatus === 'synced') {
-        const novoMap = { ...(idx.criticidades || {}), _categorias: analise.categorias };
-        
-        const { error } = await _supabase.from('vistorias')
-          .update({ criticidades_map: novoMap })
-          .eq('id', idx.id);
-          
-        if (error) {
-          console.error(`Erro no backfill remoto [${idx.id}]:`, error);
-          falha++;
-          continue;
-        }
-      }
-      sucesso++;
-    } catch (e) {
-      console.error(`Erro no backfill da vistoria [${idx.id}]:`, e);
-      falha++;
-    }
+window.baixarGraficoEvolucao = function(instanceName = 'dashEvoChartInstance') {
+  const chart = window[instanceName];
+  if (!chart) {
+    showToast('Gráfico indisponível.');
+    return;
   }
+  const base64 = chart.toBase64Image('image/png', 1);
+  const link = document.createElement('a');
+  link.href = base64;
+  link.download = 'evolucao-desempenho.png';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};
 
-  await storageSet('vistorias:index', state.vistoriasIndex);
-  render();
-  showToast(`Backfill concluído: ${sucesso} processadas, ${falha} falhas.`);
+window.abrirGraficoEvolucao = function() {
+  const html = `
+  <div class="modal-backdrop" style="z-index:9999;">
+    <div class="modal" style="max-width:95vw; width:100%; height:90vh; display:flex; flex-direction:column; padding:0;">
+      <div class="modal-head">
+        <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;">Evolução do Desempenho</h3>
+        <div class="rowflex">
+          <button class="btn ghost sm" onclick="baixarGraficoEvolucao('evoChartFullInstance')">⬇️ Baixar PNG</button>
+          <button class="btn ghost sm" onclick="closeModal()">✕ Fechar</button>
+        </div>
+      </div>
+      <div class="modal-body" style="flex:1; position:relative; padding:24px; min-height: 500px;">
+        <canvas id="evoChartFull"></canvas>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+
+  setTimeout(() => {
+    const canvas = document.getElementById('evoChartFull');
+    if(canvas) {
+      if(window.evoChartFullInstance) window.evoChartFullInstance.destroy();
+      
+      const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+      const s = serieEvolucaoIdx(filtradas);
+      
+      window.evoChartFullInstance = new Chart(canvas.getContext('2d'), {
+        type:'line',
+        data:{ labels:s.labels, datasets:[
+          { label:'Conformidade (%)', data:s.taxa, yAxisID:'y',
+            borderColor:'#2F9E44', backgroundColor:'rgba(47,158,68,0.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 },
+          { label:'Não Conformidades', data:s.ncs, yAxisID:'y1',
+            borderColor:'#C4332C', backgroundColor:'rgba(196,51,44,0.10)', fill:false, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 }
+        ]},
+        options:{ 
+          responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+          scales:{
+            x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } },
+            y:{ position:'left', min:0, max:100, title:{display:true,text:'Conformidade (%)'} },
+            y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs'} }
+          },
+          plugins:{ legend:{position:'bottom'}, tooltip:{mode:'index',intersect:false} }
+        }
+      });
+    }
+  }, 100);
 };
 
 function setView(viewName) {
@@ -1955,7 +1972,7 @@ window.removeFoto = function(itemId, photoIdx) {
 }
 
 /* ============================================================
-   TELA: DASHBOARD GERAL COM NOVOS GRÁFICOS (E LINHA VERDE DE CONFORMIDADE)
+   TELA: DASHBOARD GERAL E GRÁFICOS (SINCRONOS NO ÍNDICE)
    ============================================================ */
 function viewDashboard() {
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash');
@@ -1983,7 +2000,6 @@ function viewDashboard() {
   <div class="view-head no-print">    
     <div><div class="eyebrow">Visão Geral</div><h1 class="view-title">Painel de Inspeções</h1></div>    
     <div class="rowflex">      
-      <button class="btn ghost" onclick="rodarBackfillCategorias()">🔧 Backfill Categorias</button> <!-- REMOVER APÓS RODAR UMA VEZ -->
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
       <button class="btn primary" onclick="setView('nova')">+ Nova Vistoria</button>    
@@ -2001,7 +2017,13 @@ function viewDashboard() {
   </div>  
   <div class="grid cols-2" style="align-items:start;margin-bottom:24px;">    
     <div class="card card-pad" style="break-inside:avoid;">      
-      <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução do Desempenho</h3>      
+      <div class="rowflex" style="justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3 style="margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução do Desempenho</h3>
+        <div class="rowflex no-print" style="gap:8px;">
+          <button class="btn ghost sm" onclick="abrirGraficoEvolucao()">🔍 Ampliar</button>
+          <button class="btn ghost sm" onclick="baixarGraficoEvolucao('dashEvoChartInstance')">⬇️ Baixar PNG</button>
+        </div>
+      </div>      
       <div style="height:260px;position:relative;">        
         <canvas id="dashEvoChart"></canvas>        
         ${k.inspecoes===0?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-weight:600;">Sem Dados</div>':''}      
@@ -2055,6 +2077,7 @@ async function bindDashboard() {
     totalItens += (v.totalItens || 0);
     totalNC += (v.totalNC || 0);
 
+    // Soma das Categorias (via índice leve!)
     if (v.categorias) {
       for (const [cat, qtd] of Object.entries(v.categorias)) {
         categoriasMap[cat] = (categoriasMap[cat] || 0) + qtd;
@@ -2064,6 +2087,7 @@ async function bindDashboard() {
 
   const totalConforme = totalItens - totalNC;
 
+  // Render Donut Chart
   const donutCanvas = document.getElementById('dashDonutChart');
   if(donutCanvas) {
       if(window.dashDonutChartInstance) window.dashDonutChartInstance.destroy();
@@ -2082,6 +2106,7 @@ async function bindDashboard() {
       });
   }
 
+  // Render Evolution Chart (% Taxa de conformidade e contagem de NCs)
   const evoCanvas = document.getElementById('dashEvoChart');
   if(evoCanvas) {
     if(window.dashEvoChartInstance) window.dashEvoChartInstance.destroy();
@@ -2104,6 +2129,7 @@ async function bindDashboard() {
     });
   }
 
+  // Render Category Chart (Síncrono via Índice em RAM)
   const catCanvas = document.getElementById('dashCatChart');
   if(catCanvas) {
       if(window.dashCatChartInstance) window.dashCatChartInstance.destroy();
@@ -2132,6 +2158,7 @@ async function bindDashboard() {
       });
   }
 
+  // Pendências recorrentes (carrega registros completos — assíncrono)
   try {
     const recorr = new Map();
     for (const ix of filtradas) {
@@ -2761,4 +2788,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html> 
+</html>
