@@ -314,7 +314,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-// IndexedDB Blindado
 const idb = {
   db: null,
   async init() {
@@ -422,7 +421,6 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
-// Comprime a foto no navegador antes de salvar.
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
     const MAX_WIDTH = 1200;   
@@ -549,19 +547,28 @@ if (_supabase) {
 }
 
 function renderFilterBar(prefix) {
+  const currEmpArr = state.filtros[prefix].emp || [];
+  const currEstArr = state.filtros[prefix].est || [];
+  let currMes = state.filtros[prefix].mes || '';
+
   const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
   const ests = [...new Set(state.vistoriasIndex.map(v => v.estruturaNome).filter(Boolean))].sort();
   
   const mesesSet = new Set();
   state.vistoriasIndex.forEach(v => {
-    const d = new Date(v.dataHora);
-    if(!isNaN(d)) mesesSet.add(d.toISOString().slice(0,7));
+    const matchEmp = currEmpArr.length === 0 || currEmpArr.includes(v.empreendimentoNome);
+    const matchEst = currEstArr.length === 0 || currEstArr.includes(v.estruturaNome);
+    if (matchEmp && matchEst) {
+      const d = new Date(v.dataHora);
+      if(!isNaN(d)) mesesSet.add(d.toISOString().slice(0,7));
+    }
   });
   const meses = [...mesesSet].sort().reverse();
   
-  const currEmpArr = state.filtros[prefix].emp || [];
-  const currEstArr = state.filtros[prefix].est || [];
-  const currMes = state.filtros[prefix].mes || '';
+  if (currMes && !meses.includes(currMes)) {
+    state.filtros[prefix].mes = '';
+    currMes = '';
+  }
 
   const empLabel = currEmpArr.length === 0 ? 'Todos os Empreendimentos' : (currEmpArr.length === 1 ? currEmpArr[0] : `${currEmpArr.length} selecionados`);
   const estLabel = currEstArr.length === 0 ? 'Todas as Estruturas' : (currEstArr.length === 1 ? currEstArr[0] : `${currEstArr.length} selecionadas`);
@@ -626,7 +633,6 @@ function bindFilterBar(prefix) {
     render(); 
   });
 
-  // Fechar dropdowns ao clicar fora
   document.addEventListener('click', (e) => {
     document.querySelectorAll('.multi-select-details').forEach(det => {
       if(!det.contains(e.target)) det.removeAttribute('open');
@@ -928,7 +934,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
-  /* ============================================================
+/* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -946,7 +952,8 @@ const state = {
     nc: { emp: [], est: [], mes: '' },
     rank: { emp: [], est: [], mes: '' }
   },
-  rankingModo: 'emp' // 'emp' ou 'est'
+  rankingModo: 'emp', // 'emp' ou 'est'
+  evoAgrupamento: 'mes'
 };
 
 /* Helpers de análise (índice) */
@@ -1153,27 +1160,205 @@ window.abrirGraficoEvolucao = function() {
     if(canvas) {
       if(window.evoChartFullInstance) window.evoChartFullInstance.destroy();
       
+      const totais = s.labels.map((_,i)=> (s.confs[i]||0)+(s.ncs[i]||0));
+      const pctConf = s.confs.map((c,i)=> totais[i] ? +(c/totais[i]*100).toFixed(1) : 0);
+      const pctNC   = s.ncs.map((n,i)=> totais[i] ? +(n/totais[i]*100).toFixed(1) : 0);
+
       window.evoChartFullInstance = new Chart(canvas.getContext('2d'), {
-        type:'line',
+        type:'bar',
         data:{ labels:s.labels, datasets:[
-          { label:'Conformidades', data:s.confs, yAxisID:'y',
-            borderColor:'#2F9E44', backgroundColor:'rgba(47,158,68,0.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 },
-          { label:'Não Conformidades', data:s.ncs, yAxisID:'y1',
-            borderColor:'#C4332C', backgroundColor:'rgba(196,51,44,0.10)', fill:false, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 }
+          { label:'Conformidades', data:pctConf, backgroundColor:'#2F9E44', borderRadius:4, stack:'s',
+            _abs:s.confs, _tot:totais },
+          { label:'Não Conformidades', data:pctNC, backgroundColor:'#C4332C', borderRadius:4, stack:'s',
+            _abs:s.ncs, _tot:totais }
         ]},
-        options:{ 
-          responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+        options:{ responsive:true, maintainAspectRatio:false,
           scales:{
-            x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } },
-            y:{ position:'left', min:0, ticks:{precision:0}, title:{display:true,text:'Conformidades (Qtd)'} },
-            y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs (Qtd)'} }
+            x:{ stacked:true, ticks:{ autoSkip:true, maxRotation:45, minRotation:0 } },
+            y:{ stacked:true, min:0, max:100, ticks:{ callback:v=>v+'%' },
+                title:{ display:true, text:'% do check-list' } }
           },
-          plugins:{ legend:{position:'bottom'}, tooltip:{mode:'index',intersect:false} }
-        }
-      });
+          plugins:{
+            legend:{ position:'bottom' },
+            tooltip:{ callbacks:{
+              label:(ctx)=>{
+                const i = ctx.dataIndex;
+                const abs = ctx.dataset._abs[i]||0;
+                const tot = ctx.dataset._tot[i]||0;
+                const pct = tot ? Math.round(abs/tot*100) : 0;
+                return `${ctx.dataset.label}: ${abs} (${pct}%)`;
+              }
+            }}
+          }
+        }});
     }
   }, 100);
 };
+
+/* ============================================================
+   TELA: RANKING IGD (DESEMPENHO NEGATIVO)
+   ============================================================ */
+function viewRanking() {
+  return `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Ranking de Desempenho (IGD)</h1></div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Ranking</button>
+    </div>
+  </div>
+  ${renderFilterBar('rank')}
+  
+  <div class="card card-pad" style="margin-bottom:16px;background:var(--surface-2,#f7f9f7);">
+    <h4 style="margin:0 0 8px;font-family:var(--font-display);">O que é o IGD (Índice Geral de Desempenho)?</h4>
+    <p style="margin:0 0 8px;font-size:14px;color:var(--ink-soft);line-height:1.6;">
+      O IGD resume, em uma nota de <strong>0 a 100</strong>, a saúde ambiental de cada unidade.
+      Quanto <strong>maior</strong>, melhor. Ele não conta apenas <em>quantas</em> não conformidades existem,
+      mas também a <strong>gravidade</strong> delas — uma pendência crítica pesa mais que uma leve.
+      Assim, duas unidades com o mesmo número de problemas podem ter notas diferentes se uma tiver riscos mais graves.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--conforme);vertical-align:middle;"></span> <strong>90–100 · Bom:</strong> conformidade alta, poucos riscos</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--media);vertical-align:middle;"></span> <strong>70–89 · Atenção:</strong> pendências relevantes a corrigir</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--nc);vertical-align:middle;"></span> <strong>Abaixo de 70 · Crítico:</strong> prioridade de ação imediata</span>
+    </div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="rowflex" style="justify-content:space-between; margin-bottom: 24px;">
+      <h3 style="margin:0; font-family:var(--font-display); font-size:22px;">Índice de Gestão e Desempenho</h3>
+      <select id="ranking-modo" class="btn ghost sm no-print" style="height:auto; padding:4px 8px; font-weight:500;">
+        <option value="emp" ${state.rankingModo==='emp'?'selected':''}>Por Empreendimento</option>
+        <option value="est" ${state.rankingModo==='est'?'selected':''}>Por Estrutura</option>
+      </select>
+    </div>
+    
+    <div id="ranking-container">
+      <div class="empty">Processando ranking, aguarde...</div>
+    </div>
+  </div>`;
+}
+
+async function bindRanking() {
+  bindFilterBar('rank');
+  
+  document.getElementById('ranking-modo')?.addEventListener('change', (e) => {
+    state.rankingModo = e.target.value;
+    render();
+  });
+
+  const container = document.getElementById('ranking-container');
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'rank');
+  
+  if(filtradas.length === 0) {
+    container.innerHTML = `<div class="empty" style="padding:20px;">Nenhum dado encontrado para gerar o ranking.</div>`;
+    return;
+  }
+
+  const agregados = {};
+  let totalNcCritAltasGlobal = 0;
+
+  filtradas.forEach(v => {
+    const chave = state.rankingModo === 'emp' ? v.empreendimentoNome : v.estruturaNome;
+    if(!chave) return;
+    
+    if(!agregados[chave]) {
+      agregados[chave] = { nome: chave, checklists: 0, itens: 0, ncs: 0, ncCrit: 0, pesoNC: 0 };
+    }
+    agregados[chave].checklists++;
+    agregados[chave].itens += (v.totalItens || 0);
+    agregados[chave].ncs += (v.totalNC || 0);
+
+    if (v.criticidades) {
+      const crit = v.criticidades.critica || 0;
+      const alta = v.criticidades.alta || 0;
+      const media = v.criticidades.media || 0;
+      const baixa = v.criticidades.baixa || 0;
+
+      agregados[chave].ncCrit += (crit + alta);
+      agregados[chave].pesoNC += (crit * 4) + (alta * 3) + (media * 2) + (baixa * 1);
+      totalNcCritAltasGlobal += (crit + alta);
+    }
+  });
+
+  const ranking = Object.values(agregados).map(obj => {
+    obj.conf = obj.itens ? ((obj.itens - obj.ncs) / obj.itens) * 100 : 100;
+    obj.igd = obj.itens ? Math.max(0, 100 * (1 - obj.pesoNC / (obj.itens * 4))) : 100;
+    return obj;
+  });
+
+  ranking.sort((a, b) => a.igd - b.igd);
+
+  const pior = ranking[0];
+  const melhor = ranking[ranking.length - 1];
+  const igdMedio = Math.round(ranking.reduce((s, r) => s + r.igd, 0) / ranking.length);
+
+  const classificarIgd = igd => {
+    if (igd >= 90) return { rotulo: 'Bom', cor: 'var(--conforme)' };
+    if (igd >= 70) return { rotulo: 'Atenção', cor: 'var(--media)' };
+    return { rotulo: 'Crítico', cor: 'var(--nc)' };
+  };
+
+  const formatIgd = v => Math.round(v * 10) / 10;
+
+  const resumoHtml = `
+    <div class="grid cols-4" style="margin-bottom:24px;">
+      <div class="card kpi"><div class="num" style="color:var(--nc); font-size:32px;">${formatIgd(pior.igd)}%</div><div class="lbl">Pior Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(pior.nome)}</span></div></div>
+      <div class="card kpi"><div class="num" style="color:var(--conforme); font-size:32px;">${formatIgd(melhor.igd)}%</div><div class="lbl">Melhor Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(melhor.nome)}</span></div></div>
+      <div class="card kpi"><div class="num" style="color:var(--ink); font-size:32px;">${igdMedio}%</div><div class="lbl">IGD Médio</div></div>
+      <div class="card kpi"><div class="num" style="color:var(--alta); font-size:32px;">${totalNcCritAltasGlobal}</div><div class="lbl">NCs Críticas/Altas (Total)</div></div>
+    </div>
+  `;
+
+  const tabelaHtml = `
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">Pos</th>
+            <th>Nome</th>
+            <th>Check-lists</th>
+            <th>Itens Avaliados</th>
+            <th>NCs</th>
+            <th>NCs Críticas/Altas</th>
+            <th>% Conformidade</th>
+            <th>IGD (Score)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ranking.map((r, i) => {
+            const igd = formatIgd(r.igd);
+            const conf = formatIgd(r.conf);
+            const cls = classificarIgd(r.igd);
+            const alertIcon = i < 3 ? '⚠️ ' : '';
+            const ncCritStr = r.ncCrit > 0 ? `<span style="color:var(--nc);font-weight:700;">${r.ncCrit}</span>` : '0';
+
+            return `
+            <tr style="break-inside: avoid;">
+              <td><strong>${alertIcon}${i + 1}º</strong></td>
+              <td style="font-weight:600;">${esc(r.nome)}</td>
+              <td>${r.checklists}</td>
+              <td>${r.itens}</td>
+              <td style="color:var(--ink-soft);">${r.ncs}</td>
+              <td>${ncCritStr}</td>
+              <td style="color:var(--ink-soft);">${conf}%</td>
+              <td style="min-width:200px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;background:#eee;border-radius:6px;height:10px;overflow:hidden;">
+                    <div style="width:${igd}%;height:100%;background:${cls.cor};"></div>
+                  </div>
+                  <span style="font-weight:700;color:${cls.cor};white-space:nowrap;">${igd}% · ${cls.rotulo}</span>
+                </div>
+              </td>
+            </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = resumoHtml + tabelaHtml;
+}
 
 function setView(viewName) {
   state.view = viewName;
@@ -2232,7 +2417,6 @@ async function bindDashboard() {
     }
   });
 
-  // Carregamento exato do Donut
   let countConf = 0, countNC = 0, countNA = 0;
   for (const ix of filtradas) {
     const full = await loadVistoria(ix.id);
@@ -2284,23 +2468,38 @@ async function bindDashboard() {
       const periodo = s.labels.length > 1 ? `(${s.labels[0]} a ${s.labels[s.labels.length-1]})` : (s.labels.length === 1 ? `(${s.labels[0]})` : '');
       titleEl.innerHTML = `Evolução do Desempenho <span style="font-size:16px;color:var(--ink-soft);font-weight:500;">${periodo}</span>`;
     }
+
+    const totais = s.labels.map((_,i)=> (s.confs[i]||0)+(s.ncs[i]||0));
+    const pctConf = s.confs.map((c,i)=> totais[i] ? +(c/totais[i]*100).toFixed(1) : 0);
+    const pctNC   = s.ncs.map((n,i)=> totais[i] ? +(n/totais[i]*100).toFixed(1) : 0);
     
     window.dashEvoChartInstance = new Chart(evoCanvas.getContext('2d'), {
-      type:'line',
+      type:'bar',
       data:{ labels:s.labels, datasets:[
-        { label:'Conformidades', data:s.confs, yAxisID:'y',
-          borderColor:'#2F9E44', backgroundColor:'rgba(47,158,68,0.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 },
-        { label:'Não Conformidades', data:s.ncs, yAxisID:'y1',
-          borderColor:'#C4332C', backgroundColor:'rgba(196,51,44,0.10)', fill:false, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 }
+        { label:'Conformidades', data:pctConf, backgroundColor:'#2F9E44', borderRadius:4, stack:'s',
+          _abs:s.confs, _tot:totais },
+        { label:'Não Conformidades', data:pctNC, backgroundColor:'#C4332C', borderRadius:4, stack:'s',
+          _abs:s.ncs, _tot:totais }
       ]},
-      options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      options:{ responsive:true, maintainAspectRatio:false,
         scales:{
-          y:{ position:'left', min:0, ticks:{precision:0}, title:{display:true,text:'Conformidades (Qtd)'} },
-          y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs (Qtd)'} }
+          x:{ stacked:true, ticks:{ autoSkip:true, maxRotation:45, minRotation:0 } },
+          y:{ stacked:true, min:0, max:100, ticks:{ callback:v=>v+'%' },
+              title:{ display:true, text:'% do check-list' } }
         },
-        plugins:{ legend:{position:'bottom'}, tooltip:{mode:'index',intersect:false} }
-      }
-    });
+        plugins:{
+          legend:{ position:'bottom' },
+          tooltip:{ callbacks:{
+            label:(ctx)=>{
+              const i = ctx.dataIndex;
+              const abs = ctx.dataset._abs[i]||0;
+              const tot = ctx.dataset._tot[i]||0;
+              const pct = tot ? Math.round(abs/tot*100) : 0;
+              return `${ctx.dataset.label}: ${abs} (${pct}%)`;
+            }
+          }}
+        }
+      }});
   }
 
   const catCanvas = document.getElementById('dashCatChart');
@@ -2353,104 +2552,6 @@ async function bindDashboard() {
     const el = document.getElementById('dash-recorrentes');
     if (el) el.innerHTML = '<div class="empty" style="padding:16px;">Falha ao carregar recorrências.</div>';
   }
-}
-
-/* ============================================================
-   TELA: RANKING IGD (DESEMPENHO NEGATIVO)
-   ============================================================ */
-function viewRanking() {
-  return `
-  <div class="view-head no-print">
-    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Ranking de Desempenho (IGD)</h1></div>
-    <div class="rowflex">
-      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Ranking</button>
-    </div>
-  </div>
-  ${renderFilterBar('rank')}
-  
-  <div class="card card-pad">
-    <div class="rowflex" style="justify-content:space-between; margin-bottom: 24px;">
-      <h3 style="margin:0; font-family:var(--font-display); font-size:22px;">Índice de Gestão e Desempenho</h3>
-      <select id="ranking-modo" class="btn ghost sm" style="height:auto; padding:4px 8px; font-weight:500;">
-        <option value="emp" ${state.rankingModo==='emp'?'selected':''}>Por Empreendimento</option>
-        <option value="est" ${state.rankingModo==='est'?'selected':''}>Por Estrutura</option>
-      </select>
-    </div>
-    
-    <div id="ranking-container">
-      <div class="empty">Processando ranking, aguarde...</div>
-    </div>
-  </div>`;
-}
-
-async function bindRanking() {
-  bindFilterBar('rank');
-  
-  document.getElementById('ranking-modo')?.addEventListener('change', (e) => {
-    state.rankingModo = e.target.value;
-    render();
-  });
-
-  const container = document.getElementById('ranking-container');
-  const filtradas = aplicarFiltros(state.vistoriasIndex, 'rank');
-  
-  if(filtradas.length === 0) {
-    container.innerHTML = `<div class="empty" style="padding:20px;">Nenhum dado encontrado para gerar o ranking.</div>`;
-    return;
-  }
-
-  const agregados = {};
-  
-  filtradas.forEach(v => {
-    const chave = state.rankingModo === 'emp' ? v.empreendimentoNome : v.estruturaNome;
-    if(!chave) return;
-    
-    if(!agregados[chave]) {
-      agregados[chave] = { nome: chave, itens: 0, ncs: 0, vistorias: 0 };
-    }
-    agregados[chave].itens += (v.totalItens || 0);
-    agregados[chave].ncs += (v.totalNC || 0);
-    agregados[chave].vistorias++;
-  });
-
-  const ranking = Object.values(agregados).map(obj => {
-    obj.igd = obj.itens ? ((obj.itens - obj.ncs) / obj.itens) * 100 : 100;
-    return obj;
-  });
-
-  // Ordena do PIOR para o MELHOR
-  ranking.sort((a, b) => a.igd - b.igd);
-
-  container.innerHTML = `
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 50px;">Pos</th>
-            <th>${state.rankingModo === 'emp' ? 'Empreendimento' : 'Estrutura'}</th>
-            <th>Check-lists</th>
-            <th>NCs / Itens</th>
-            <th>IGD (Score)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ranking.map((r, i) => {
-            const igd = Math.round(r.igd * 10) / 10;
-            const cor = igd < 70 ? 'var(--nc)' : (igd < 90 ? 'var(--alta)' : 'var(--conforme)');
-            return `
-            <tr>
-              <td><strong>${i + 1}º</strong></td>
-              <td style="font-weight:600;">${esc(r.nome)}</td>
-              <td>${r.vistorias}</td>
-              <td style="color:var(--ink-soft);">${r.ncs} / ${r.itens}</td>
-              <td><span style="font-weight:700; color:${cor}; font-size:16px;">${igd}%</span></td>
-            </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
 }
 
 /* EXPORTAÇÃO EXCEL REAL */
