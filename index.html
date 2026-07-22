@@ -141,7 +141,7 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 
 .est-list-chip { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:3px 8px; font-size:11.5px; margin:2px 4px 2px 0; color:var(--ink-soft); }
 
-/* FILTROS (Dashboard, Histórico, NCs) */
+/* FILTROS */
 .filter-bar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; display:flex; gap:16px; align-items:flex-end; box-shadow:var(--shadow); flex-wrap:wrap;}
 .filter-bar .field { margin-bottom:0; flex:1; min-width:200px; }
 
@@ -413,7 +413,6 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
-// Comprime a foto no navegador antes de salvar.
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
     const MAX_WIDTH = 1200;   
@@ -493,7 +492,6 @@ function fileToCompressedDataURL(file) {
   });
 }
 
-// Centraliza o cálculo matemático das Não Conformidades e Categorias (DRY & Otimizado)
 function analisarCriticidade(itens) {
   let critMax = null;
   const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
@@ -516,7 +514,6 @@ function analisarCriticidade(itens) {
   return { critMax, counts, categorias };
 }
 
-// Listeners de Conexão e Autenticação (Auto-Sync)
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -663,7 +660,7 @@ const DEFAULT_ESTRUTURAS = [
   ])},
   { id: 'est-geral-lavador', setor:'Geral', nome:'Lavador de Veículos e Máquinas', itens: mkItens([
     {texto:'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?',cat:'Segurança'},
-    {texto:'Há sinalização adequada no local, auto placas e avisos informativos?',cat:'Segurança'},
+    {texto:'Há sinalização adequada no local, como placas e avisos informativos?',cat:'Segurança'},
     {texto:'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?',cat:'Gerenciamento de Resíduos Sólidos'},
     {texto:'Existem resíduos sólidos em contato direto com o solo exposto?',cat:'Gerenciamento de Resíduos Sólidos'},
     {texto:'Há recipientes de coleta de resíduos identificados e em número suficiente?',cat:'Gerenciamento de Resíduos Sólidos'},
@@ -743,7 +740,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existe sistema de captação superficial instalado na barragem?', cat:'Captação de Água'},
     {texto:'A estrutura de captação encontra-se íntegra e sem obstruções?', cat:'Captação de Água'},
     {texto:'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat:'Captação de Água'},
-    {texto:'As mangueiras, conexões e tubulações apresentam bom estado de conservação?', cat:'Captação de Água'},
+    {texto:'As mangueiras, conexões e tubulações apresenta bom estado de conservação?', cat:'Captação de Água'},
     {texto:'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat:'Monitoramento'},
     {texto:'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', cat:'Monitoramento'},
     {texto:'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', cat:'Qualidade Ambiental'},
@@ -894,6 +891,7 @@ const state = {
 /* Helpers de análise (índice) */
 const _PESO = { critica:4, alta:3, media:2, baixa:1 };
 function _taxaConf(v){ return v.totalItens ? (v.totalItens - v.totalNC)/v.totalItens*100 : 100; }
+
 function serieEvolucaoIdx(index){
   const vs = [...index].sort((a,b)=> new Date(a.dataHora)-new Date(b.dataHora));
   return {
@@ -902,16 +900,64 @@ function serieEvolucaoIdx(index){
     ncs:    vs.map(v => v.totalNC||0)
   };
 }
+
+function serieEvolucaoAgrupada(index, modo) {
+  const vs = [...index].sort((a,b)=> new Date(a.dataHora)-new Date(b.dataHora));
+  
+  if (modo === 'vistoria') {
+    return {
+      labels: vs.map(v => fmtDate(v.dataHora).split(' às')[0]),
+      taxa:   vs.map(v => Math.round(_taxaConf(v)*10)/10),
+      ncs:    vs.map(v => v.totalNC||0)
+    };
+  }
+  
+  const mapMes = {};
+  const mesesCurto = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  
+  vs.forEach(v => {
+    const d = new Date(v.dataHora);
+    if(isNaN(d)) return;
+    const key = d.toISOString().slice(0,7); 
+    
+    if(!mapMes[key]) {
+      mapMes[key] = { label: `${mesesCurto[d.getMonth()]}/${d.getFullYear()}`, itens: 0, nc: 0 };
+    }
+    mapMes[key].itens += (v.totalItens || 0);
+    mapMes[key].nc += (v.totalNC || 0);
+  });
+  
+  const chaves = Object.keys(mapMes).sort();
+  return {
+    labels: chaves.map(k => mapMes[k].label),
+    taxa: chaves.map(k => {
+      const tot = mapMes[k].itens;
+      const conf = tot ? ((tot - mapMes[k].nc) / tot) * 100 : 100;
+      return Math.round(conf * 10) / 10;
+    }),
+    ncs: chaves.map(k => mapMes[k].nc)
+  };
+}
+
 function calcularKPIs(index){
   const vs = [...index].sort((a,b)=> new Date(a.dataHora)-new Date(b.dataHora));
-  const n = vs.length, atual = n?vs[n-1]:null, ant = n>1?vs[n-2]:null;
+  const n = vs.length;
+  
+  const somaItens = vs.reduce((s,v)=> s + (v.totalItens||0), 0);
+  const somaNC    = vs.reduce((s,v)=> s + (v.totalNC||0), 0);
+  const taxaPeriodo = somaItens ? (somaItens - somaNC) / somaItens * 100 : 100;
+  
+  const atual = n ? vs[n-1] : null, ant = n>1 ? vs[n-2] : null;
+  const taxaVist = v => v.totalItens ? (v.totalItens - v.totalNC)/v.totalItens*100 : 100;
+
   let critAltas = 0;
   vs.forEach(v => { if(v.criticidades) critAltas += (v.criticidades.critica||0)+(v.criticidades.alta||0); });
+
   return {
     inspecoes: n,
-    totalNC: vs.reduce((s,v)=>s+(v.totalNC||0),0),
-    taxa: atual ? Math.round(_taxaConf(atual)*10)/10 : 100,
-    deltaTaxa: (atual&&ant) ? Math.round((_taxaConf(atual)-_taxaConf(ant))*10)/10 : null,
+    totalNC: somaNC,
+    taxa: Math.round(taxaPeriodo*10)/10,
+    deltaTaxa: (atual&&ant) ? Math.round((taxaVist(atual)-taxaVist(ant))*10)/10 : null,
     deltaNC: (atual&&ant) ? ((atual.totalNC||0)-(ant.totalNC||0)) : null,
     critAltas
   };
@@ -1031,7 +1077,7 @@ window.abrirGraficoEvolucao = function() {
       if(window.evoChartFullInstance) window.evoChartFullInstance.destroy();
       
       const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
-      const s = serieEvolucaoIdx(filtradas);
+      const s = serieEvolucaoAgrupada(filtradas, state.evoAgrupamento || 'mes');
       
       window.evoChartFullInstance = new Chart(canvas.getContext('2d'), {
         type:'line',
@@ -1643,7 +1689,7 @@ window.removerItemEst = function(idx) {
 }
 
 /* ============================================================
-   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO COM ALTA PERFORMANCE)
+   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO)
    ============================================================ */
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
@@ -2020,6 +2066,10 @@ function viewDashboard() {
       <div class="rowflex" style="justify-content:space-between;align-items:center;margin-bottom:20px;">
         <h3 style="margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução do Desempenho</h3>
         <div class="rowflex no-print" style="gap:8px;">
+          <select id="evo-agrupamento" class="btn ghost sm" style="height:auto; padding:4px 8px; font-weight:500;">
+            <option value="mes" ${(!state.evoAgrupamento || state.evoAgrupamento==='mes')?'selected':''}>Por mês</option>
+            <option value="vistoria" ${state.evoAgrupamento==='vistoria'?'selected':''}>Por vistoria</option>
+          </select>
           <button class="btn ghost sm" onclick="abrirGraficoEvolucao()">🔍 Ampliar</button>
           <button class="btn ghost sm" onclick="baixarGraficoEvolucao('dashEvoChartInstance')">⬇️ Baixar PNG</button>
         </div>
@@ -2067,6 +2117,11 @@ function viewDashboard() {
 async function bindDashboard() { 
   bindFilterBar('dash'); 
   
+  document.getElementById('evo-agrupamento')?.addEventListener('change', (e) => {
+    state.evoAgrupamento = e.target.value;
+    render();
+  });
+  
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
   
   let totalItens = 0;
@@ -2077,7 +2132,6 @@ async function bindDashboard() {
     totalItens += (v.totalItens || 0);
     totalNC += (v.totalNC || 0);
 
-    // Soma das Categorias (via índice leve!)
     if (v.categorias) {
       for (const [cat, qtd] of Object.entries(v.categorias)) {
         categoriasMap[cat] = (categoriasMap[cat] || 0) + qtd;
@@ -2087,7 +2141,6 @@ async function bindDashboard() {
 
   const totalConforme = totalItens - totalNC;
 
-  // Render Donut Chart
   const donutCanvas = document.getElementById('dashDonutChart');
   if(donutCanvas) {
       if(window.dashDonutChartInstance) window.dashDonutChartInstance.destroy();
@@ -2106,11 +2159,12 @@ async function bindDashboard() {
       });
   }
 
-  // Render Evolution Chart (% Taxa de conformidade e contagem de NCs)
   const evoCanvas = document.getElementById('dashEvoChart');
   if(evoCanvas) {
     if(window.dashEvoChartInstance) window.dashEvoChartInstance.destroy();
-    const s = serieEvolucaoIdx(filtradas);
+    
+    const s = serieEvolucaoAgrupada(filtradas, state.evoAgrupamento || 'mes');
+    
     window.dashEvoChartInstance = new Chart(evoCanvas.getContext('2d'), {
       type:'line',
       data:{ labels:s.labels, datasets:[
@@ -2129,7 +2183,6 @@ async function bindDashboard() {
     });
   }
 
-  // Render Category Chart (Síncrono via Índice em RAM)
   const catCanvas = document.getElementById('dashCatChart');
   if(catCanvas) {
       if(window.dashCatChartInstance) window.dashCatChartInstance.destroy();
@@ -2158,7 +2211,6 @@ async function bindDashboard() {
       });
   }
 
-  // Pendências recorrentes (carrega registros completos — assíncrono)
   try {
     const recorr = new Map();
     for (const ix of filtradas) {
