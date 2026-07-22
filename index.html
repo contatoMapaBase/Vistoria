@@ -141,7 +141,7 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 
 .est-list-chip { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:3px 8px; font-size:11.5px; margin:2px 4px 2px 0; color:var(--ink-soft); }
 
-/* FILTROS */
+/* FILTROS (Dashboard, Histórico, NCs) */
 .filter-bar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; display:flex; gap:16px; align-items:flex-end; box-shadow:var(--shadow); flex-wrap:wrap;}
 .filter-bar .field { margin-bottom:0; flex:1; min-width:200px; }
 
@@ -492,6 +492,7 @@ function fileToCompressedDataURL(file) {
   });
 }
 
+// Centraliza o cálculo matemático das Não Conformidades e Categorias (DRY & Otimizado)
 function analisarCriticidade(itens) {
   let critMax = null;
   const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
@@ -514,6 +515,7 @@ function analisarCriticidade(itens) {
   return { critMax, counts, categorias };
 }
 
+// Listeners de Conexão e Autenticação (Auto-Sync)
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -869,7 +871,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
-  /* ============================================================
+/* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -905,8 +907,13 @@ function serieEvolucaoAgrupada(index, modo) {
   const vs = [...index].sort((a,b)=> new Date(a.dataHora)-new Date(b.dataHora));
   
   if (modo === 'vistoria') {
+    const dataCurta = iso => {
+      const d = new Date(iso);
+      if (isNaN(d)) return '';
+      return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
+    };
     return {
-      labels: vs.map(v => fmtDate(v.dataHora).split(' às')[0]),
+      labels: vs.map(v => `${v.estruturaNome || 'Estrutura'} ${dataCurta(v.dataHora)}`),
       taxa:   vs.map(v => Math.round(_taxaConf(v)*10)/10),
       ncs:    vs.map(v => v.totalNC||0)
     };
@@ -2586,7 +2593,7 @@ window.gerarPdfMes = async function(mesIso, empNome) {
 };
 
 /* ============================================================
-   TELA: EVOLUÇÃO (COM EXPORTAÇÃO PDF/EXCEL E GRÁFICOS) E MATRIZ ITEM A ITEM
+   TELA: EVOLUÇÃO E MATRIZ ITEM A ITEM
    ============================================================ */
 function viewEvolucao() {
   const empComVistoria = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
@@ -2840,4 +2847,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html>
+</html>  
