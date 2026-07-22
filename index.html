@@ -142,9 +142,16 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 
 .est-list-chip { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:3px 8px; font-size:11.5px; margin:2px 4px 2px 0; color:var(--ink-soft); }
 
-/* FILTROS */
+/* FILTROS MULTI-SELEÇÃO */
 .filter-bar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; display:flex; gap:16px; align-items:flex-end; box-shadow:var(--shadow); flex-wrap:wrap;}
-.filter-bar .field { margin-bottom:0; flex:1; min-width:200px; }
+.filter-bar .field { margin-bottom:0; flex:1; min-width:200px; position:relative; }
+.multi-select-details { position:relative; }
+.multi-select-summary { width:100%; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--surface); font-size:14.5px; color:var(--ink); cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none; }
+.multi-select-summary::after { content:'▼'; font-size:10px; color:var(--ink-faint); }
+.multi-select-dropdown { position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); max-height:240px; overflow-y:auto; z-index:100; padding:8px; }
+.multi-select-dropdown label { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:4px; font-size:13.5px; cursor:pointer; transition:background 0.15s; }
+.multi-select-dropdown label:hover { background:var(--surface-2); }
+.multi-select-dropdown input[type="checkbox"] { width:auto; margin:0; }
 
 /* ACORDEÃO HISTÓRICO */
 .folder-details { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px; overflow:hidden; box-shadow:var(--shadow); }
@@ -252,6 +259,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   * { -webkit-print-color-adjust:exact !important; color-adjust:exact !important; }
   canvas { max-width: 100% !important; height: auto !important; }
   .relatorio-gerencial { display: block; background: white; padding: 2cm; }
+  .multi-select-details[open] .multi-select-dropdown { display: none !important; }
 }
 </style>
 </head>
@@ -306,6 +314,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
+// IndexedDB Blindado
 const idb = {
   db: null,
   async init() {
@@ -413,6 +422,7 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
+// Comprime a foto no navegador antes de salvar.
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
     const MAX_WIDTH = 1200;   
@@ -540,6 +550,8 @@ if (_supabase) {
 
 function renderFilterBar(prefix) {
   const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
+  const ests = [...new Set(state.vistoriasIndex.map(v => v.estruturaNome).filter(Boolean))].sort();
+  
   const mesesSet = new Set();
   state.vistoriasIndex.forEach(v => {
     const d = new Date(v.dataHora);
@@ -547,17 +559,42 @@ function renderFilterBar(prefix) {
   });
   const meses = [...mesesSet].sort().reverse();
   
-  const currEmp = state.filtros[prefix].emp;
-  const currMes = state.filtros[prefix].mes;
+  const currEmpArr = state.filtros[prefix].emp || [];
+  const currEstArr = state.filtros[prefix].est || [];
+  const currMes = state.filtros[prefix].mes || '';
+
+  const empLabel = currEmpArr.length === 0 ? 'Todos os Empreendimentos' : (currEmpArr.length === 1 ? currEmpArr[0] : `${currEmpArr.length} selecionados`);
+  const estLabel = currEstArr.length === 0 ? 'Todas as Estruturas' : (currEstArr.length === 1 ? currEstArr[0] : `${currEstArr.length} selecionadas`);
 
   return `
     <div class="filter-bar no-print">
       <div class="field">
-        <label class="field-label">Empreendimento</label>
-        <select id="filter-${prefix}-emp">
-          <option value="">Todos os Empreendimentos</option>
-          ${emps.map(e => `<option value="${esc(e)}" ${currEmp===e?'selected':''}>${esc(e)}</option>`).join('')}
-        </select>
+        <label class="field-label">Empreendimentos</label>
+        <details class="multi-select-details" id="det-emp-${prefix}">
+          <summary class="multi-select-summary">${esc(empLabel)}</summary>
+          <div class="multi-select-dropdown">
+            ${emps.map(e => `
+              <label>
+                <input type="checkbox" class="cb-emp-${prefix}" value="${esc(e)}" ${currEmpArr.includes(e)?'checked':''}>
+                ${esc(e)}
+              </label>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+      <div class="field">
+        <label class="field-label">Estruturas</label>
+        <details class="multi-select-details" id="det-est-${prefix}">
+          <summary class="multi-select-summary">${esc(estLabel)}</summary>
+          <div class="multi-select-dropdown">
+            ${ests.map(e => `
+              <label>
+                <input type="checkbox" class="cb-est-${prefix}" value="${esc(e)}" ${currEstArr.includes(e)?'checked':''}>
+                ${esc(e)}
+              </label>
+            `).join('')}
+          </div>
+        </details>
       </div>
       <div class="field">
         <label class="field-label">Período (Mês)</label>
@@ -572,20 +609,42 @@ function renderFilterBar(prefix) {
 }
 
 function bindFilterBar(prefix) {
-  document.getElementById(`filter-${prefix}-emp`)?.addEventListener('change', e => { state.filtros[prefix].emp = e.target.value; render(); });
-  document.getElementById(`filter-${prefix}-mes`)?.addEventListener('change', e => { state.filtros[prefix].mes = e.target.value; render(); });
+  const updateFiltros = () => {
+    const empChecked = Array.from(document.querySelectorAll(`.cb-emp-${prefix}:checked`)).map(cb => cb.value);
+    const estChecked = Array.from(document.querySelectorAll(`.cb-est-${prefix}:checked`)).map(cb => cb.value);
+    
+    state.filtros[prefix].emp = empChecked;
+    state.filtros[prefix].est = estChecked;
+    render();
+  };
+
+  document.querySelectorAll(`.cb-emp-${prefix}`).forEach(cb => cb.addEventListener('change', updateFiltros));
+  document.querySelectorAll(`.cb-est-${prefix}`).forEach(cb => cb.addEventListener('change', updateFiltros));
+  
+  document.getElementById(`filter-${prefix}-mes`)?.addEventListener('change', e => { 
+    state.filtros[prefix].mes = e.target.value; 
+    render(); 
+  });
+
+  // Fechar dropdowns ao clicar fora
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.multi-select-details').forEach(det => {
+      if(!det.contains(e.target)) det.removeAttribute('open');
+    });
+  });
 }
 
 window.limparFiltros = function(prefix) {
-  state.filtros[prefix] = { emp: '', mes: '' };
+  state.filtros[prefix] = { emp: [], est: [], mes: '' };
   render();
 }
 
 function aplicarFiltros(lista, prefix) {
   const f = state.filtros[prefix];
   return lista.filter(v => {
-    if(f.emp && v.empreendimentoNome !== f.emp) return false;
-    if(f.mes) {
+    if(f.emp && f.emp.length > 0 && !f.emp.includes(v.empreendimentoNome)) return false;
+    if(f.est && f.est.length > 0 && !f.est.includes(v.estruturaNome)) return false;
+    if(f.mes && f.mes !== '') {
       const d = new Date(v.dataHora || v.data);
       if(isNaN(d) || d.toISOString().slice(0,7) !== f.mes) return false;
     }
@@ -869,7 +928,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
-/* ============================================================
+  /* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -882,10 +941,12 @@ const state = {
   vistoriaAberta: null,
   estruturaEditando: null,
   filtros: {
-    dash: { emp: '', mes: '' },
-    hist: { emp: '', mes: '' },
-    nc: { emp: '', mes: '' }
-  }
+    dash: { emp: [], est: [], mes: '' },
+    hist: { emp: [], est: [], mes: '' },
+    nc: { emp: [], est: [], mes: '' },
+    rank: { emp: [], est: [], mes: '' }
+  },
+  rankingModo: 'emp' // 'emp' ou 'est'
 };
 
 /* Helpers de análise (índice) */
@@ -911,6 +972,7 @@ function serieEvolucaoAgrupada(index, modo) {
       return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
     };
     
+    // Detecta se o conjunto filtrado abrange mais de um mês/ano
     const mesesDistintos = new Set(vs.map(v => {
       const d = new Date(v.dataHora);
       return isNaN(d) ? '' : d.getFullYear() + '-' + d.getMonth();
@@ -1035,7 +1097,7 @@ window.gerarRelatorioGerencial = function(){
 
   const holder = document.createElement('div');
   holder.className = 'relatorio-gerencial';
-  holder.innerHTML = `    <h1 style="font-family:var(--font-display);">Relatório Gerencial de Evolução</h1>    <p><strong>Empreendimento:</strong> ${esc(emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(est)}</p>    <p><strong>Período:</strong> ${s.labels[0]||'—'} a ${s.labels[s.labels.length-1]||'—'} &nbsp;|&nbsp; <strong>Inspeções:</strong> ${k.inspecoes}</p>    <h2>Diagnóstico Consolidado</h2><p>${diag}</p>    <h2>Indicadores</h2>    <ul>      <li>Conformidade atual: <strong>${k.taxa}%</strong>${k.deltaTaxa!=null?` (${k.deltaTaxa>=0?'+':''}${k.deltaTaxa} pts vs anterior)`:''}</li>      <li>NCs acumuladas no período: <strong>${k.totalNC}</strong></li>      <li>NCs críticas/altas: <strong>${k.critAltas}</strong></li>    </ul>    <h2>Principais Melhorias Implementadas</h2>${li(com.regularizados)}    <h2>Pendências Recorrentes (ação corretiva não efetiva)</h2>${li(com.recorrentes)}    <h2>Novos Pontos de Atenção</h2>${li(com.novos)}    <h2>Agravamentos</h2>${li(com.agravados)}    <h2>Avaliação da Eficiência das Ações Corretivas</h2>    <p>Regularizadas: ${com.regularizados.length} · Recorrentes: ${com.recorrentes.length}. ${eficaz}</p>`;
+  holder.innerHTML = `    <h1 style="font-family:var(--font-display);">Relatório Gerencial de Evolução</h1>    <p><strong>Empreendimento:</strong> ${esc(emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(est)}</p>    <p><strong>Período:</strong> ${s.labels[0]||'—'} a ${s.labels[s.labels.length-1]||'—'} &nbsp;|&nbsp; <strong>Check-lists:</strong> ${k.inspecoes}</p>    <h2>Diagnóstico Consolidado</h2><p>${diag}</p>    <h2>Indicadores</h2>    <ul>      <li>Conformidade atual: <strong>${k.taxa}%</strong>${k.deltaTaxa!=null?` (${k.deltaTaxa>=0?'+':''}${k.deltaTaxa} pts vs anterior)`:''}</li>      <li>NCs acumuladas no período: <strong>${k.totalNC}</strong></li>      <li>NCs críticas/altas: <strong>${k.critAltas}</strong></li>    </ul>    <h2>Principais Melhorias Implementadas</h2>${li(com.regularizados)}    <h2>Pendências Recorrentes (ação corretiva não efetiva)</h2>${li(com.recorrentes)}    <h2>Novos Pontos de Atenção</h2>${li(com.novos)}    <h2>Agravamentos</h2>${li(com.agravados)}    <h2>Avaliação da Eficiência das Ações Corretivas</h2>    <p>Regularizadas: ${com.regularizados.length} · Recorrentes: ${com.recorrentes.length}. ${eficaz}</p>`;
   
   const _c = document.getElementById('content');
   if (_c) _c.style.display = 'none';
@@ -1126,6 +1188,7 @@ function render() {
   const nav = document.getElementById('mainnav');
   const menu = [
     { id: 'dashboard', icon: '📊', label: 'Painel Geral' },
+    { id: 'ranking', icon: '🏆', label: 'Ranking IGD' },
     { id: 'vistorias', icon: '📋', label: 'Histórico' },
     { id: 'ncs', icon: '⚠️', label: 'Não Conformidades' },
     { id: 'evolucao', icon: '📈', label: 'Evolução' },
@@ -1142,6 +1205,7 @@ function render() {
 
   const views = {
     'dashboard': { html: viewDashboard, bind: bindDashboard },
+    'ranking': { html: viewRanking, bind: bindRanking },
     'vistorias': { html: viewVistorias, bind: bindVistorias },
     'vistoria-detalhe': { html: () => viewVistoriaDetalhe(), bind: bindVistoriaDetalhe },
     'ncs': { html: viewNcs, bind: bindNcs },
@@ -2109,7 +2173,8 @@ function viewDashboard() {
     </div>    
     <div class="card card-pad" style="break-inside:avoid;">      
       <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Status das Verificações</h3>      
-      <div style="height:260px;position:relative;"><canvas id="dashDonutChart"></canvas></div>    
+      <div style="height:220px;position:relative;"><canvas id="dashDonutChart"></canvas></div>
+      <div id="dashDonutLegend" style="margin-top:16px; display:flex; flex-wrap:wrap; gap:12px; justify-content:center; font-size:13px; font-weight:600;"></div>
     </div>  
   </div>  
   <div class="grid cols-2" style="align-items:start;margin-bottom:24px;">    
@@ -2167,7 +2232,18 @@ async function bindDashboard() {
     }
   });
 
-  const totalConforme = totalItens - totalNC;
+  // Carregamento exato do Donut
+  let countConf = 0, countNC = 0, countNA = 0;
+  for (const ix of filtradas) {
+    const full = await loadVistoria(ix.id);
+    if(full && full.itens) {
+      full.itens.forEach(i => {
+        if(i.status === 'conforme') countConf++;
+        else if(i.status === 'nc') countNC++;
+        else if(i.status === 'na') countNA++;
+      });
+    }
+  }
 
   const donutCanvas = document.getElementById('dashDonutChart');
   if(donutCanvas) {
@@ -2176,15 +2252,25 @@ async function bindDashboard() {
       window.dashDonutChartInstance = new Chart(ctx, {
           type: 'doughnut',
           data: {
-              labels: ['Conformes / N.A.', 'Não Conformidades'],
+              labels: ['Conformes', 'Não Conformidades', 'N/A'],
               datasets: [{
-                  data: [totalConforme, totalNC],
-                  backgroundColor: ['#2F9E44', '#C4332C'],
+                  data: [countConf, countNC, countNA],
+                  backgroundColor: ['#2F9E44', '#C4332C', '#8A9389'],
                   borderWidth: 2, borderColor: '#ffffff'
               }]
           },
-          options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+          options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
       });
+      
+      const legend = document.getElementById('dashDonutLegend');
+      if(legend) {
+        legend.innerHTML = `
+          <div style="color:var(--conforme);">● Conformidades: ${countConf}</div>
+          <div style="color:var(--nc);">● NCs: ${countNC}</div>
+          ${countNA > 0 ? `<div style="color:var(--na);">● N/A: ${countNA}</div>` : ''}
+          <div style="color:var(--ink);"><strong>Total Avaliado: ${countConf + countNC + countNA}</strong></div>
+        `;
+      }
   }
 
   const evoCanvas = document.getElementById('dashEvoChart');
@@ -2267,6 +2353,104 @@ async function bindDashboard() {
     const el = document.getElementById('dash-recorrentes');
     if (el) el.innerHTML = '<div class="empty" style="padding:16px;">Falha ao carregar recorrências.</div>';
   }
+}
+
+/* ============================================================
+   TELA: RANKING IGD (DESEMPENHO NEGATIVO)
+   ============================================================ */
+function viewRanking() {
+  return `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Ranking de Desempenho (IGD)</h1></div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Ranking</button>
+    </div>
+  </div>
+  ${renderFilterBar('rank')}
+  
+  <div class="card card-pad">
+    <div class="rowflex" style="justify-content:space-between; margin-bottom: 24px;">
+      <h3 style="margin:0; font-family:var(--font-display); font-size:22px;">Índice de Gestão e Desempenho</h3>
+      <select id="ranking-modo" class="btn ghost sm" style="height:auto; padding:4px 8px; font-weight:500;">
+        <option value="emp" ${state.rankingModo==='emp'?'selected':''}>Por Empreendimento</option>
+        <option value="est" ${state.rankingModo==='est'?'selected':''}>Por Estrutura</option>
+      </select>
+    </div>
+    
+    <div id="ranking-container">
+      <div class="empty">Processando ranking, aguarde...</div>
+    </div>
+  </div>`;
+}
+
+async function bindRanking() {
+  bindFilterBar('rank');
+  
+  document.getElementById('ranking-modo')?.addEventListener('change', (e) => {
+    state.rankingModo = e.target.value;
+    render();
+  });
+
+  const container = document.getElementById('ranking-container');
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'rank');
+  
+  if(filtradas.length === 0) {
+    container.innerHTML = `<div class="empty" style="padding:20px;">Nenhum dado encontrado para gerar o ranking.</div>`;
+    return;
+  }
+
+  const agregados = {};
+  
+  filtradas.forEach(v => {
+    const chave = state.rankingModo === 'emp' ? v.empreendimentoNome : v.estruturaNome;
+    if(!chave) return;
+    
+    if(!agregados[chave]) {
+      agregados[chave] = { nome: chave, itens: 0, ncs: 0, vistorias: 0 };
+    }
+    agregados[chave].itens += (v.totalItens || 0);
+    agregados[chave].ncs += (v.totalNC || 0);
+    agregados[chave].vistorias++;
+  });
+
+  const ranking = Object.values(agregados).map(obj => {
+    obj.igd = obj.itens ? ((obj.itens - obj.ncs) / obj.itens) * 100 : 100;
+    return obj;
+  });
+
+  // Ordena do PIOR para o MELHOR
+  ranking.sort((a, b) => a.igd - b.igd);
+
+  container.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">Pos</th>
+            <th>${state.rankingModo === 'emp' ? 'Empreendimento' : 'Estrutura'}</th>
+            <th>Check-lists</th>
+            <th>NCs / Itens</th>
+            <th>IGD (Score)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ranking.map((r, i) => {
+            const igd = Math.round(r.igd * 10) / 10;
+            const cor = igd < 70 ? 'var(--nc)' : (igd < 90 ? 'var(--alta)' : 'var(--conforme)');
+            return `
+            <tr>
+              <td><strong>${i + 1}º</strong></td>
+              <td style="font-weight:600;">${esc(r.nome)}</td>
+              <td>${r.vistorias}</td>
+              <td style="color:var(--ink-soft);">${r.ncs} / ${r.itens}</td>
+              <td><span style="font-weight:700; color:${cor}; font-size:16px;">${igd}%</span></td>
+            </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 /* EXPORTAÇÃO EXCEL REAL */
@@ -2877,4 +3061,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html>  
+</html>
