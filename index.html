@@ -142,7 +142,7 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 
 .est-list-chip { display:inline-block; background:var(--surface-2); border:1px solid var(--line); border-radius:4px; padding:3px 8px; font-size:11.5px; margin:2px 4px 2px 0; color:var(--ink-soft); }
 
-/* FILTROS (Dashboard, Histórico, NCs) */
+/* FILTROS */
 .filter-bar { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; display:flex; gap:16px; align-items:flex-end; box-shadow:var(--shadow); flex-wrap:wrap;}
 .filter-bar .field { margin-bottom:0; flex:1; min-width:200px; }
 
@@ -869,7 +869,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?',cat:'Segurança Ambiental'}
   ])}
 ];
-  /* ============================================================
+/* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -922,7 +922,7 @@ function serieEvolucaoAgrupada(index, modo) {
         const nome = v.estruturaNome || 'Estrutura';
         return mostrarData ? `${nome} ${dataCurta(v.dataHora)}` : nome;
       }),
-      taxa:   vs.map(v => Math.round(_taxaConf(v)*10)/10),
+      confs:  vs.map(v => (v.totalItens || 0) - (v.totalNC || 0)),
       ncs:    vs.map(v => v.totalNC||0)
     };
   }
@@ -945,11 +945,7 @@ function serieEvolucaoAgrupada(index, modo) {
   const chaves = Object.keys(mapMes).sort();
   return {
     labels: chaves.map(k => mapMes[k].label),
-    taxa: chaves.map(k => {
-      const tot = mapMes[k].itens;
-      const conf = tot ? ((tot - mapMes[k].nc) / tot) * 100 : 100;
-      return Math.round(conf * 10) / 10;
-    }),
+    confs: chaves.map(k => mapMes[k].itens - mapMes[k].nc),
     ncs: chaves.map(k => mapMes[k].nc)
   };
 }
@@ -1069,11 +1065,15 @@ window.baixarGraficoEvolucao = function(instanceName = 'dashEvoChartInstance') {
 };
 
 window.abrirGraficoEvolucao = function() {
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+  const s = serieEvolucaoAgrupada(filtradas, state.evoAgrupamento || 'mes');
+  const periodo = s.labels.length > 1 ? `(${s.labels[0]} a ${s.labels[s.labels.length-1]})` : (s.labels.length === 1 ? `(${s.labels[0]})` : '');
+
   const html = `
   <div class="modal-backdrop" style="z-index:9999;">
     <div class="modal" style="max-width:95vw; width:100%; height:90vh; display:flex; flex-direction:column; padding:0;">
       <div class="modal-head">
-        <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;">Evolução do Desempenho</h3>
+        <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;">Evolução do Desempenho <span style="font-size:18px;color:var(--ink-soft);font-weight:500;">${periodo}</span></h3>
         <div class="rowflex">
           <button class="btn ghost sm" onclick="baixarGraficoEvolucao('evoChartFullInstance')">⬇️ Baixar PNG</button>
           <button class="btn ghost sm" onclick="closeModal()">✕ Fechar</button>
@@ -1091,13 +1091,10 @@ window.abrirGraficoEvolucao = function() {
     if(canvas) {
       if(window.evoChartFullInstance) window.evoChartFullInstance.destroy();
       
-      const filtradas = aplicarFiltros(state.vistoriasIndex, 'dash').sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
-      const s = serieEvolucaoAgrupada(filtradas, state.evoAgrupamento || 'mes');
-      
       window.evoChartFullInstance = new Chart(canvas.getContext('2d'), {
         type:'line',
         data:{ labels:s.labels, datasets:[
-          { label:'Conformidade (%)', data:s.taxa, yAxisID:'y',
+          { label:'Conformidades', data:s.confs, yAxisID:'y',
             borderColor:'#2F9E44', backgroundColor:'rgba(47,158,68,0.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 },
           { label:'Não Conformidades', data:s.ncs, yAxisID:'y1',
             borderColor:'#C4332C', backgroundColor:'rgba(196,51,44,0.10)', fill:false, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 }
@@ -1106,8 +1103,8 @@ window.abrirGraficoEvolucao = function() {
           responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
           scales:{
             x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } },
-            y:{ position:'left', min:0, max:100, title:{display:true,text:'Conformidade (%)'} },
-            y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs'} }
+            y:{ position:'left', min:0, ticks:{precision:0}, title:{display:true,text:'Conformidades (Qtd)'} },
+            y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs (Qtd)'} }
           },
           plugins:{ legend:{position:'bottom'}, tooltip:{mode:'index',intersect:false} }
         }
@@ -2095,7 +2092,7 @@ function viewDashboard() {
   <div class="grid cols-2" style="align-items:start;margin-bottom:24px;">    
     <div class="card card-pad" style="break-inside:avoid;">      
       <div class="rowflex" style="justify-content:space-between;align-items:center;margin-bottom:20px;">
-        <h3 style="margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução do Desempenho</h3>
+        <h3 id="dashEvoTitle" style="margin:0;font-family:var(--font-display);font-size:22px;font-weight:600;">Evolução do Desempenho</h3>
         <div class="rowflex no-print" style="gap:8px;">
           <select id="evo-agrupamento" class="btn ghost sm" style="height:auto; padding:4px 8px; font-weight:500;">
             <option value="mes" ${(!state.evoAgrupamento || state.evoAgrupamento==='mes')?'selected':''}>Por mês</option>
@@ -2196,18 +2193,24 @@ async function bindDashboard() {
     
     const s = serieEvolucaoAgrupada(filtradas, state.evoAgrupamento || 'mes');
     
+    const titleEl = document.getElementById('dashEvoTitle');
+    if(titleEl) {
+      const periodo = s.labels.length > 1 ? `(${s.labels[0]} a ${s.labels[s.labels.length-1]})` : (s.labels.length === 1 ? `(${s.labels[0]})` : '');
+      titleEl.innerHTML = `Evolução do Desempenho <span style="font-size:16px;color:var(--ink-soft);font-weight:500;">${periodo}</span>`;
+    }
+    
     window.dashEvoChartInstance = new Chart(evoCanvas.getContext('2d'), {
       type:'line',
       data:{ labels:s.labels, datasets:[
-        { label:'Conformidade (%)', data:s.taxa, yAxisID:'y',
+        { label:'Conformidades', data:s.confs, yAxisID:'y',
           borderColor:'#2F9E44', backgroundColor:'rgba(47,158,68,0.12)', fill:true, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 },
         { label:'Não Conformidades', data:s.ncs, yAxisID:'y1',
           borderColor:'#C4332C', backgroundColor:'rgba(196,51,44,0.10)', fill:false, tension:0.3, borderWidth:3, pointRadius:4, pointHoverRadius:6 }
       ]},
       options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
         scales:{
-          y:{ position:'left', min:0, max:100, title:{display:true,text:'Conformidade (%)'} },
-          y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs'} }
+          y:{ position:'left', min:0, ticks:{precision:0}, title:{display:true,text:'Conformidades (Qtd)'} },
+          y1:{ position:'right', min:0, grid:{drawOnChartArea:false}, ticks:{precision:0}, title:{display:true,text:'NCs (Qtd)'} }
         },
         plugins:{ legend:{position:'bottom'}, tooltip:{mode:'index',intersect:false} }
       }
@@ -2552,7 +2555,7 @@ window.editarVistoriaAtual = function() {
   try {
     const v = state.vistoriaAberta;
     if(!v || !v.itens) {
-      showToast('Erro: Os dados dessa vistoria estão corrompidos ou incompletos.');
+      showToast('Erro: Os dados desse check-list estão corrompidos ou incompletos.');
       return;
     }
     
@@ -2874,4 +2877,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html>
+</html>  
