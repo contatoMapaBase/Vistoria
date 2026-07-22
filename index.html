@@ -1045,7 +1045,7 @@ async function storageSet(key, value) { return await idb.set(key, value); }
 async function storageRemove(key) { return await idb.remove(key); }
 
 /* ============================================================
-   UTILITÁRIOS GERAIS
+   UTILITÁRIOS GERAIS E FUNÇÕES DE FORMATAÇÃO
    ============================================================ */
 function esc(str) {
   if (str == null) return '';
@@ -1178,29 +1178,9 @@ function fileToCompressedDataURL(file) {
     arrbufReader.readAsArrayBuffer(file); 
   });
 }
-
-function analisarCriticidade(itens) {
-  let critMax = null;
-  const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
-  const categorias = {}; 
-  const peso = { critica: 4, alta: 3, media: 2, baixa: 1 };
-  
-  (itens || []).forEach(i => {
-    if (i.status === 'nc') {
-      if (i.criticidade) {
-        counts[i.criticidade]++;
-        const val = peso[i.criticidade];
-        const maxVal = peso[critMax] || 0;
-        if (val > maxVal) critMax = i.criticidade;
-      }
-      
-      const cat = (i.categoria && i.categoria.trim() !== '') ? i.categoria : 'Sem categoria';
-      categorias[cat] = (categorias[cat] || 0) + 1;
-    }
-  });
-  return { critMax, counts, categorias };
-}
-
+  /* ============================================================
+   LÓGICA DE FILTROS E AUTH
+   ============================================================ */
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -1224,9 +1204,7 @@ if (_supabase) {
     }
   });
 }
-/* ============================================================
-   LÓGICA DE FILTROS (MULTI-SELEÇÃO E CASCATA)
-   ============================================================ */
+
 function limparFiltros(prefix) {
   state.filtros[prefix] = { emp: [], est: [], mes: '', equipe: '' };
   render();
@@ -1761,6 +1739,43 @@ const DEFAULT_ESTRUTURAS = [
   }
 ];
   /* ============================================================
+   SOBREPOSIÇÃO: ATUALIZANDO O ANALISADOR DE CRITICIDADE
+   (Isso garante que o índice tenha os dados para velocidade máxima)
+   ============================================================ */
+function analisarCriticidade(itens) {
+  let critMax = null;
+  let totalNA = 0;
+  const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
+  const categorias = {}; 
+  const ncsResumo = [];
+  const peso = { critica: 4, alta: 3, media: 2, baixa: 1 };
+  
+  (itens || []).forEach(i => {
+    if (i.status === 'na') {
+      totalNA++;
+    }
+    if (i.status === 'nc') {
+      if (i.criticidade) {
+        counts[i.criticidade]++;
+        const val = peso[i.criticidade];
+        const maxVal = peso[critMax] || 0;
+        if (val > maxVal) critMax = i.criticidade;
+      }
+      
+      const cat = (i.categoria && i.categoria.trim() !== '') ? i.categoria : 'Sem categoria';
+      categorias[cat] = (categorias[cat] || 0) + 1;
+      
+      ncsResumo.push({
+        texto: i.texto,
+        categoria: i.categoria,
+        criticidade: i.criticidade
+      });
+    }
+  });
+  return { critMax, counts, categorias, totalNA, ncsResumo };
+}
+
+/* ============================================================
    ESTADO E ROTEAMENTO CORE E HELPERS
    ============================================================ */
 const state = {
@@ -1778,11 +1793,10 @@ const state = {
     nc:   { emp: [], est: [], mes: '', equipe: '' },
     rank: { emp: [], est: [], mes: '', equipe: '' }
   },
-  rankingModo: 'emp', // 'emp' ou 'est'
+  rankingModo: 'emp',
   evoAgrupamento: 'mes'
 };
 
-/* Helpers de análise (índice) */
 const _PESO = { critica: 4, alta: 3, media: 2, baixa: 1 };
 
 function _taxaConf(v) { 
@@ -1808,7 +1822,6 @@ function serieEvolucaoAgrupada(index, modo) {
       return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
     };
     
-    // Detecta se o conjunto filtrado abrange mais de um mês/ano
     const mesesDistintos = new Set(vs.map(v => {
       const d = new Date(v.dataHora);
       return isNaN(d) ? '' : d.getFullYear() + '-' + d.getMonth();
@@ -1835,11 +1848,7 @@ function serieEvolucaoAgrupada(index, modo) {
     const key = d.toISOString().slice(0, 7); 
     
     if(!mapMes[key]) {
-      mapMes[key] = { 
-        label: `${mesesCurto[d.getMonth()]}/${d.getFullYear()}`, 
-        itens: 0, 
-        nc: 0 
-      };
+      mapMes[key] = { label: `${mesesCurto[d.getMonth()]}/${d.getFullYear()}`, itens: 0, nc: 0 };
     }
     mapMes[key].itens += (v.totalItens || 0);
     mapMes[key].nc += (v.totalNC || 0);
@@ -2167,47 +2176,240 @@ window.abrirGraficoEvolucao = function() {
 };
 
 /* ============================================================
-   FUNÇÃO DE BACKFILL EQUIPE (PROMPT 3)
+   LÓGICA DE RANKING DE DESEMPENHO (IGD) E TENDÊNCIA
    ============================================================ */
-window.rodarBackfillEquipe = async function() {
-  if(!confirm('Marcar TODOS os check-lists sem equipe definida como "Auditoria Externa (Cliente)"? Os que já têm equipe não serão alterados. Esta ação altera apenas o campo Equipe.')) {
+function igdDeUm(v) {
+  const c = v.criticidades || {};
+  const peso = (c.critica || 0) * 4 + (c.alta || 0) * 3 + (c.media || 0) * 2 + (c.baixa || 0) * 1;
+  return v.totalItens ? Math.max(0, 100 * (1 - peso / (v.totalItens * 4))) : 100;
+}
+
+function viewRanking() {
+  return `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Auditoria</div>
+      <h1 class="view-title">Ranking de Desempenho (IGD)</h1>
+    </div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Ranking</button>
+    </div>
+  </div>
+  
+  ${renderFilterBar('rank')}
+  
+  <div class="card card-pad" style="margin-bottom:16px;background:var(--surface-2,#f7f9f7);">
+    <h4 style="margin:0 0 8px;font-family:var(--font-display);">O que é o IGD (Índice Geral de Desempenho)?</h4>
+    <p style="margin:0 0 8px;font-size:14px;color:var(--ink-soft);line-height:1.6;">
+      O IGD resume, em uma nota de <strong>0 a 100</strong>, a saúde ambiental de cada unidade.
+      Quanto <strong>maior</strong>, melhor. Ele não conta apenas <em>quantas</em> não conformidades existem,
+      mas também a <strong>gravidade</strong> delas — uma pendência crítica pesa mais que uma leve.
+      Assim, duas unidades com o mesmo número de problemas podem ter notas diferentes se uma tiver riscos mais graves.
+    </p>
+    <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink);">
+      O ranking mostra a situação MAIS RECENTE de cada estrutura. Não conformidades já corrigidas deixam de contar.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--conforme);vertical-align:middle;"></span> <strong>90–100 · Bom:</strong> conformidade alta, poucos riscos</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--media);vertical-align:middle;"></span> <strong>70–89 · Atenção:</strong> pendências relevantes a corrigir</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--nc);vertical-align:middle;"></span> <strong>Abaixo de 70 · Crítico:</strong> prioridade de ação imediata</span>
+    </div>
+    <div style="margin-top:10px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px;">
+      <strong>Como a gravidade pesa no cálculo:</strong>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;">
+        <span style="padding:2px 8px;border-radius:6px;background:var(--critica);color:#fff;">Crítica = peso 4</span>
+        <span style="padding:2px 8px;border-radius:6px;background:var(--alta);color:#fff;">Alta = peso 3</span>
+        <span style="padding:2px 8px;border-radius:6px;background:var(--media);color:#fff;">Média = peso 2</span>
+        <span style="padding:2px 8px;border-radius:6px;background:var(--baixa);color:#fff;">Baixa = peso 1</span>
+      </div>
+      <p style="margin:8px 0 0;color:var(--ink-soft);">O IGD parte de 100 e desconta conforme o peso das não conformidades. Uma unidade com muitas NCs graves cai mais que uma com poucas NCs leves — por isso reflete o risco real, não só a quantidade.</p>
+    </div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="rowflex" style="justify-content:space-between; margin-bottom: 24px;">
+      <h3 style="margin:0; font-family:var(--font-display); font-size:22px;">Índice de Gestão e Desempenho</h3>
+      <select id="ranking-modo" class="btn ghost sm no-print" style="height:auto; padding:4px 8px; font-weight:500;">
+        <option value="emp" ${state.rankingModo === 'emp' ? 'selected' : ''}>Por Empreendimento</option>
+        <option value="est" ${state.rankingModo === 'est' ? 'selected' : ''}>Por Estrutura</option>
+      </select>
+    </div>
+    
+    <div id="ranking-container">
+      <div class="empty">Processando ranking, aguarde...</div>
+    </div>
+  </div>`;
+}
+
+async function bindRanking() {
+  bindFilterBar('rank');
+  
+  document.getElementById('ranking-modo')?.addEventListener('change', (e) => {
+    state.rankingModo = e.target.value;
+    render();
+  });
+
+  const container = document.getElementById('ranking-container');
+  const filtradas = aplicarFiltros(state.vistoriasIndex, 'rank');
+  
+  if(filtradas.length === 0) {
+    container.innerHTML = `<div class="empty" style="padding:20px;">Nenhum dado encontrado para gerar o ranking.</div>`;
     return;
   }
 
-  let updated = 0;
-  let skipped = 0;
-  showToast('Iniciando backfill...');
+  const estGroups = {};
+  filtradas.forEach(v => {
+    if(!v.empreendimentoNome || !v.estruturaNome) return;
+    const key = v.empreendimentoNome + '::' + v.estruturaNome;
+    if(!estGroups[key]) estGroups[key] = [];
+    estGroups[key].push(v);
+  });
 
-  for (let entry of state.vistoriasIndex) {
-    if (!entry.equipe || entry.equipe.trim() === '') {
-      try {
-        const fullVistoria = await loadVistoria(entry.id);
-        if (fullVistoria) {
-          fullVistoria.equipe = 'Auditoria Externa';
-          await storageSet('vistoria:' + fullVistoria.id, fullVistoria);
-          
-          entry.equipe = 'Auditoria Externa';
-          
-          if (_supabase && navigator.onLine && entry.syncStatus === 'synced') {
-            await _supabase.from('vistorias').update({ equipe: 'Auditoria Externa' }).eq('id', entry.id);
-          }
-          updated++;
-        } else {
-          skipped++; 
-        }
-      } catch (e) {
-        console.error(e);
-        skipped++;
-      }
-    } else {
-      skipped++;
-    }
-  }
+  const estruturas = [];
+  Object.keys(estGroups).forEach(key => {
+    const group = estGroups[key].sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
+    const atual = group[group.length - 1];
+    const ant = group.length > 1 ? group[group.length - 2] : null;
+    
+    estruturas.push({
+      empreendimento: atual.empreendimentoNome,
+      estrutura: atual.estruturaNome,
+      dataHora: atual.dataHora,
+      igdAtual: igdDeUm(atual),
+      igdAnterior: ant ? igdDeUm(ant) : null
+    });
+  });
+
+  let linhas = [];
   
-  await storageSet('vistorias:index', state.vistoriasIndex);
-  render();
-  showToast(`Backfill concluído: ${updated} marcados como Externa, ${skipped} já tinham equipe.`);
-};
+  if (state.rankingModo === 'est') {
+    linhas = estruturas.map(e => ({
+      nome: e.estrutura,
+      subnome: e.empreendimento,
+      dataHora: e.dataHora,
+      igdAtual: e.igdAtual,
+      igdAnterior: e.igdAnterior
+    }));
+  } else {
+    const empGroups = {};
+    estruturas.forEach(e => {
+      if(!empGroups[e.empreendimento]) {
+        empGroups[e.empreendimento] = { estruturas: [], dataHoraMaisRecente: e.dataHora };
+      }
+      empGroups[e.empreendimento].estruturas.push(e);
+      if (new Date(e.dataHora) > new Date(empGroups[e.empreendimento].dataHoraMaisRecente)) {
+        empGroups[e.empreendimento].dataHoraMaisRecente = e.dataHora;
+      }
+    });
+
+    Object.keys(empGroups).forEach(emp => {
+      const ests = empGroups[emp].estruturas;
+      const sumAtual = ests.reduce((sum, e) => sum + e.igdAtual, 0);
+      const avgAtual = sumAtual / ests.length;
+
+      const estsComAnt = ests.filter(e => e.igdAnterior !== null);
+      let avgAnterior = null;
+      if (estsComAnt.length > 0) {
+        const sumAnt = estsComAnt.reduce((sum, e) => sum + e.igdAnterior, 0);
+        avgAnterior = sumAnt / estsComAnt.length;
+      }
+
+      linhas.push({
+        nome: emp,
+        subnome: ests.length + (ests.length === 1 ? ' estrutura' : ' estruturas'),
+        dataHora: empGroups[emp].dataHoraMaisRecente,
+        igdAtual: avgAtual,
+        igdAnterior: avgAnterior
+      });
+    });
+  }
+
+  const seisMesesAtras = new Date();
+  seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
+
+  linhas.forEach(l => {
+    l.isVencido = new Date(l.dataHora) < seisMesesAtras;
+  });
+
+  linhas.sort((a, b) => a.igdAtual - b.igdAtual);
+
+  const pior = linhas[0];
+  const melhor = linhas[linhas.length - 1];
+  const igdMedio = Math.round(linhas.reduce((s, r) => s + r.igdAtual, 0) / linhas.length);
+  const vencidosCount = linhas.filter(l => l.isVencido).length;
+
+  const classificarIgd = igd => {
+    if (igd >= 90) return { rotulo: 'Bom', cor: 'var(--conforme)' };
+    if (igd >= 70) return { rotulo: 'Atenção', cor: 'var(--media)' };
+    return { rotulo: 'Crítico', cor: 'var(--nc)' };
+  };
+
+  const formatIgd = v => Math.round(v * 10) / 10;
+
+  const getTendencia = (atual, ant) => {
+    if (ant === null) return `<span style="color:var(--ink-faint);font-size:12px;">— Primeiro registro</span>`;
+    const diff = atual - ant;
+    if (diff >= 3) return `<span style="color:var(--conforme);font-weight:600;">📈 Melhorou (+${diff.toFixed(1)})</span>`;
+    if (diff <= -3) return `<span style="color:var(--nc);font-weight:600;">📉 Piorou (${diff.toFixed(1)})</span>`;
+    return `<span style="color:var(--ink-soft);font-weight:600;">➡️ Estável</span>`;
+  };
+
+  const resumoHtml = `
+    <div class="grid cols-4" style="margin-bottom:24px;">
+      <div class="card kpi"><div class="num" style="color:var(--nc); font-size:32px;">${formatIgd(pior.igdAtual)}%</div><div class="lbl">Pior Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(pior.nome)}</span></div></div>
+      <div class="card kpi"><div class="num" style="color:var(--conforme); font-size:32px;">${formatIgd(melhor.igdAtual)}%</div><div class="lbl">Melhor Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(melhor.nome)}</span></div></div>
+      <div class="card kpi"><div class="num" style="color:var(--ink); font-size:32px;">${igdMedio}%</div><div class="lbl">IGD Médio</div></div>
+      <div class="card kpi"><div class="num" style="color:var(--alta); font-size:32px;">${vencidosCount}</div><div class="lbl">Estruturas com dado vencido</div></div>
+    </div>
+  `;
+
+  const tabelaHtml = `
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px;">Pos</th>
+            <th>Nome</th>
+            <th>Última Inspeção</th>
+            <th>IGD (Atual)</th>
+            <th>Tendência</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linhas.map((r, i) => {
+            const igd = formatIgd(r.igdAtual);
+            const cls = classificarIgd(r.igdAtual);
+            const alertIcon = i < 3 ? '⚠️ ' : '';
+            const dataFormatada = fmtDate(r.dataHora).split(' às')[0];
+            const seloVencido = r.isVencido ? ' <span title="Dado desatualizado (>6 meses)" style="cursor:help;">⏳</span>' : '';
+
+            return `
+            <tr style="break-inside: avoid;">
+              <td><strong>${alertIcon}${i + 1}º</strong></td>
+              <td>
+                <strong style="font-weight:600;">${esc(r.nome)}</strong><br>
+                <span style="font-size:11.5px;color:var(--ink-soft);">${esc(r.subnome)}</span>
+              </td>
+              <td style="color:var(--ink-soft);">${dataFormatada}${seloVencido}</td>
+              <td style="min-width:200px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;background:#eee;border-radius:6px;height:10px;overflow:hidden;">
+                    <div style="width:${igd}%;height:100%;background:${cls.cor};"></div>
+                  </div>
+                  <span style="font-weight:700;color:${cls.cor};white-space:nowrap;">${igd}% · ${cls.rotulo}</span>
+                </div>
+              </td>
+              <td>${getTendencia(r.igdAtual, r.igdAnterior)}</td>
+            </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = resumoHtml + tabelaHtml;
+}
 
 function setView(viewName) {
   state.view = viewName;
@@ -2330,7 +2532,7 @@ async function loadVistoriasNuvem() {
         
         data.forEach(d => {
           const rawMap = d.criticidades_map || {};
-          const { _categorias, ...pureCrit } = rawMap;
+          const { _categorias, _na, _ncs, ...pureCrit } = rawMap;
 
           cloudMap[d.id] = {
             id: d.id, 
@@ -2341,6 +2543,8 @@ async function loadVistoriasNuvem() {
             dataHora: d.data_hora, 
             totalItens: d.total_itens,
             totalNC: d.total_nc, 
+            totalNA: _na || 0,
+            ncsResumo: _ncs || [],
             criticidadeMax: d.criticidade_max, 
             syncStatus: 'synced',
             criticidades: pureCrit,
@@ -2404,10 +2608,121 @@ async function loadVistoria(id) {
   return null;
 }
 
-/* ============================================================
-   TELAS DE CADASTRO E ESTRUTURAS
-   ============================================================ */
+window.sincronizarPendentes = async function() {
+  if(!navigator.onLine) { showToast('Sem conexão!'); return; }
+  const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
+  if(pendentes.length === 0) { showToast('Nenhum check-list pendente.'); return; }
+  
+  showToast(`Sincronizando ${pendentes.length}...`);
+  let successCount = 0;
 
+  for(let p of pendentes) {
+    const v = await loadVistoria(p.id);
+    if(v) {
+      const analise = analisarCriticidade(v.itens);
+
+      const { error } = await _supabase.from('vistorias').upsert({
+        id: v.id, 
+        empreendimento_nome: v.empreendimentoNome, 
+        estrutura_nome: v.estruturaNome,
+        equipe: v.equipe || '',
+        responsavel: v.responsavel, 
+        data_hora: v.dataHora, 
+        gps: v.gps, 
+        itens: v.itens,
+        total_itens: v.itens.length, 
+        total_nc: v.itens.filter(i => i.status === 'nc').length,
+        criticidade_max: analise.critMax,
+        criticidades_map: { 
+          ...analise.counts, 
+          _categorias: analise.categorias, 
+          _na: analise.totalNA, 
+          _ncs: analise.ncsResumo 
+        }
+      });
+      
+      if(!error) {
+        v.syncStatus = 'synced'; 
+        p.syncStatus = 'synced';
+        p.equipe = v.equipe || '';
+        p.criticidades = analise.counts;
+        p.categorias = analise.categorias;
+        p.totalNA = analise.totalNA;
+        p.ncsResumo = analise.ncsResumo || [];
+        p.criticidadeMax = analise.critMax;
+
+        await storageSet('vistoria:' + v.id, v);
+        successCount++;
+      }
+    }
+  }
+  await storageSet('vistorias:index', state.vistoriasIndex);
+  render();
+  showToast(`${successCount} sincronizados!`);
+};
+
+async function saveVistoria(v) {
+  let isOnline = navigator.onLine;
+  let syncSuccess = false;
+  
+  const analise = analisarCriticidade(v.itens);
+
+  if (isOnline && _supabase) {
+    try {
+      const { error } = await _supabase.from('vistorias').upsert({
+        id: v.id,
+        empreendimento_nome: v.empreendimentoNome,
+        estrutura_nome: v.estruturaNome,
+        equipe: v.equipe || '',
+        responsavel: v.responsavel,
+        data_hora: v.dataHora,
+        gps: v.gps,
+        itens: v.itens,
+        total_itens: v.itens.length,
+        total_nc: v.itens.filter(i => i.status === 'nc').length,
+        criticidade_max: analise.critMax,
+        criticidades_map: { 
+          ...analise.counts, 
+          _categorias: analise.categorias, 
+          _na: analise.totalNA, 
+          _ncs: analise.ncsResumo 
+        }
+      });
+      if (!error) syncSuccess = true;
+    } catch(e) {}
+  }
+
+  v.syncStatus = syncSuccess ? 'synced' : 'pending';
+  
+  const idxData = {
+    id: v.id, 
+    empreendimentoNome: v.empreendimentoNome, 
+    estruturaNome: v.estruturaNome,
+    equipe: v.equipe || '',
+    responsavel: v.responsavel, 
+    dataHora: v.dataHora,
+    totalNC: v.itens.filter(i => i.status === 'nc').length,
+    totalNA: analise.totalNA,
+    ncsResumo: analise.ncsResumo || [],
+    totalItens: v.itens.length,
+    criticidades: analise.counts,
+    categorias: analise.categorias,
+    criticidadeMax: analise.critMax,
+    syncStatus: v.syncStatus
+  };
+
+  const idx = state.vistoriasIndex.findIndex(x => x.id === v.id);
+  if (idx >= 0) state.vistoriasIndex[idx] = idxData;
+  else state.vistoriasIndex.push(idxData);
+
+  await storageSet('vistorias:index', state.vistoriasIndex);
+  await storageSet('vistoria:' + v.id, v);
+
+  showToast(syncSuccess ? 'Salvo na Nuvem com sucesso!' : 'Salvo OFFLINE. Sincronize depois.');
+}
+  /* ============================================================
+   TELAS: EMPREENDIMENTOS
+   ============================================================ */
 function viewEmpreendimentos() {
   return `
   <div class="view-head">
@@ -2417,7 +2732,6 @@ function viewEmpreendimentos() {
     </div>
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
-  
   ${state.empreendimentos.length === 0 ? `
     <div class="empty card">
       <div class="ic">🏢</div>Nenhum empreendimento cadastrado.
@@ -2567,6 +2881,9 @@ window.excluirEmpreendimento = async function(id) {
   }
 }
 
+/* ============================================================
+   TELAS: ESTRUTURAS
+   ============================================================ */
 function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
 
@@ -2821,6 +3138,7 @@ window.removerItemEst = function(idx) {
   state.estruturaEditando.itens.splice(idx, 1);
   render();
 }
+
 /* ============================================================
    TELA: NOVO CHECK-LIST (ASSISTENTE COMPLETO)
    ============================================================ */
@@ -3255,10 +3573,10 @@ function viewDashboard() {
   filtradas.forEach(v => {
     totalItensIGD += (v.totalItens || 0);
     if(v.criticidades) {
-      pesoNC += (v.criticidades.critica || 0)*4 + 
-                (v.criticidades.alta || 0)*3 + 
-                (v.criticidades.media || 0)*2 + 
-                (v.criticidades.baixa || 0)*1;
+      pesoNC += (v.criticidades.critica || 0) * 4 + 
+                (v.criticidades.alta || 0) * 3 + 
+                (v.criticidades.media || 0) * 2 + 
+                (v.criticidades.baixa || 0) * 1;
     }
   });
 
@@ -3287,7 +3605,6 @@ function viewDashboard() {
       <h1 class="view-title">Painel de Inspeções</h1>
     </div>    
     <div class="rowflex">      
-      <button class="btn ghost danger" onclick="rodarBackfillEquipe()">🔧 Definir Antigos como Externa</button> <!-- REMOVER APÓS RODAR UMA VEZ -->
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
       <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
@@ -3364,7 +3681,7 @@ function viewDashboard() {
       <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">NCs por Categoria</h3>      
       <div style="height:300px;position:relative;">        
         <canvas id="dashCatChart"></canvas>        
-        ${totalNC === 0 ? '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-weight:600;">Sem Dados</div>' : ''}      
+        ${k.totalNC === 0 ? '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-weight:600;">Sem Dados</div>' : ''}      
       </div>    
     </div>    
     <div class="card card-pad" style="break-inside:avoid;">      
@@ -3392,7 +3709,13 @@ async function bindDashboard() {
   const categoriasMap = {};
   const porEst = {};
 
+  let countItens = 0, countNC = 0, countNA = 0;
+
   filtradas.forEach(v => {
+    countItens += (v.totalItens || 0);
+    countNC += (v.totalNC || 0);
+    countNA += (v.totalNA || 0);
+
     if (v.categorias) {
       for (const [cat, qtd] of Object.entries(v.categorias)) {
         categoriasMap[cat] = (categoriasMap[cat] || 0) + qtd;
@@ -3406,6 +3729,8 @@ async function bindDashboard() {
     porEst[estNome].itens += (v.totalItens || 0);
     porEst[estNome].nc += (v.totalNC || 0);
   });
+
+  const countConf = countItens - countNC - countNA;
 
   /* Destaques por Estrutura */
   const elDestaques = document.getElementById('dash-destaques-estrutura');
@@ -3447,18 +3772,6 @@ async function bindDashboard() {
           </div>
         `).join('')}
       `;
-    }
-  }
-
-  let countConf = 0, countNC = 0, countNA = 0;
-  for (const ix of filtradas) {
-    const full = await loadVistoria(ix.id);
-    if(full && full.itens) {
-      full.itens.forEach(i => {
-        if(i.status === 'conforme') countConf++;
-        else if(i.status === 'nc') countNC++;
-        else if(i.status === 'na') countNA++;
-      });
     }
   }
 
@@ -3590,47 +3903,39 @@ async function bindDashboard() {
       });
   }
 
-  try {
-    const recorr = new Map();
-    for (const ix of filtradas) {
-      if (!ix.totalNC) continue;
-      
-      const v = await loadVistoria(ix.id);
-      if (!v || !Array.isArray(v.itens)) continue;
-      
-      v.itens.filter(i => i.status === 'nc').forEach(it => {
-        const key = (v.estruturaNome || '') + '::' + (it.texto || '').trim().toLowerCase();
-        const cur = recorr.get(key) || { texto: it.texto, estrutura: v.estruturaNome, categoria: it.categoria, n: 0 };
-        cur.n++; 
-        recorr.set(key, cur);
-      });
-    }
-    
-    const rec = [...recorr.values()].filter(x => x.n >= 2).sort((a,b) => b.n - a.n);
-    const el = document.getElementById('dash-recorrentes');
-    
-    if (el) {
-      el.innerHTML = rec.length ? `
-        <div class="table-wrapper">
-          <table style="min-width:100%;">
-            <thead><tr><th>Item</th><th>Estrutura</th><th>Categoria</th><th>Ocorrências</th></tr></thead>
-            <tbody>
-              ${rec.slice(0,15).map(r => `
-                <tr>
-                  <td style="font-weight:500;">${esc(r.texto)}</td>
-                  <td style="color:var(--ink-soft);font-size:13px;">${esc(r.estrutura || '—')}</td>
-                  <td style="color:var(--ink-soft);font-size:13px;">${esc(r.categoria || '—')}</td>
-                  <td><span class="badge nc">${r.n}×</span></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>`
-        : '<div class="empty" style="padding:16px;color:var(--conforme);">Nenhuma pendência recorrente. 👏</div>';
-    }
-  } catch(e) {
-    const el = document.getElementById('dash-recorrentes');
-    if (el) el.innerHTML = '<div class="empty" style="padding:16px;">Falha ao carregar recorrências.</div>';
+  // Pendências Recorrentes síncronas do índice
+  const recorr = new Map();
+  filtradas.forEach(ix => {
+    if (!ix.ncsResumo) return;
+    ix.ncsResumo.forEach(it => {
+      const key = (ix.estruturaNome || '') + '::' + (it.texto || '').trim().toLowerCase();
+      const cur = recorr.get(key) || { texto: it.texto, estrutura: ix.estruturaNome, categoria: it.categoria, n: 0 };
+      cur.n++; 
+      recorr.set(key, cur);
+    });
+  });
+  
+  const rec = [...recorr.values()].filter(x => x.n >= 2).sort((a,b) => b.n - a.n);
+  const elRec = document.getElementById('dash-recorrentes');
+  
+  if (elRec) {
+    elRec.innerHTML = rec.length ? `
+      <div class="table-wrapper">
+        <table style="min-width:100%;">
+          <thead><tr><th>Item</th><th>Estrutura</th><th>Categoria</th><th>Ocorrências</th></tr></thead>
+          <tbody>
+            ${rec.slice(0,15).map(r => `
+              <tr>
+                <td style="font-weight:500;">${esc(r.texto)}</td>
+                <td style="color:var(--ink-soft);font-size:13px;">${esc(r.estrutura || '—')}</td>
+                <td style="color:var(--ink-soft);font-size:13px;">${esc(r.categoria || '—')}</td>
+                <td><span class="badge nc">${r.n}×</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`
+      : '<div class="empty" style="padding:16px;color:var(--conforme);">Nenhuma pendência recorrente. 👏</div>';
   }
 }
 
@@ -3692,12 +3997,13 @@ function viewVistorias() {
               </div>
               <div class="table-wrapper" style="box-shadow:none; border:1px solid var(--line);">
                 <table>
-                  <thead><tr><th>Data</th><th>Estrutura</th><th>Status</th><th>NCs</th><th style="text-align:right;">Ações no Check-list</th></tr></thead>
+                  <thead><tr><th>Data</th><th>Estrutura</th><th>Equipe</th><th>Status</th><th>NCs</th><th style="text-align:right;">Ações no Check-list</th></tr></thead>
                   <tbody>
                     ${vists.map(v => `
                       <tr>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')" style="width:140px;"><strong>${fmtDate(v.dataHora).split(' às')[0]}</strong><br><span style="font-size:11.5px;color:var(--ink-faint);">${fmtDate(v.dataHora).split('às ')[1]}</span></td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.estruturaNome)}</td>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')"><span style="font-size:12.5px;color:var(--ink-soft);">${esc(v.equipe || '—')}</span></td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.syncStatus === 'pending' ? '<span class="badge pending">⏳ Local</span>' : '<span class="badge conforme">✅ Nuvem</span>'}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.totalNC > 0 ? `<span class="badge nc">${v.totalNC}</span>` : `<span class="badge conforme">OK</span>`}</td>
                         <td style="text-align:right; width:240px;">
@@ -3727,8 +4033,39 @@ function bindVistorias() {
   bindFilterBar('hist'); 
 }
 
+window.abrirVistoria = async function(id) {
+  showToast('Carregando relatório...'); 
+  try {
+    const v = await loadVistoria(id);
+    if (v && v.itens && v.itens.length > 0) { 
+      state.vistoriaAberta = v; 
+      setView('vistoria-detalhe'); 
+    } else if (v) {
+      showToast('O relatório foi baixado, mas a lista de perguntas está vazia.');
+    } else {
+      console.warn('Ação interrompida: vistoria retornou null.');
+    }
+  } catch (e) {
+    showToast('Erro ao abrir tela: ' + e.message);
+  }
+}
+
+window.removerItemHistorico = async function(vistId, itemId) {
+  if(!confirm('Tem certeza que deseja excluir permanentemente este item do relatório salvo?')) return;
+  showToast('Removendo item e recalculando...');
+  
+  const v = await loadVistoria(vistId);
+  if(!v) return showToast('Erro ao carregar a vistoria original.');
+
+  v.itens = v.itens.filter(i => i.id !== itemId);
+  await saveVistoria(v); 
+  
+  state.vistoriaAberta = v;
+  render(); 
+}
+
 /* ============================================================
-   TELA: DETALHE DO CHECK-LIST E PDF
+   TELA: DETALHE / RELATÓRIO INDIVIDUAL (PDF)
    ============================================================ */
 function viewVistoriaDetalhe(vistoriaParam) {
   const v = vistoriaParam || state.vistoriaAberta;
@@ -3813,7 +4150,231 @@ function viewVistoriaDetalhe(vistoriaParam) {
   ` : ''}
   `;
 }
+
 function bindVistoriaDetalhe() {}
+
+window.deletarVistoriaAtual = async function() {
+  if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
+    const id = state.vistoriaAberta.id;
+    state.vistoriasIndex = state.vistoriasIndex.filter(v => v.id !== id);
+    await storageSet('vistorias:index', state.vistoriasIndex);
+    await storageRemove('vistoria:'+id);
+    if(_supabase && navigator.onLine) await _supabase.from('vistorias').delete().eq('id', id);
+    state.vistoriaAberta = null;
+    setView('vistorias');
+    showToast('Check-list excluído.');
+  }
+}
+
+window.editarVistoriaAtual = function() {
+  try {
+    const v = state.vistoriaAberta;
+    if(!v || !v.itens) {
+      showToast('Erro: Os dados desse check-list estão corrompidos ou incompletos.');
+      return;
+    }
+    
+    const respostas = {};
+    v.itens.forEach(it => {
+      respostas[it.id] = { 
+        status: it.status || '', 
+        observacao: it.observacao || '', 
+        criticidade: it.criticidade || 'media', 
+        recomendacao: it.recomendacao || '', 
+        fotos: it.fotos || [] 
+      };
+    });
+    
+    state.novaVistoria = {
+      id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
+      equipe: v.equipe || '',
+      resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
+      itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
+    };
+    setView('nova');
+  } catch (e) {
+    showToast('Erro na abertura do painel de edição: ' + e.message);
+  }
+}
+
+window.gerarPdfUnico = async function(id) {
+  const v = await loadVistoria(id);
+  if(v) {
+    const originalAberta = state.vistoriaAberta;
+    const originalView = state.view;
+    state.vistoriaAberta = v;
+    
+    const content = document.getElementById('content');
+    content.innerHTML = `
+      <div class="no-print view-head"><button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button><button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button></div>
+      ${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}
+    `;
+    state.vistoriaAberta = originalAberta;
+  }
+};
+
+window.gerarPdfMes = async function(mesIso, empNome) {
+  const vistsIdx = state.vistoriasIndex.filter(v => v.empreendimentoNome === empNome && new Date(v.dataHora).toISOString().slice(0, 7) === mesIso);
+  const vists = [];
+  for(let idx of vistsIdx) { const full = await loadVistoria(idx.id); if(full) vists.push(full); }
+  
+  if(vists.length === 0) return showToast('Nada para imprimir');
+  
+  const originalView = state.view;
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="no-print view-head">
+      <button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button>
+      <button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button>
+    </div>
+    <div class="print-only-title" style="display:block; text-align:center; margin-bottom:40px;">
+      <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Check-lists</h1>
+      <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${formatMesIsoParaExtenso(mesIso)}</p>
+    </div>
+    ${vists.map((v) => {
+      return `<div style="page-break-after:always; margin-bottom:60px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
+    }).join('')}
+  `;
+};
+
+/* ============================================================
+   TELA: EVOLUÇÃO E MATRIZ ITEM A ITEM
+   ============================================================ */
+function viewEvolucao() {
+  const empComVistoria = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
+  
+  let html = `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Evolução dos Check-lists</h1></div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()" id="btn-print-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">🖨️ Exportar PDF</button>
+      <button class="btn ghost" onclick="exportarExcel('evo')" id="btn-excel-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">📊 Exportar Excel</button>
+    </div>
+  </div>
+  
+  <div class="print-only-title" style="display:none; text-align:center; margin-bottom: 20px;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Evolução dos Check-lists</h1>
+    <p style="color:var(--ink-soft); margin-top:8px;">${esc(state.evolucaoFiltroEmp)} | ${esc(state.evolucaoFiltroEst)}</p>
+  </div>
+
+  <div class="card card-pad no-print" style="margin-bottom:24px; background:var(--surface-2);">
+    <div class="grid cols-2">
+      <div class="field">
+        <label class="field-label">Empreendimento</label>
+        <select id="evo-emp">
+          <option value="">-- Selecione --</option>
+          ${empComVistoria.map(e => `<option value="${esc(e)}" ${state.evolucaoFiltroEmp===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>`;
+      
+  let estOptions = [];
+  if(state.evolucaoFiltroEmp){
+    estOptions = [...new Set(state.vistoriasIndex.filter(v => v.empreendimentoNome === state.evolucaoFiltroEmp).map(v => v.estruturaNome).filter(Boolean))].sort();
+  }
+  html += `
+      <div class="field">
+        <label class="field-label">Estrutura Inspecionada</label>
+        <select id="evo-est" ${!state.evolucaoFiltroEmp ? 'disabled' : ''}>
+          <option value="">-- Selecione --</option>
+          ${estOptions.map(e => `<option value="${esc(e)}" ${state.evolucaoFiltroEst===e?'selected':''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>`;
+
+  if(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) {
+    return html + `<div class="empty card no-print"><div class="ic">📈</div>Utilize os filtros acima para visualizar a linha do tempo.</div>`;
+  }
+
+  const history = state.vistoriasIndex.filter(vi => vi.empreendimentoNome === state.evolucaoFiltroEmp && vi.estruturaNome === state.evolucaoFiltroEst)
+    .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+
+  if(history.length === 0) return html + `<div class="empty card no-print">Nenhum check-list encontrado para esta combinação.</div>`;
+
+  html += `
+  <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
+    <canvas id="evoChart"></canvas>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:24px;break-inside:avoid;">
+    <div class="rowflex" style="justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;font-family:var(--font-display);font-size:22px;">Evolução Item a Item</h3>
+      <button class="btn primary sm no-print" onclick="gerarRelatorioGerencial()">📄 Relatório Gerencial</button>
+    </div>
+    <div id="evo-matriz"><div class="empty">Carregando matriz…</div></div>
+  </div>
+  <div id="evo-comentarios" class="grid cols-2" style="align-items:start;margin-bottom:24px;"></div>
+
+  <div class="card table-wrapper">
+    <table>
+      <thead><tr><th>Data da Inspeção</th><th>Responsável</th><th>Status (NCs)</th><th class="no-print">Ação</th></tr></thead>
+      <tbody>
+        ${[...history].reverse().map(h => `
+          <tr>
+            <td style="font-weight:600;">${fmtDate(h.dataHora)}</td>
+            <td>${esc(h.responsavel)}</td>
+            <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} Não Conformidades</span>` : `<span class="badge conforme">100% Conforme</span>`}</td>
+            <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">🔍 Ver Relatório</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>`;
+  return html;
+}
+
+async function bindEvolucao() {
+  document.getElementById('evo-emp')?.addEventListener('change', e => { state.evolucaoFiltroEmp = e.target.value; state.evolucaoFiltroEst = ''; render(); });
+  document.getElementById('evo-est')?.addEventListener('change', e => { state.evolucaoFiltroEst = e.target.value; render(); });
+
+  const canvas = document.getElementById('evoChart');
+  if (canvas) {
+    if (window.evoChartInstance) window.evoChartInstance.destroy();
+    const history = state.vistoriasIndex.filter(vi => vi.empreendimentoNome === state.evolucaoFiltroEmp && vi.estruturaNome === state.evolucaoFiltroEst)
+      .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+      
+    const taxa = history.map(h => {
+      const tot = (h.totalItens || 0);
+      const nc = (h.totalNC || 0);
+      return tot ? +(((tot - nc) / tot) * 100).toFixed(1) : 100;
+    });
+
+    const ctx = canvas.getContext('2d');
+    window.evoChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: history.map(h => new Date(h.dataHora).toLocaleDateString('pt-BR')),
+        datasets: [{
+          label: 'Conformidade (%)', data: taxa,
+          borderColor: '#2F9E44', backgroundColor: 'rgba(47, 158, 68, 0.15)', borderWidth: 3, fill: true, tension: 0.35, pointRadius: 5
+        }]
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false, 
+        scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+
+  if (!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) return;
+  const m = await matrizEvolucao(state.evolucaoFiltroEmp, state.evolucaoFiltroEst);
+  window._matrizEvoCache = m;
+
+  const cor = st => st==='conforme'?'var(--conforme-bg)':st==='nc'?'var(--nc-bg)':st==='na'?'var(--na-bg)':'#fff';
+  const txt = st => st==='conforme'?'✓':st==='nc'?'✕':st==='na'?'N/A':'—';
+  const bCls = { regularizado:'conforme', recorrente:'nc', novo:'alta', agravou:'critica', conforme:'conforme', nc:'nc', na:'na' };
+  const bTxt = { regularizado:'Regularizado', recorrente:'Recorrente', novo:'Novo', agravou:'Agravou', conforme:'Conforme', nc:'Não Conf.', na:'N/A' };
+
+  const matEl = document.getElementById('evo-matriz');
+  if (matEl) matEl.innerHTML = `<div class="table-wrapper"><table style="min-width:100%;font-size:13px;">    <thead><tr><th style="min-width:220px;">Item</th>      ${m.vistorias.map(v=>`<th style="text-align:center;white-space:nowrap;">${fmtDate(v.dataHora).split(' às')[0]}</th>`).join('')}      <th>Situação</th></tr></thead>    <tbody>${m.linhas.map(l=>`<tr>      <td style="font-weight:500;">${esc(l.texto)}</td>      ${l.celulas.map(c=>`<td style="text-align:center;background:${cor(c.status)};font-weight:700;">${txt(c.status)}</td>`).join('')}      <td><span class="badge ${bCls[l.classificacao]||'na'}">${bTxt[l.classificacao]||'—'}</span></td>    </tr>`).join('')}</tbody></table></div>`;
+
+  const com = gerarComentarios(m);
+  const bloco = (titulo, arr, cls) => `<div class="card card-pad" style="break-inside:avoid;">      <h4 style="margin:0 0 12px;color:var(--${cls});">${titulo} (${arr.length})</h4>      ${arr.length?'<ul style="margin:0;padding-left:18px;line-height:1.7;">'+arr.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<p style="color:var(--ink-faint);margin:0;">Nenhum.</p>'}    </div>`;
+  const comEl = document.getElementById('evo-comentarios');
+  if (comEl) comEl.innerHTML = bloco('✅ Melhorias',com.regularizados,'conforme')+bloco('🔴 Recorrentes',com.recorrentes,'nc')+bloco('⚠️ Novos',com.novos,'alta')+bloco('📈 Agravamentos',com.agravados,'critica');
+}
 
 /* ============================================================
    TELA: NÃO CONFORMIDADES (NCS CONSOLIDADAS)
@@ -3840,16 +4401,19 @@ window.carregarNcsNaTela = async function() {
   const filtradas = aplicarFiltros(state.vistoriasIndex, 'nc');
   
   let allNcs = [];
-  for(let idx of filtradas) {
-    if(idx.totalNC > 0) {
-      const v = await loadVistoria(idx.id);
-      if(v) {
-        v.itens.filter(i => i.status === 'nc').forEach(it => {
-          allNcs.push({ emp: v.empreendimentoNome, est: v.estruturaNome, data: v.dataHora, vistId: v.id, item: it });
+  filtradas.forEach(ix => {
+    if(ix.ncsResumo && ix.ncsResumo.length > 0) {
+      ix.ncsResumo.forEach(it => {
+        allNcs.push({
+          emp: ix.empreendimentoNome,
+          est: ix.estruturaNome,
+          data: ix.dataHora,
+          vistId: ix.id,
+          item: it
         });
-      }
+      });
     }
-  }
+  });
 
   if(allNcs.length === 0) {
     container.innerHTML = '<div class="empty card" style="color:var(--conforme);"><div class="ic">✨</div>Nenhuma não conformidade encontrada com os filtros selecionados!</div>';
@@ -3862,14 +4426,13 @@ window.carregarNcsNaTela = async function() {
   container.innerHTML = `
   <div class="card table-wrapper" style="border-color:var(--nc-bg);">
     <table>
-      <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Item Reprovado</th><th>Recomendação</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
+      <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Item Reprovado</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
       <tbody>
         ${allNcs.map(nc => `
           <tr style="break-inside:avoid;">
             <td><span class="badge ${nc.item.criticidade}">${criticidadeLabel(nc.item.criticidade)}</span></td>
             <td><strong>${esc(nc.emp)}</strong><br><span style="font-size:12px;color:var(--ink-soft);">${esc(nc.est)}</span></td>
-            <td style="max-width:280px; font-weight:500;">${esc(nc.item.texto)}<br><em style="font-size:12.5px;color:var(--nc); margin-top:4px; display:block;">Obs: ${esc(nc.item.observacao)}</em></td>
-            <td style="font-size:13px; color:var(--ink-soft);">${esc(nc.item.recomendacao) || '—'}</td>
+            <td style="max-width:280px; font-weight:500;">${esc(nc.item.texto)}</td>
             <td style="font-size:13px;">${fmtDate(nc.data).split(' às')[0]}</td>
             <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${nc.vistId}')">Abrir</button></td>
           </tr>
@@ -3958,4 +4521,4 @@ document.getElementById('btn-logout').onclick = async () => {
 checkAuth();
 </script>
 </body>
-</html>  
+</html>
