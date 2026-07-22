@@ -104,6 +104,7 @@ nav.mainnav{padding:16px 12px;display:flex;flex-direction:column;gap:4px;flex:1;
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
 .card-pad{padding:24px;}
 .grid{display:grid;gap:20px;}
+.grid.cols-5{grid-template-columns:repeat(5,1fr);}
 .grid.cols-4{grid-template-columns:repeat(4,1fr);}
 .grid.cols-3{grid-template-columns:repeat(3,1fr);}
 .grid.cols-2{grid-template-columns:repeat(2,1fr);}
@@ -226,7 +227,7 @@ label.field-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-
   .navbtn{flex-direction:column;font-size:10.5px;padding:8px;gap:4px;min-width:72px; scroll-snap-align:start; justify-content:center;}
   .navbtn .ic{font-size:20px;}
   #content{padding:20px 16px 100px;}
-  .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns:1fr; }
+  .grid.cols-5, .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns:1fr; }
   .item-top { flex-direction:column; gap:12px; }
   .seg { width:100%; display:flex; }
   .seg button { flex:1; text-align:center; padding:12px 0; font-size:12.5px;}
@@ -639,7 +640,7 @@ const DEFAULT_ESTRUTURAS = [
     {texto:'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?',cat:'Estrutural / Efluentes'},
     {texto:'O tanque apresenta ausência de vazamentos aparentes?',cat:'Estrutural / Efluentes'},
     {texto:'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?',cat:'Estrutural / Efluentes'},
-    {texto:'A structure de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
+    {texto:'A estrutura de apoio/berço do tanque está íntegra e estável?',cat:'Estrutural / Efluentes'},
     {texto:'A bacia de contenção está com rachaduras ou falhas estruturais?',cat:'Estrutural / Efluentes'},
     {texto:'A altura da bacia de contenção é adequada ao volume do tanque?',cat:'Estrutural / Efluentes'},
     {texto:'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?',cat:'Estrutural / Efluentes'},
@@ -1032,14 +1033,14 @@ window.gerarRelatorioGerencial = function(){
   const eficaz = com.recorrentes.length > com.regularizados.length
     ? 'O volume de pendências não resolvidas supera o de correções — recomenda-se revisão do plano de ação corretiva.'
     : 'O ritmo de regularização supera o de pendências — o plano de ação demonstra eficácia.';
-  const diag = (()=>{ const t=s.taxa; if(t.length<2) return 'Histórico insuficiente (mínimo 2 vistorias).';
+  const diag = (()=>{ const t=s.taxa; if(t.length<2) return 'Histórico insuficiente (mínimo 2 check-lists).';
     const d=t[t.length-1]-t[0]; const u=t.slice(-3); const caindo=u.length===3&&u[0]>u[1]&&u[1]>u[2];
     let r = d>5?`Tendência de MELHORIA: +${d.toFixed(1)} pontos no período.`:d<-5?`Tendência de PIORA: ${d.toFixed(1)} pontos no período.`:`Desempenho ESTÁVEL (${d.toFixed(1)} pontos).`;
-    return r + (caindo?' Atenção: queda nas últimas 3 vistorias.':''); })();
+    return r + (caindo?' Atenção: queda nos últimos 3 check-lists.':''); })();
 
   const holder = document.createElement('div');
   holder.className = 'relatorio-gerencial';
-  holder.innerHTML = `    <h1 style="font-family:var(--font-display);">Relatório Gerencial de Evolução</h1>    <p><strong>Empreendimento:</strong> ${esc(emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(est)}</p>    <p><strong>Período:</strong> ${s.labels[0]||'—'} a ${s.labels[s.labels.length-1]||'—'} &nbsp;|&nbsp; <strong>Inspeções:</strong> ${k.inspecoes}</p>    <h2>Diagnóstico Consolidado</h2><p>${diag}</p>    <h2>Indicadores</h2>    <ul>      <li>Conformidade atual: <strong>${k.taxa}%</strong>${k.deltaTaxa!=null?` (${k.deltaTaxa>=0?'+':''}${k.deltaTaxa} pts vs anterior)`:''}</li>      <li>NCs acumuladas no período: <strong>${k.totalNC}</strong></li>      <li>NCs críticas/altas: <strong>${k.critAltas}</strong></li>    </ul>    <h2>Principais Melhorias Implementadas</h2>${li(com.regularizados)}    <h2>Pendências Recorrentes (ação corretiva não efetiva)</h2>${li(com.recorrentes)}    <h2>Novos Pontos de Atenção</h2>${li(com.novos)}    <h2>Agravamentos</h2>${li(com.agravados)}    <h2>Avaliação da Eficiência das Ações Corretivas</h2>    <p>Regularizadas: ${com.regularizados.length} · Recorrentes: ${com.recorrentes.length}. ${eficaz}</p>`;
+  holder.innerHTML = `    <h1 style="font-family:var(--font-display);">Relatório Gerencial de Evolução</h1>    <p><strong>Empreendimento:</strong> ${esc(emp)} &nbsp;|&nbsp; <strong>Estrutura:</strong> ${esc(est)}</p>    <p><strong>Período:</strong> ${s.labels[0]||'—'} a ${s.labels[s.labels.length-1]||'—'} &nbsp;|&nbsp; <strong>Check-lists:</strong> ${k.inspecoes}</p>    <h2>Diagnóstico Consolidado</h2><p>${diag}</p>    <h2>Indicadores</h2>    <ul>      <li>Conformidade atual: <strong>${k.taxa}%</strong>${k.deltaTaxa!=null?` (${k.deltaTaxa>=0?'+':''}${k.deltaTaxa} pts vs anterior)`:''}</li>      <li>NCs acumuladas no período: <strong>${k.totalNC}</strong></li>      <li>NCs críticas/altas: <strong>${k.critAltas}</strong></li>    </ul>    <h2>Principais Melhorias Implementadas</h2>${li(com.regularizados)}    <h2>Pendências Recorrentes (ação corretiva não efetiva)</h2>${li(com.recorrentes)}    <h2>Novos Pontos de Atenção</h2>${li(com.novos)}    <h2>Agravamentos</h2>${li(com.agravados)}    <h2>Avaliação da Eficiência das Ações Corretivas</h2>    <p>Regularizadas: ${com.regularizados.length} · Recorrentes: ${com.recorrentes.length}. ${eficaz}</p>`;
   
   const _c = document.getElementById('content');
   if (_c) _c.style.display = 'none';
@@ -1264,7 +1265,7 @@ async function loadVistoria(id) {
 window.sincronizarPendentes = async function() {
   if(!navigator.onLine) { showToast('Sem conexão!'); return; }
   const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
-  if(pendentes.length === 0) { showToast('Nenhuma vistoria pendente.'); return; }
+  if(pendentes.length === 0) { showToast('Nenhum check-list pendente.'); return; }
   showToast(`Sincronizando ${pendentes.length}...`);
   let successCount = 0;
 
@@ -1293,7 +1294,7 @@ window.sincronizarPendentes = async function() {
   }
   await storageSet('vistorias:index', state.vistoriasIndex);
   render();
-  showToast(`${successCount} sincronizadas!`);
+  showToast(`${successCount} sincronizados!`);
 };
 
 async function saveVistoria(v) {
@@ -1568,7 +1569,7 @@ window.duplicarEstrutura = async function(id) {
 }
 
 window.excluirEstrutura = async function(id) {
-  if(confirm('Tem certeza? Essa exclusão afetará novas vistorias (as antigas mantêm o histórico salvo).')) {
+  if(confirm('Tem certeza? Essa exclusão afetará novos check-lists (os antigos mantêm o histórico salvo).')) {
     state.estruturas = state.estruturas.filter(e => e.id !== id);
     await storageSet('estruturas', state.estruturas);
     if(_supabase && navigator.onLine) await _supabase.from('estruturas').delete().eq('id', id);
@@ -1704,7 +1705,7 @@ window.removerItemEst = function(idx) {
 }
 
 /* ============================================================
-   TELA: NOVA VISTORIA (ASSISTENTE COMPLETO)
+   TELA: NOVO CHECK-LIST (ASSISTENTE COMPLETO)
    ============================================================ */
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
@@ -1729,7 +1730,7 @@ function viewNovaVistoria() {
 
     return `
     <div class="view-head">
-      <div><div class="eyebrow">${isEdit ? 'Edição' : 'Nova Inspeção'}</div><h1 class="view-title">${isEdit ? 'Editar Dados da Vistoria' : 'Iniciar Vistoria'}</h1></div>
+      <div><div class="eyebrow">${isEdit ? 'Edição' : 'Novo Check-list'}</div><h1 class="view-title">${isEdit ? 'Editar Dados do Check-list' : 'Iniciar Check-list'}</h1></div>
     </div>
     <div class="card card-pad" style="max-width: 600px;">
       <div class="field">
@@ -1756,7 +1757,7 @@ function viewNovaVistoria() {
         ${possuiVinculo && nv.mostrarTodasEstruturas && !isEdit ? `<div class="hint" style="font-size:12px; color:var(--alta); margin-top:4px;">Exibindo toda a biblioteca de estruturas.</div>` : ''}
       </div>
       <div class="field">
-        <label class="field-label">Data e Hora da Vistoria</label>
+        <label class="field-label">Data e Hora do Check-list</label>
         <input type="datetime-local" id="nv-data-hora" value="${dataHoraVal}">
       </div>
       <div class="field">
@@ -1770,14 +1771,14 @@ function viewNovaVistoria() {
           <span style="font-size:13px; color:var(--ink-soft);" id="gps-status">${nv.gps ? `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}` : 'Não capturado'}</span>
         </div>
       </div>
-      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">${isEdit ? 'Continuar Edição do Checklist' : 'Iniciar Checklist'}</button>
+      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">${isEdit ? 'Continuar Edição do Check-list' : 'Iniciar Check-list'}</button>
     </div>`;
   }
 
   if (nv.step === 2) {
     return `
     <div class="view-head no-print">
-      <div><div class="eyebrow">Execução</div><h1 class="view-title">Checklist de Vistoria</h1></div>
+      <div><div class="eyebrow">Execução</div><h1 class="view-title">Execução do Check-list</h1></div>
       <button class="btn ghost" id="btn-nv-back">← Retornar aos Dados</button>
     </div>
     <div class="card card-pad no-print" style="margin-bottom: 24px; background:var(--surface-2);">
@@ -1848,12 +1849,12 @@ function viewNovaVistoria() {
     }).join('')}
     
     <div style="margin: 24px 0; text-align: center;">
-      <button class="btn ghost" id="btn-nv-add-item" style="border: 2px dashed var(--line); width: 100%; padding:16px; color:var(--ink-soft); font-size:15px; transition:all 0.2s;">+ Adicionar Novo Tópico nesta Vistoria</button>
+      <button class="btn ghost" id="btn-nv-add-item" style="border: 2px dashed var(--line); width: 100%; padding:16px; color:var(--ink-soft); font-size:15px; transition:all 0.2s;">+ Adicionar Novo Tópico neste Check-list</button>
     </div>
 
     <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; position:sticky; bottom:16px; box-shadow:var(--shadow); z-index:10;">
       <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.</div>
-      <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Vistoria</button>
+      <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Check-list</button>
     </div>`;
   }
 }
@@ -1957,7 +1958,7 @@ function bindNovaVistoria() {
 
     document.getElementById('btn-nv-save')?.addEventListener('click', async () => {
       const faltam = nv.itens.filter(it => !nv.respostas[it.id]?.status);
-      if(faltam.length > 0) return showToast('Responda todos os itens do checklist antes de salvar!');
+      if(faltam.length > 0) return showToast('Responda todos os itens do check-list antes de salvar!');
       
       const ncsSemObs = nv.itens.filter(it => nv.respostas[it.id]?.status === 'nc' && !nv.respostas[it.id]?.observacao.trim());
       if(ncsSemObs.length > 0) return showToast('Toda Não Conformidade exige uma Observação justificando o problema.');
@@ -2004,7 +2005,7 @@ window.editarTextoItemNV = function(id) {
 
 window.removerItemNV = function(id) {
   if(!state.novaVistoria) return;
-  if(confirm('Tem certeza que deseja remover este item desta vistoria?')) {
+  if(confirm('Tem certeza que deseja remover este item deste check-list?')) {
     state.novaVistoria.itens = state.novaVistoria.itens.filter(i => i.id !== id);
     delete state.novaVistoria.respostas[id];
     render();
@@ -2063,18 +2064,19 @@ function viewDashboard() {
     <div class="rowflex">      
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
-      <button class="btn primary" onclick="setView('nova')">+ Nova Vistoria</button>    
+      <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
     </div>  
   </div>  
   <div class="print-only-title" style="display:none;text-align:center;margin-bottom:20px;">    
     <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório do Painel de Inspeções</h1>  
   </div>  
   ${renderFilterBar('dash')}  
-  <div class="grid cols-4" style="margin-bottom:24px;">    
-    <div class="card kpi"><div class="num">${k.inspecoes}</div><div class="lbl">Inspeções Realizadas</div></div>    
-    <div class="card kpi"><div class="num" style="color:var(--conforme);">${k.taxa}%</div>      <div class="lbl">Taxa de Conformidade ${delta(k.deltaTaxa,'pts')}</div></div>    
-    <div class="card kpi"><div class="num" style="color:var(--nc);">${k.totalNC}</div>      <div class="lbl">Não Conformidades ${delta(k.deltaNC,'',true)}</div></div>    
-    <div class="card kpi"><div class="num" style="color:var(--alta);">${k.critAltas}</div><div class="lbl">NCs Críticas/Altas</div></div>  
+  <div class="grid cols-5" style="margin-bottom:24px;">    
+    <div class="card kpi"><div class="num">${k.inspecoes}</div><div class="lbl">Check-lists</div></div>    
+    <div class="card kpi"><div class="num" style="color:var(--ink);">${totalItens}</div><div class="lbl">Itens Avaliados</div></div>    
+    <div class="card kpi"><div class="num" style="color:var(--conforme);">${k.taxa}%</div>      <div class="lbl">Conformidade ${delta(k.deltaTaxa,'pts')}</div></div>    
+    <div class="card kpi"><div class="num" style="color:var(--nc);">${k.totalNC}</div>      <div class="lbl">NCs ${delta(k.deltaNC,'',true)}</div></div>    
+    <div class="card kpi"><div class="num" style="color:var(--alta);">${k.critAltas}</div><div class="lbl">Críticas/Altas</div></div>  
   </div>  
   <div class="grid cols-2" style="align-items:start;margin-bottom:24px;">    
     <div class="card card-pad" style="break-inside:avoid;">      
@@ -2083,7 +2085,7 @@ function viewDashboard() {
         <div class="rowflex no-print" style="gap:8px;">
           <select id="evo-agrupamento" class="btn ghost sm" style="height:auto; padding:4px 8px; font-weight:500;">
             <option value="mes" ${(!state.evoAgrupamento || state.evoAgrupamento==='mes')?'selected':''}>Por mês</option>
-            <option value="vistoria" ${state.evoAgrupamento==='vistoria'?'selected':''}>Por vistoria</option>
+            <option value="vistoria" ${state.evoAgrupamento==='vistoria'?'selected':''}>Por check-list</option>
           </select>
           <button class="btn ghost sm" onclick="abrirGraficoEvolucao()">🔍 Ampliar</button>
           <button class="btn ghost sm" onclick="baixarGraficoEvolucao('dashEvoChartInstance')">⬇️ Baixar PNG</button>
@@ -2110,7 +2112,7 @@ function viewDashboard() {
     <div class="card card-pad" style="break-inside:avoid;">      
       <h3 style="margin:0 0 20px;font-family:var(--font-display);font-size:22px;font-weight:600;">Ranking de Empreendimentos</h3>      
       <div class="table-wrapper"><table style="min-width:100%;">        
-        <thead><tr><th>Empreendimento</th><th>Vistorias</th><th>Não Conformidades</th><th>Risco Máximo</th></tr></thead>        
+        <thead><tr><th>Empreendimento</th><th>Check-lists</th><th>Não Conformidades</th><th>Risco Máximo</th></tr></thead>        
         <tbody>          
           ${Object.entries(porEmp).sort((a,b)=>b[1].nc-a[1].nc).map(([nome,st])=>`            
             <tr>              
@@ -2324,7 +2326,7 @@ function viewVistorias() {
   
   let html = `
   <div class="view-head no-print">
-    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Vistorias Realizadas</h1></div>
+    <div><div class="eyebrow">Histórico</div><h1 class="view-title">Check-lists Realizados</h1></div>
     <div class="rowflex">
       ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
     </div>
@@ -2332,7 +2334,7 @@ function viewVistorias() {
   ${renderFilterBar('hist')}`;
 
   if(filtradas.length === 0) {
-    return html + `<div class="empty card"><div class="ic">📋</div>Nenhuma vistoria registrada com estes filtros.</div>`;
+    return html + `<div class="empty card"><div class="ic">📋</div>Nenhum check-list registrado com estes filtros.</div>`;
   }
 
   const porEmp = {};
@@ -2352,7 +2354,7 @@ function viewVistorias() {
       return `
       <details class="folder-details" open>
         <summary class="folder-summary">
-          <div class="folder-title">📁 ${esc(empNome)} <span style="font-size:13px; font-weight:500; color:var(--ink-soft); background:var(--surface-2); padding:4px 10px; border-radius:12px; margin-left:8px;">${totalVists} vistorias</span></div>
+          <div class="folder-title">📁 ${esc(empNome)} <span style="font-size:13px; font-weight:500; color:var(--ink-soft); background:var(--surface-2); padding:4px 10px; border-radius:12px; margin-left:8px;">${totalVists} check-lists</span></div>
           <div class="rowflex">
             <button class="btn ghost sm" onclick="event.preventDefault(); exportarExcel('emp', '${esc(empNome)}')">📊 Excel Total</button>
             <span style="color:var(--ink-faint); margin-left:8px;">▼</span>
@@ -2370,7 +2372,7 @@ function viewVistorias() {
               </div>
               <div class="table-wrapper" style="box-shadow:none; border:1px solid var(--line);">
                 <table>
-                  <thead><tr><th>Data</th><th>Estrutura</th><th>Status</th><th>NCs</th><th style="text-align:right;">Ações na Vistoria</th></tr></thead>
+                  <thead><tr><th>Data</th><th>Estrutura</th><th>Status</th><th>NCs</th><th style="text-align:right;">Ações no Check-list</th></tr></thead>
                   <tbody>
                     ${vists.map(v => `
                       <tr>
@@ -2475,7 +2477,7 @@ function viewVistoriaDetalhe(vistoriaParam) {
             <td style="width:50%; font-weight:500;">${esc(it.texto)}</td>
             <td><span class="badge ${it.status==='conforme'?'conforme':it.status==='nc'?'nc':'na'}">${it.status.toUpperCase()}</span></td>
             <td style="font-size:13px; color:var(--ink-soft);">${esc(it.observacao)||'—'}</td>
-            <td class="no-print"><button class="btn ghost sm danger" onclick="removerItemHistorico('${v.id}', '${it.id}')" title="Excluir item da vistoria salva">✕</button></td>
+            <td class="no-print"><button class="btn ghost sm danger" onclick="removerItemHistorico('${v.id}', '${it.id}')" title="Excluir item do check-list salvo">✕</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -2518,7 +2520,7 @@ function viewVistoriaDetalhe(vistoriaParam) {
 function bindVistoriaDetalhe() {}
 
 window.deletarVistoriaAtual = async function() {
-  if(confirm("Tem certeza que deseja excluir permanentemente esta vistoria?")) {
+  if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
     const id = state.vistoriaAberta.id;
     state.vistoriasIndex = state.vistoriasIndex.filter(v => v.id !== id);
     await storageSet('vistorias:index', state.vistoriasIndex);
@@ -2526,7 +2528,7 @@ window.deletarVistoriaAtual = async function() {
     if(_supabase && navigator.onLine) await _supabase.from('vistorias').delete().eq('id', id);
     state.vistoriaAberta = null;
     setView('vistorias');
-    showToast('Vistoria excluída.');
+    showToast('Check-list excluído.');
   }
 }
 
@@ -2534,7 +2536,7 @@ window.editarVistoriaAtual = function() {
   try {
     const v = state.vistoriaAberta;
     if(!v || !v.itens) {
-      showToast('Erro: Os dados dessa vistoria estão corrompidos ou incompletos.');
+      showToast('Erro: Os dados desse check-list estão corrompidos ou incompletos.');
       return;
     }
     
@@ -2591,7 +2593,7 @@ window.gerarPdfMes = async function(mesIso, empNome) {
       <button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button>
     </div>
     <div class="print-only-title" style="display:block; text-align:center; margin-bottom:40px;">
-      <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Inspeções</h1>
+      <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Check-lists</h1>
       <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${formatMesIsoParaExtenso(mesIso)}</p>
     </div>
     ${vists.map((v) => {
@@ -2608,7 +2610,7 @@ function viewEvolucao() {
   
   let html = `
   <div class="view-head no-print">
-    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Evolução das Inspeções</h1></div>
+    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Evolução dos Check-lists</h1></div>
     <div class="rowflex">
       <button class="btn ghost" onclick="window.print()" id="btn-print-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">🖨️ Exportar PDF</button>
       <button class="btn ghost" onclick="exportarExcel('evo')" id="btn-excel-evo" style="${(!state.evolucaoFiltroEmp || !state.evolucaoFiltroEst) ? 'display:none;' : ''}">📊 Exportar Excel</button>
@@ -2616,7 +2618,7 @@ function viewEvolucao() {
   </div>
   
   <div class="print-only-title" style="display:none; text-align:center; margin-bottom: 20px;">
-    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Evolução das Inspeções</h1>
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Evolução dos Check-lists</h1>
     <p style="color:var(--ink-soft); margin-top:8px;">${esc(state.evolucaoFiltroEmp)} | ${esc(state.evolucaoFiltroEst)}</p>
   </div>
 
@@ -2652,7 +2654,7 @@ function viewEvolucao() {
   const history = state.vistoriasIndex.filter(vi => vi.empreendimentoNome === state.evolucaoFiltroEmp && vi.estruturaNome === state.evolucaoFiltroEst)
     .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
 
-  if(history.length === 0) return html + `<div class="empty card no-print">Nenhuma vistoria encontrada para esta combinação.</div>`;
+  if(history.length === 0) return html + `<div class="empty card no-print">Nenhum check-list encontrado para esta combinação.</div>`;
 
   html += `
   <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
