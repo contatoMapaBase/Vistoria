@@ -4030,12 +4030,20 @@ function viewNovaVistoria() {
     let estruturasExibidas = state.estruturas;
     let possuiVinculo = false;
 
-    if (empObj && empObj.estruturas && empObj.estruturas.length > 0) {
+    if (!isEdit && empObj && empObj.estruturas && empObj.estruturas.length > 0) {
       possuiVinculo = true;
       if (!nv.mostrarTodasEstruturas) {
         estruturasExibidas = state.estruturas.filter(s => 
           empObj.estruturas.includes(s.id) || empObj.estruturas.includes(s.nome)
         );
+      }
+    }
+    // Na edição, sempre lista todas as estruturas cadastradas (para permitir corrigir
+    // para qualquer uma). Garante também que a estrutura atual do check-list apareça.
+    if (isEdit) {
+      estruturasExibidas = state.estruturas.slice();
+      if (nv.est && !estruturasExibidas.some(s => s.nome === nv.est)) {
+        estruturasExibidas.unshift({ id: '__atual__', nome: nv.est });
       }
     }
 
@@ -4067,12 +4075,13 @@ function viewNovaVistoria() {
             </button>
           ` : ''}
         </div>
-        <select id="nv-est" ${(!nv.emp || isEdit) ? 'disabled' : ''}>
+        <select id="nv-est" ${(!nv.emp) ? 'disabled' : ''}>
           <option value="">${nv.emp ? '-- Selecione a Estrutura --' : '-- Primeiro selecione o Empreendimento --'}</option>
           ${estruturasExibidas.map(e => `
             <option value="${e.nome}" ${nv.est === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>
           `).join('')}
         </select>
+        ${isEdit ? `<div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Trocar a estrutura corrige a qual estrutura este check-list pertence. Os itens e respostas já preenchidos são mantidos.</div>` : ''}
         ${possuiVinculo && !nv.mostrarTodasEstruturas && !isEdit ? `
           <div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Exibindo apenas a(s) ${estruturasExibidas.length} estrutura(s) vinculada(s) a este empreendimento.</div>
         ` : ''}
@@ -4242,6 +4251,10 @@ function bindNovaVistoria() {
       if (!nv.id) {
          nv.emp = document.getElementById('nv-emp').value;
          nv.est = document.getElementById('nv-est').value;
+      } else {
+         // Edição: permite corrigir a estrutura alvo (mantém itens e respostas).
+         const estSel = document.getElementById('nv-est');
+         if (estSel && estSel.value) nv.est = estSel.value;
       }
       
       nv.equipe = document.getElementById('nv-equipe').value;
