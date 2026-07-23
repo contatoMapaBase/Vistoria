@@ -1092,6 +1092,21 @@ function mkItens(list){ return list.map(t => ({ id: uid(), texto: (typeof t==='s
 
 function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 
+// Lightbox: abre uma foto em tela cheia. Usado em qualquer <img> de evidência
+// (formulário, histórico, relatório). Recebe a src (data URL ou url) da imagem.
+window.abrirFotoZoom = function(src) {
+  if(!src) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'foto-zoom-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  overlay.innerHTML = `
+    <img src="${src}" style="max-width:95vw;max-height:92vh;object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.5);">
+    <button style="position:absolute;top:16px;right:20px;background:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);">✕</button>`;
+  // fecha ao clicar em qualquer lugar (fundo ou botão)
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+};
+
 function formatMesIsoParaExtenso(iso) {
   if(!iso) return '';
   const [ano, mes] = iso.split('-');
@@ -2830,6 +2845,49 @@ window.abrirGraficoEvolucao = function() {
   }, 100);
 };
 
+// Amplia o gráfico da ABA Evolução (comparativo, N linhas). Clona os datasets
+// já montados em evoChartInstance, então funciona com qualquer combinação.
+window.abrirGraficoEvolucaoAba = function() {
+  const orig = window.evoChartInstance;
+  if (!orig) { showToast('Gráfico indisponível.'); return; }
+  const labels = orig.data.labels.slice();
+  const datasets = orig.data.datasets.map(d => ({ ...d }));
+
+  const html = `
+  <div class="modal-backdrop" style="z-index:9999;">
+    <div class="modal" style="max-width:95vw; width:100%; height:90vh; display:flex; flex-direction:column; padding:0;">
+      <div class="modal-head">
+        <h3 style="margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;">Evolução Comparativa (Não Conformidades)</h3>
+        <div class="rowflex">
+          <button class="btn ghost sm" onclick="baixarGraficoEvolucao('evoChartAbaFullInstance')">⬇️ Baixar PNG</button>
+          <button class="btn ghost sm" onclick="closeModal()">✕ Fechar</button>
+        </div>
+      </div>
+      <div class="modal-body" style="flex:1; position:relative; padding:24px; min-height:500px;">
+        <canvas id="evoChartAbaFull"></canvas>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+
+  setTimeout(() => {
+    const canvas = document.getElementById('evoChartAbaFull');
+    if(canvas) {
+      if(window.evoChartAbaFullInstance) window.evoChartAbaFullInstance.destroy();
+      window.evoChartAbaFullInstance = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          interaction: { mode: 'nearest', axis: 'x', intersect: false },
+          scales: { y: { min: 0, ticks: { precision: 0 }, title: { display: true, text: 'Não Conformidades' } } },
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+    }
+  }, 100);
+};
+
 /* ============================================================
    LÓGICA DE RANKING DE DESEMPENHO (IGD) E TENDÊNCIA
    ============================================================ */
@@ -3065,46 +3123,6 @@ async function bindRanking() {
 
   container.innerHTML = resumoHtml + tabelaHtml;
 }
-
-  // REMOVER APÓS RODAR UMA VEZ
-window.rodarBackfillEquipe = async function() {
-  if (!confirm('Marcar TODOS os check-lists sem equipe definida como "Auditoria Externa (Cliente)"? Os que já têm equipe não serão alterados. Esta ação altera apenas o campo Equipe.')) {
-    return;
-  }
-
-  let updated = 0;
-  let skipped = 0;
-  showToast('Iniciando backfill...');
-
-  for (let entry of state.vistoriasIndex) {
-    if (!entry.equipe || entry.equipe.trim() === '') {
-      try {
-        entry.equipe = 'Auditoria Externa';
-        const fullVistoria = await loadVistoria(entry.id);
-        if (fullVistoria) {
-          fullVistoria.equipe = 'Auditoria Externa';
-          await storageSet('vistoria:' + fullVistoria.id, fullVistoria);
-          
-          if (_supabase && navigator.onLine && entry.syncStatus === 'synced') {
-            await _supabase.from('vistorias').update({ equipe: 'Auditoria Externa' }).eq('id', entry.id);
-          }
-          updated++;
-        } else {
-          skipped++; 
-        }
-      } catch (e) {
-        console.error('Erro no backfill do ID', entry.id, e);
-        skipped++;
-      }
-    } else {
-      skipped++;
-    }
-  }
-  
-  await storageSet('vistorias:index', state.vistoriasIndex);
-  render();
-  showToast(`Backfill concluído: ${updated} marcados como Externa, ${skipped} pulados.`);
-};
 
 /* A FUNÇÃO QUE VOCÊ PESQUISOU VAI ESTAR LOGO AQUI ABAIXO: */
 function setView(viewName) {
@@ -3974,7 +3992,7 @@ function viewNovaVistoria() {
             <span class="item-num">Item ${i+1} ${it.categoria ? `· ${esc(it.categoria)}` : ''}</span>
             <div class="item-txt">
               ${esc(it.texto)}
-              <button class="btn ghost sm" style="padding:0 4px; border:none; margin-left:4px; font-size:12px; color:var(--ink-faint);" onclick="window.editarTextoItemNV('${it.id}')" title="Editar Tópico">✏️</button>
+              <button class="btn ghost sm" style="padding:0 4px; border:none; margin-left:4px; font-size:12px; color:var(--ink-faint);" onclick="window.editarTextoItemNV('${it.id}')" title="Editar Tópico e Categoria">✏️</button>
               <button class="btn ghost sm danger" style="padding:0 4px; border:none; margin-left:2px; font-size:12px; color:var(--nc);" onclick="window.removerItemNV('${it.id}')" title="Excluir Tópico">✕</button>
             </div>
           </div>
@@ -4014,8 +4032,8 @@ function viewNovaVistoria() {
             <div class="photo-row" id="photos-${it.id}">
               ${resp.fotos.map((f, pIdx) => `
                 <div class="photo-thumb">
-                  <img src="${f}" style="width:100%;height:100%;object-fit:cover;border-radius:7px;">
-                  <button class="btn ghost sm danger" style="position:absolute;top:-5px;right:-5px;background:#fff;padding:2px 6px;border-radius:50%;box-shadow:var(--shadow);" onclick="removeFoto('${it.id}', ${pIdx})">✕</button>
+                  <img src="${f}" onclick="abrirFotoZoom(this.src)" style="width:100%;height:100%;object-fit:cover;border-radius:7px;cursor:zoom-in;">
+                  <button class="btn ghost sm danger" style="position:absolute;top:-5px;right:-5px;background:#fff;padding:2px 6px;border-radius:50%;box-shadow:var(--shadow);" onclick="event.stopPropagation(); removeFoto('${it.id}', ${pIdx})">✕</button>
                 </div>
               `).join('')}
               <label class="photo-add">
@@ -4213,10 +4231,19 @@ window.editarTextoItemNV = function(id) {
   if(!item) return;
   
   const novoTexto = prompt('Editar tópico de inspeção:', item.texto);
-  if(novoTexto !== null && novoTexto.trim() !== '') {
+  if(novoTexto === null) return;            // cancelou: não altera nada
+  if(novoTexto.trim() === '') { showToast('O tópico não pode ficar vazio.'); return; }
+
+  const novaCat = prompt('Editar categoria do item (ex.: Segurança, Gerenciamento Estrutural, Efluentes). Deixe em branco para "Sem categoria":', item.categoria || '');
+  if(novaCat === null) {                     // cancelou a categoria: salva só o texto
     item.texto = novoTexto.trim();
     render();
+    return;
   }
+
+  item.texto = novoTexto.trim();
+  item.categoria = novaCat.trim();           // pode ficar vazio = sem categoria
+  render();
 };
 
 window.removerItemNV = function(id) {
@@ -4298,8 +4325,6 @@ function viewDashboard() {
       <h1 class="view-title">Painel de Inspeções</h1>
     </div>    
     <div class="rowflex">    
-    <!-- REMOVER APÓS RODAR UMA VEZ -->
-      <button class="btn ghost danger" onclick="rodarBackfillEquipe()">🔧 Definir Antigos como Externa</button>
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
       <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
@@ -4836,7 +4861,7 @@ function viewVistoriaDetalhe(vistoriaParam) {
         <div class="card card-pad" style="break-inside: avoid;">
           <div style="font-weight:600;margin-bottom:12px; font-size:13px;">Ref: ${esc(it.texto)}</div>
           <div class="photo-row">
-            ${it.fotos.map(f => `<img src="${f}" style="width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line);">`).join('')}
+            ${it.fotos.map(f => `<img src="${f}" onclick="abrirFotoZoom(this.src)" style="width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line); cursor:zoom-in;">`).join('')}
           </div>
         </div>
       `).join('')}
@@ -5021,8 +5046,17 @@ function viewEvolucao() {
   if(history.length === 0) return html + `<div class="empty card no-print">Nenhum check-list encontrado para esta combinação.</div>`;
 
   html += `
-  <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
-    <canvas id="evoChart"></canvas>
+  <div class="card card-pad" style="margin-bottom:30px;">
+    <div class="rowflex no-print" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-family:var(--font-display);font-size:20px;font-weight:600;">Evolução Comparativa (Não Conformidades)</h3>
+      <div class="rowflex">
+        <button class="btn ghost sm" onclick="abrirGraficoEvolucaoAba()">🔍 Ampliar</button>
+        <button class="btn ghost sm" onclick="baixarGraficoEvolucao('evoChartInstance')">⬇️ Baixar PNG</button>
+      </div>
+    </div>
+    <div style="height: 320px; position:relative;">
+      <canvas id="evoChart"></canvas>
+    </div>
   </div>
 
   <div class="card card-pad" style="margin-bottom:24px;break-inside:avoid;">
