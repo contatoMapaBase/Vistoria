@@ -3453,7 +3453,7 @@ async function loadVistoria(id) {
           dataHora: data.data_hora, 
           gps: gpsParsed,
           itens: Array.isArray(itensParsed) ? itensParsed : [], 
-          observacaoGeral: (critMap && critMap._obsGeral) ? critMap._obsGeral : '', 
+          observacaoGeral: (data.observacao_geral != null && data.observacao_geral !== '') ? data.observacao_geral : ((critMap && critMap._obsGeral) ? critMap._obsGeral : ''), 
           syncStatus: 'synced'
         };
         
@@ -3500,12 +3500,12 @@ window.sincronizarPendentes = async function() {
         total_itens: v.itens.length, 
         total_nc: v.itens.filter(i => i.status === 'nc').length,
         criticidade_max: analise.critMax,
+        observacao_geral: v.observacaoGeral || '',
         criticidades_map: { 
           ...analise.counts, 
           _categorias: analise.categorias, 
           _na: analise.totalNA, 
-          _ncs: analise.ncsResumo,
-          _obsGeral: v.observacaoGeral || ''
+          _ncs: analise.ncsResumo
         }
       });
       
@@ -3549,12 +3549,12 @@ async function saveVistoria(v) {
         total_itens: v.itens.length,
         total_nc: v.itens.filter(i => i.status === 'nc').length,
         criticidade_max: analise.critMax,
+        observacao_geral: v.observacaoGeral || '',
         criticidades_map: { 
           ...analise.counts, 
           _categorias: analise.categorias, 
           _na: analise.totalNA, 
-          _ncs: analise.ncsResumo,
-          _obsGeral: v.observacaoGeral || ''
+          _ncs: analise.ncsResumo
         }
       });
       if (!error) syncSuccess = true;
