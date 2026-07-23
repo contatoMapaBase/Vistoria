@@ -1041,6 +1041,52 @@ const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClie
 
 async function storageGet(key) { return await idb.get(key); }
 async function storageSet(key, value) { return await idb.set(key, value); }
+
+// Backfill temporário: recupera a lista de NCs (ncsResumo) dos check-lists antigos,
+// para o card "Pendências Recorrentes" enxergar o histórico. Roda UMA vez; depois
+// grava a flag e o botão some da tela. Toca apenas em ncsResumo/criticidades_map.
+window.rodarBackfillNcs = async function() {
+  if (!confirm('Recuperar as pendências recorrentes dos check-lists antigos? Isso reprocessa a lista de não conformidades de cada check-list (não altera datas, respostas nem itens). Rodar agora?')) return;
+
+  let updated = 0, skipped = 0;
+  showToast('Recuperando pendências... aguarde.');
+
+  for (let entry of state.vistoriasIndex) {
+    try {
+      if (entry.ncsResumo && entry.ncsResumo.length > 0) { skipped++; continue; }
+      const full = await loadVistoria(entry.id);
+      if (!full || !Array.isArray(full.itens)) { skipped++; continue; }
+      const analise = analisarCriticidade(full.itens);
+      entry.ncsResumo = analise.ncsResumo || [];
+
+      // persiste no cache local do registro (mantém coerência)
+      full.ncsResumo = analise.ncsResumo || [];
+      await storageSet('vistoria:' + entry.id, full);
+
+      // nuvem: update PARCIAL só do criticidades_map (injeta _ncs, preserva o resto)
+      if (_supabase && navigator.onLine && entry.syncStatus === 'synced') {
+        await _supabase.from('vistorias').update({
+          criticidades_map: {
+            ...analise.counts,
+            _categorias: analise.categorias,
+            _na: analise.totalNA,
+            _ncs: analise.ncsResumo
+          }
+        }).eq('id', entry.id);
+      }
+      updated++;
+    } catch (e) {
+      console.error('Backfill NCs falhou no ID', entry.id, e);
+      skipped++;
+    }
+  }
+
+  await storageSet('vistorias:index', state.vistoriasIndex);
+  await storageSet('flag:backfillNcs', true);   // marca como já rodado
+  window._backfillNcsFeito = true;               // esconde o botão nesta sessão
+  render();
+  showToast(`Concluído: ${updated} check-lists reprocessados, ${skipped} pulados.`);
+};
 async function storageRemove(key) { return await idb.remove(key); }
 
 /* ============================================================
@@ -2954,6 +3000,48 @@ function viewRanking() {
   </div>`;
 }
 
+// Calcula a tendência POR PERÍODO (Opção B), usando o histórico COMPLETO (não o filtrado).
+// - mesFiltrado (ex.: "2026-03") => compara a média desse mês com a do mês anterior COM DADOS.
+// - mesFiltrado vazio ("Todos os Meses") => compara o ÚLTIMO mês com dados vs o PRIMEIRO mês com dados.
+// grupoDeVistorias: check-lists (do índice completo) da unidade em questão (empreendimento ou estrutura).
+function calcularTendenciaPeriodo(grupoDeVistorias, mesFiltrado) {
+  // IGD médio agregando todos os check-lists de um conjunto
+  const igdMedioDe = (arr) => {
+    if (!arr.length) return null;
+    const soma = arr.reduce((s, v) => s + igdDeUm(v), 0);
+    return soma / arr.length;
+  };
+  // agrupa por mês (YYYY-MM)
+  const porMes = {};
+  grupoDeVistorias.forEach(v => {
+    const d = new Date(v.dataHora);
+    if (isNaN(d)) return;
+    const chave = d.toISOString().slice(0, 7);
+    (porMes[chave] = porMes[chave] || []).push(v);
+  });
+  const mesesOrdenados = Object.keys(porMes).sort(); // crescente
+
+  if (mesesOrdenados.length === 0) return { atual: null, anterior: null, labelAtual: '', labelAnterior: '' };
+
+  let mesAtual, mesAnterior;
+  if (mesFiltrado) {
+    // mês específico: atual = mês filtrado; anterior = último mês com dados ANTES dele
+    mesAtual = mesFiltrado;
+    mesAnterior = mesesOrdenados.filter(m => m < mesFiltrado).pop() || null;
+  } else {
+    // todos os meses: último vs primeiro
+    mesAtual = mesesOrdenados[mesesOrdenados.length - 1];
+    mesAnterior = mesesOrdenados.length > 1 ? mesesOrdenados[0] : null;
+  }
+
+  return {
+    atual: porMes[mesAtual] ? igdMedioDe(porMes[mesAtual]) : null,
+    anterior: (mesAnterior && porMes[mesAnterior]) ? igdMedioDe(porMes[mesAnterior]) : null,
+    labelAtual: mesAtual ? formatMesIsoParaExtenso(mesAtual) : '',
+    labelAnterior: mesAnterior ? formatMesIsoParaExtenso(mesAnterior) : ''
+  };
+}
+
 async function bindRanking() {
   bindFilterBar('rank');
   
@@ -3037,6 +3125,22 @@ async function bindRanking() {
     });
   }
 
+  // === TENDÊNCIA POR PERÍODO (Opção B) ===
+  // Usa o HISTÓRICO COMPLETO (state.vistoriasIndex), não o filtrado, para poder
+  // comparar o período atual com o anterior. Respeita o mês selecionado no filtro.
+  const mesFiltrado = (state.filtros.rank && state.filtros.rank.mes) ? state.filtros.rank.mes : '';
+  linhas.forEach(l => {
+    let grupoCompleto;
+    if (state.rankingModo === 'est') {
+      // linha é uma estrutura de um empreendimento específico (l.subnome = empreendimento)
+      grupoCompleto = state.vistoriasIndex.filter(v => v.estruturaNome === l.nome && v.empreendimentoNome === l.subnome);
+    } else {
+      // linha é um empreendimento inteiro
+      grupoCompleto = state.vistoriasIndex.filter(v => v.empreendimentoNome === l.nome);
+    }
+    l.tendencia = calcularTendenciaPeriodo(grupoCompleto, mesFiltrado);
+  });
+
   const seisMesesAtras = new Date();
   seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
 
@@ -3059,13 +3163,17 @@ async function bindRanking() {
 
   const formatIgd = v => Math.round(v * 10) / 10;
 
-  const getTendencia = (atual, ant) => {
-    if (ant === null) return `<span title="Esta estrutura só tem uma inspeção — ainda não há uma anterior para comparar." style="color:var(--ink-faint);font-size:12px;">— Primeiro registro</span>`;
-    const diff = atual - ant;
+  const getTendencia = (t) => {
+    if (!t || t.anterior === null || t.atual === null) {
+      return `<span title="Não há um período anterior com dados para comparar." style="color:var(--ink-faint);font-size:12px;">— Sem comparação</span>`;
+    }
+    const diff = t.atual - t.anterior;
     const abs = Math.abs(diff).toFixed(1);
-    if (diff >= 3) return `<span title="O IGD subiu ${abs} pontos em relação à inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). A situação melhorou." style="color:var(--conforme);font-weight:600;">📈 Melhorou <span style="font-weight:400;font-size:12px;">· subiu ${abs} pts</span></span>`;
-    if (diff <= -3) return `<span title="O IGD caiu ${abs} pontos em relação à inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). A situação piorou." style="color:var(--nc);font-weight:600;">📉 Piorou <span style="font-weight:400;font-size:12px;">· caiu ${abs} pts</span></span>`;
-    return `<span title="O IGD variou menos de 3 pontos desde a inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). Desempenho estável." style="color:var(--ink-soft);font-weight:600;">➡️ Estável <span style="font-weight:400;font-size:12px;">· sem mudança relevante</span></span>`;
+    const de = `${t.labelAnterior} (${formatIgd(t.anterior)}%)`;
+    const para = `${t.labelAtual} (${formatIgd(t.atual)}%)`;
+    if (diff >= 3) return `<span title="Comparando ${de} → ${para}: o IGD subiu ${abs} pontos. Melhorou." style="color:var(--conforme);font-weight:600;">📈 Melhorou <span style="font-weight:400;font-size:12px;">· +${abs} pts vs ${t.labelAnterior}</span></span>`;
+    if (diff <= -3) return `<span title="Comparando ${de} → ${para}: o IGD caiu ${abs} pontos. Piorou." style="color:var(--nc);font-weight:600;">📉 Piorou <span style="font-weight:400;font-size:12px;">· −${abs} pts vs ${t.labelAnterior}</span></span>`;
+    return `<span title="Comparando ${de} → ${para}: variação menor que 3 pontos. Estável." style="color:var(--ink-soft);font-weight:600;">➡️ Estável <span style="font-weight:400;font-size:12px;">· vs ${t.labelAnterior}</span></span>`;
   };
 
   const resumoHtml = `
@@ -3081,13 +3189,20 @@ async function bindRanking() {
     <div class="card card-pad" style="margin-bottom:16px;background:var(--surface-2);">
       <h4 style="margin:0 0 8px;font-family:var(--font-display);">O que significa a coluna "Tendência"?</h4>
       <p style="margin:0 0 10px;font-size:14px;color:var(--ink-soft);line-height:1.6;">
-        A tendência compara a <strong>inspeção mais recente</strong> de cada unidade com a <strong>inspeção anterior</strong> dela, mostrando se o desempenho (IGD) subiu ou caiu de uma para a outra. É o que revela se a unidade está <strong>evoluindo</strong> ou <strong>regredindo</strong> — não basta estar mal, importa saber se está melhorando ou piorando.
+        A tendência compara o desempenho (IGD) de <strong>dois períodos</strong> da mesma unidade, mostrando se ela está <strong>evoluindo</strong> ou <strong>regredindo</strong> ao longo do tempo. A comparação depende do filtro de período:
+      </p>
+      <ul style="margin:0 0 10px;padding-left:18px;font-size:13.5px;color:var(--ink-soft);line-height:1.7;">
+        <li>Com um <strong>mês específico</strong> selecionado: compara a média daquele mês com a média do <strong>mês anterior que tenha inspeções</strong> (ex.: Março comparado com Janeiro, se não houve inspeção em Fevereiro).</li>
+        <li>Com <strong>"Todos os Meses"</strong> selecionado: compara o <strong>mês mais recente</strong> com o <strong>primeiro mês</strong> com dados — a evolução do começo ao fim do histórico.</li>
+      </ul>
+      <p style="margin:0 0 10px;font-size:12.5px;color:var(--ink-faint);">
+        Observação: a coluna <strong>"IGD (Atual)"</strong> reflete a situação mais recente de cada estrutura; a <strong>"Tendência"</strong> compara períodos. Por isso os dois números podem representar recortes de tempo diferentes — passe o mouse sobre a tendência para ver exatamente quais períodos estão sendo comparados.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:13px;">
-        <span><strong style="color:var(--conforme);">📈 Melhorou</strong> — o IGD subiu mais de 3 pontos desde a última inspeção.</span>
-        <span><strong style="color:var(--nc);">📉 Piorou</strong> — o IGD caiu mais de 3 pontos desde a última inspeção.</span>
-        <span><strong style="color:var(--ink-soft);">➡️ Estável</strong> — variação menor que 3 pontos (sem mudança relevante).</span>
-        <span><strong style="color:var(--ink-faint);">— Primeiro registro</strong> — só há uma inspeção; ainda não dá para comparar.</span>
+        <span><strong style="color:var(--conforme);">📈 Melhorou</strong> — o IGD subiu mais de 3 pontos entre os períodos.</span>
+        <span><strong style="color:var(--nc);">📉 Piorou</strong> — o IGD caiu mais de 3 pontos entre os períodos.</span>
+        <span><strong style="color:var(--ink-soft);">➡️ Estável</strong> — variação menor que 3 pontos.</span>
+        <span><strong style="color:var(--ink-faint);">— Sem comparação</strong> — não há período anterior com dados.</span>
       </div>
       <p style="margin:10px 0 0;font-size:12.5px;color:var(--ink-faint);">
         Dica: uma unidade "Crítica" mas com tendência de "📈 Melhorou" já está sendo tratada; uma "Crítica" que "📉 Piorou" é a que exige atenção imediata.
@@ -3128,7 +3243,7 @@ async function bindRanking() {
                   <span style="font-weight:700;color:${cls.cor};white-space:nowrap;">${igd}% · ${cls.rotulo}</span>
                 </div>
               </td>
-              <td>${getTendencia(r.igdAtual, r.igdAnterior)}</td>
+              <td>${getTendencia(r.tendencia)}</td>
             </tr>
             `;
           }).join('')}
@@ -4374,6 +4489,7 @@ function viewDashboard() {
       <h1 class="view-title">Painel de Inspeções</h1>
     </div>    
     <div class="rowflex">    
+      ${window._backfillNcsFeito ? '' : '<button class="btn ghost danger" onclick="rodarBackfillNcs()" title="Recupera as pendências recorrentes dos check-lists antigos. Roda uma vez e some.">🔧 Recuperar Recorrentes</button>'}
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
       <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
@@ -5433,6 +5549,9 @@ async function iniciarApp() {
     await storageSet('estruturas', state.estruturas);
   }
   
+  // flag do backfill temporário de pendências recorrentes (esconde o botão se já rodou)
+  try { window._backfillNcsFeito = await storageGet('flag:backfillNcs') === true; } catch(e) { window._backfillNcsFeito = false; }
+
   state.ready = true;
   render();
 }
