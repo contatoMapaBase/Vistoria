@@ -3060,11 +3060,12 @@ async function bindRanking() {
   const formatIgd = v => Math.round(v * 10) / 10;
 
   const getTendencia = (atual, ant) => {
-    if (ant === null) return `<span style="color:var(--ink-faint);font-size:12px;">— Primeiro registro</span>`;
+    if (ant === null) return `<span title="Esta estrutura só tem uma inspeção — ainda não há uma anterior para comparar." style="color:var(--ink-faint);font-size:12px;">— Primeiro registro</span>`;
     const diff = atual - ant;
-    if (diff >= 3) return `<span style="color:var(--conforme);font-weight:600;">📈 Melhorou (+${diff.toFixed(1)})</span>`;
-    if (diff <= -3) return `<span style="color:var(--nc);font-weight:600;">📉 Piorou (${diff.toFixed(1)})</span>`;
-    return `<span style="color:var(--ink-soft);font-weight:600;">➡️ Estável</span>`;
+    const abs = Math.abs(diff).toFixed(1);
+    if (diff >= 3) return `<span title="O IGD subiu ${abs} pontos em relação à inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). A situação melhorou." style="color:var(--conforme);font-weight:600;">📈 Melhorou <span style="font-weight:400;font-size:12px;">· subiu ${abs} pts</span></span>`;
+    if (diff <= -3) return `<span title="O IGD caiu ${abs} pontos em relação à inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). A situação piorou." style="color:var(--nc);font-weight:600;">📉 Piorou <span style="font-weight:400;font-size:12px;">· caiu ${abs} pts</span></span>`;
+    return `<span title="O IGD variou menos de 3 pontos desde a inspeção anterior (de ${formatIgd(ant)}% para ${formatIgd(atual)}%). Desempenho estável." style="color:var(--ink-soft);font-weight:600;">➡️ Estável <span style="font-weight:400;font-size:12px;">· sem mudança relevante</span></span>`;
   };
 
   const resumoHtml = `
@@ -3077,6 +3078,21 @@ async function bindRanking() {
   `;
 
   const tabelaHtml = `
+    <div class="card card-pad" style="margin-bottom:16px;background:var(--surface-2);">
+      <h4 style="margin:0 0 8px;font-family:var(--font-display);">O que significa a coluna "Tendência"?</h4>
+      <p style="margin:0 0 10px;font-size:14px;color:var(--ink-soft);line-height:1.6;">
+        A tendência compara a <strong>inspeção mais recente</strong> de cada unidade com a <strong>inspeção anterior</strong> dela, mostrando se o desempenho (IGD) subiu ou caiu de uma para a outra. É o que revela se a unidade está <strong>evoluindo</strong> ou <strong>regredindo</strong> — não basta estar mal, importa saber se está melhorando ou piorando.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:13px;">
+        <span><strong style="color:var(--conforme);">📈 Melhorou</strong> — o IGD subiu mais de 3 pontos desde a última inspeção.</span>
+        <span><strong style="color:var(--nc);">📉 Piorou</strong> — o IGD caiu mais de 3 pontos desde a última inspeção.</span>
+        <span><strong style="color:var(--ink-soft);">➡️ Estável</strong> — variação menor que 3 pontos (sem mudança relevante).</span>
+        <span><strong style="color:var(--ink-faint);">— Primeiro registro</strong> — só há uma inspeção; ainda não dá para comparar.</span>
+      </div>
+      <p style="margin:10px 0 0;font-size:12.5px;color:var(--ink-faint);">
+        Dica: uma unidade "Crítica" mas com tendência de "📈 Melhorou" já está sendo tratada; uma "Crítica" que "📉 Piorou" é a que exige atenção imediata.
+      </p>
+    </div>
     <div class="table-wrapper">
       <table>
         <thead>
