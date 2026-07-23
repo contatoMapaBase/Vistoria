@@ -5005,11 +5005,12 @@ function viewVistoriaDetalhe(vistoriaParam) {
   <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Checklist Completo</h3>
   <div class="card table-wrapper" style="margin-bottom:28px;">
     <table>
-      <thead><tr><th>Item</th><th>Status</th><th>Observação</th><th class="no-print" style="width: 50px;">Ação</th></tr></thead>
+      <thead><tr><th>Item</th><th>Categoria</th><th>Status</th><th>Observação</th><th class="no-print" style="width: 50px;">Ação</th></tr></thead>
       <tbody>
         ${v.itens.map(it => `
           <tr style="break-inside: avoid;">
-            <td style="width:50%; font-weight:500;">${esc(it.texto)}</td>
+            <td style="width:42%; font-weight:500;">${esc(it.texto)}</td>
+            <td style="font-size:12.5px; color:var(--ink-soft); white-space:nowrap;">${esc(it.categoria) || '—'}</td>
             <td><span class="badge ${it.status === 'conforme' ? 'conforme' : it.status === 'nc' ? 'nc' : 'na'}">${it.status.toUpperCase()}</span></td>
             <td style="font-size:13px; color:var(--ink-soft);">${esc(it.observacao) || '—'}</td>
             <td class="no-print"><button class="btn ghost sm danger" onclick="removerItemHistorico('${v.id}', '${it.id}')" title="Excluir item do check-list salvo">✕</button></td>
@@ -5023,11 +5024,12 @@ function viewVistoriaDetalhe(vistoriaParam) {
     <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px; color:var(--nc);">Plano de Ação (Não Conformidades)</h3>
     <div class="card table-wrapper" style="margin-bottom:28px; border-color:var(--nc-bg);">
       <table>
-        <thead><tr><th>Problema (Item)</th><th>Criticidade</th><th>Recomendação Técnica</th></tr></thead>
+        <thead><tr><th>Problema (Item)</th><th>Categoria</th><th>Criticidade</th><th>Recomendação Técnica</th></tr></thead>
         <tbody>
           ${ncs.map(it => `
             <tr style="break-inside: avoid;">
               <td style="font-weight:600;">${esc(it.texto)}</td>
+              <td style="font-size:12.5px; color:var(--ink-soft); white-space:nowrap;">${esc(it.categoria) || '—'}</td>
               <td><span class="badge ${it.criticidade}">${criticidadeLabel(it.criticidade)}</span></td>
               <td style="font-size:13.5px;">${esc(it.recomendacao) || '—'}</td>
             </tr>
