@@ -1160,6 +1160,20 @@ function formatMesIsoParaExtenso(iso) {
   return `${meses[parseInt(mes,10)-1]} / ${ano}`;
 }
 
+// Monta a descrição do período (para cabeçalhos de relatório/impressão).
+// prefix = 'dash' | 'nc' | 'rank'. lista = check-lists já filtrados (para o intervalo real).
+function descricaoPeriodo(prefix, lista) {
+  const f = state.filtros[prefix] || {};
+  // Se um mês específico foi escolhido, mostra-o.
+  if (f.mes) return 'Período: ' + formatMesIsoParaExtenso(f.mes);
+  // Senão, deriva o intervalo real a partir das datas dos check-lists filtrados.
+  const datas = (lista || []).map(v => new Date(v.dataHora)).filter(d => !isNaN(d)).sort((a,b)=>a-b);
+  if (datas.length === 0) return 'Período: sem dados';
+  const fmt = d => ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+  const ini = fmt(datas[0]), fim = fmt(datas[datas.length-1]);
+  return ini === fim ? ('Data: ' + ini) : ('Período: ' + ini + ' a ' + fim);
+}
+
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
     const MAX_WIDTH = 1200;   
@@ -4498,6 +4512,10 @@ function viewDashboard() {
   
   <div class="print-only-title" style="display:none;text-align:center;margin-bottom:20px;">    
     <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório do Painel de Inspeções</h1>  
+    <p style="margin:6px 0 0;font-size:15px;color:#555;">${descricaoPeriodo('dash', filtradas)}</p>
+    ${(state.filtros.dash.emp && state.filtros.dash.emp.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Empreendimentos: ${state.filtros.dash.emp.map(e=>esc(e)).join(', ')}</p>` : ''}
+    ${(state.filtros.dash.est && state.filtros.dash.est.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Estruturas: ${state.filtros.dash.est.map(e=>esc(e)).join(', ')}</p>` : ''}
+    <p style="margin:4px 0 0;font-size:12px;color:#999;">Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>
   </div>  
   
   ${renderFilterBar('dash')}  
@@ -5431,6 +5449,13 @@ window.carregarNcsNaTela = async function() {
   allNcs.sort((a, b) => (critWeight[b.item.criticidade] || 0) - (critWeight[a.item.criticidade] || 0));
 
   container.innerHTML = `
+  <div class="print-only-title" style="display:none;text-align:center;margin-bottom:20px;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Mapeamento de Não Conformidades</h1>
+    <p style="margin:6px 0 0;font-size:15px;color:#555;">${descricaoPeriodo('nc', filtradas)}</p>
+    ${(state.filtros.nc.emp && state.filtros.nc.emp.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Empreendimentos: ${state.filtros.nc.emp.map(e=>esc(e)).join(', ')}</p>` : ''}
+    ${(state.filtros.nc.est && state.filtros.nc.est.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Estruturas: ${state.filtros.nc.est.map(e=>esc(e)).join(', ')}</p>` : ''}
+    <p style="margin:4px 0 0;font-size:12px;color:#999;">Total de NCs: ${allNcs.length} · Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>
+  </div>
   <div class="card table-wrapper" style="border-color:var(--nc-bg);">
     <table>
       <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Item Reprovado</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
