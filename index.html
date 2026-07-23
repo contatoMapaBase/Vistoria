@@ -4619,7 +4619,15 @@ function bindDashboard() {
     countNC += (v.totalNC || 0);
     countNA += (v.totalNA || 0);
 
-    if (v.categorias) {
+    // Categoria por NC: usa ncsResumo (lista real de itens NC, com a categoria
+    // que está de fato no item) — mais fiel que o agregado v.categorias, que pode
+    // ficar desatualizado. Fallback para v.categorias se ncsResumo não existir.
+    if (Array.isArray(v.ncsResumo) && v.ncsResumo.length > 0) {
+      v.ncsResumo.forEach(nc => {
+        const cat = (nc.categoria && nc.categoria.trim() !== '') ? nc.categoria.trim() : 'Sem categoria';
+        categoriasMap[cat] = (categoriasMap[cat] || 0) + 1;
+      });
+    } else if (v.categorias) {
       for (const [cat, qtd] of Object.entries(v.categorias)) {
         categoriasMap[cat] = (categoriasMap[cat] || 0) + qtd;
       }
