@@ -985,15 +985,14 @@
 <div id="modal-root"></div>
 
 <script>
-  /* ============================================================
+/* ============================================================
    CONFIGURAÇÃO DO BANCO DE DADOS SUPABASE E INDEXEDDB
    ============================================================ */
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
 const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-
-const idb = {
+  const idb = {
   db: null,
   async init() {
     if(this.db) return;
@@ -1045,7 +1044,7 @@ async function storageSet(key, value) { return await idb.set(key, value); }
 async function storageRemove(key) { return await idb.remove(key); }
 
 /* ============================================================
-   UTILITÁRIOS GERAIS
+   UTILITÁRIOS GERAIS E FUNÇÕES DE FORMATAÇÃO
    ============================================================ */
 function esc(str) {
   if (str == null) return '';
@@ -1180,7 +1179,7 @@ function fileToCompressedDataURL(file) {
 }
 
 /* ============================================================
-   LÓGICA SÍNCRONA DE ÍNDICE (PERFORMANCE / PROMPT 1 E 2)
+   LÓGICA SÍNCRONA DE ÍNDICE E FILTROS
    ============================================================ */
 function analisarCriticidade(itens) {
   let critMax = null;
@@ -1215,9 +1214,6 @@ function analisarCriticidade(itens) {
   return { critMax, counts, categorias, totalNA, ncsResumo };
 }
 
-/* ============================================================
-   LÓGICA DE FILTROS E AUTH
-   ============================================================ */
 window.addEventListener('online', () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
@@ -1363,7 +1359,7 @@ function bindFilterBar(prefix) {
     });
   });
 }
-/* ============================================================
+  /* ============================================================
    BIBLIOTECA PADRÃO DE ESTRUTURAS (Totalmente Expandida)
    ============================================================ */
 const DEFAULT_ESTRUTURAS = [
@@ -1372,11 +1368,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Balança', 
     itens: mkItens([
-      { texto: 'A plataforma e o fosso da balança estão limpos, sem acúmulo de terra, água ou resíduos?', cat: 'Manutenção/Limpeza' },
-      { texto: 'O sistema de drenagem de águas pluviais do fosso da balança está desobstruído e funcional?', cat: 'Drenagem' },
-      { texto: 'Há sinalização adequada de trânsito, limites de velocidade e parada?', cat: 'Segurança' },
-      { texto: 'Os sensores, cabos e a estrutura apresentam danos físicos aparentes?', cat: 'Integridade' },
-      { texto: 'Existem manchas de óleo ou derramamento de cargas na pista de acesso?', cat: 'Limpeza/Vazamentos' }
+      { 
+        texto: 'A plataforma e o fosso da balança estão limpos, sem acúmulo de terra, água ou resíduos?', 
+        cat: 'Manutenção/Limpeza' 
+      },
+      { 
+        texto: 'O sistema de drenagem de águas pluviais do fosso da balança está desobstruído e funcional?', 
+        cat: 'Drenagem' 
+      },
+      { 
+        texto: 'Há sinalização adequada de trânsito, limites de velocidade e parada?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os sensores, cabos e a estrutura apresentam danos físicos aparentes?', 
+        cat: 'Integridade' 
+      },
+      { 
+        texto: 'Existem manchas de óleo ou derramamento de cargas na pista de acesso?', 
+        cat: 'Limpeza/Vazamentos' 
+      }
     ])
   },
   { 
@@ -1384,11 +1395,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Fossas Sépticas e Sumidouros', 
     itens: mkItens([
-      { texto: 'As tampas de inspeção estão íntegras, bem vedadas e niveladas com o solo?', cat: 'Integridade' },
-      { texto: 'Existem sinais de transbordamento, vazamento ou afloramento de efluente no solo ao redor?', cat: 'Operação' },
-      { texto: 'Há odores excessivos ou anormais na área próxima ao sistema?', cat: 'Odores' },
-      { texto: 'O sistema está localizado a uma distância segura de poços artesianos e cursos d\'água?', cat: 'Locação/APP' },
-      { texto: 'Existem registros recentes (manifestos/recibos) de limpeza por caminhão limpa-fossa licenciado?', cat: 'Manutenção/Documentação' }
+      { 
+        texto: 'As tampas de inspeção estão íntegras, bem vedadas e niveladas com o solo?', 
+        cat: 'Integridade' 
+      },
+      { 
+        texto: 'Existem sinais de transbordamento, vazamento ou afloramento de efluente no solo ao redor?', 
+        cat: 'Operação' 
+      },
+      { 
+        texto: 'Há odores excessivos ou anormais na área próxima ao sistema?', 
+        cat: 'Odores' 
+      },
+      { 
+        texto: 'O sistema está localizado a uma distância segura de poços artesianos e cursos d\'água?', 
+        cat: 'Locação/APP' 
+      },
+      { 
+        texto: 'Existem registros recentes (manifestos/recibos) de limpeza por caminhão limpa-fossa licenciado?', 
+        cat: 'Manutenção/Documentação' 
+      }
     ])
   },
   { 
@@ -1396,24 +1422,78 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Oficina Mecânica', 
     itens: mkItens([
-      { texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', cat: 'Segurança' },
-      { texto: 'Há sinalização adequada no local, como placas e avisos informativos?', cat: 'Segurança' },
-      { texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Há recipientes de coleta de resíduos identificados e em número suficiente?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há manchas de óleo no solo?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As canaletas de drenagem estão desobstruídas e íntegras?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As canaletas foram limpas recentemente?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Fichas de Dados de Segurança (FISPQ/FDS) de produtos químicos/lubrificantes estão disponíveis no setor?', cat: 'Documentação / Segurança' }
+      { 
+        texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há sinalização adequada no local, como placas e avisos informativos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Há recipientes de coleta de resíduos identificados e em número suficiente?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Os equipamentos e/ou veículos estão passando por manutenção fora da oficina?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há manchas de óleo no solo?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As canaletas de drenagem estão desobstruídas e íntegras?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As canaletas foram limpas recentemente?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As fossas apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Fichas de Dados de Segurança (FISPQ/FDS) de produtos químicos/lubrificantes estão disponíveis no setor?', 
+        cat: 'Documentação / Segurança' 
+      }
     ])
   },
   { 
@@ -1421,31 +1501,106 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Ponto de Abastecimento', 
     itens: mkItens([
-      { texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', cat: 'Segurança' },
-      { texto: 'Há sinalização adequada no local, como placas e avisos informativos?', cat: 'Segurança' },
-      { texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'O tanque apresenta ausência de vazamentos aparentes?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A estrutura de apoio/berço do tanque está íntegra e estável?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A bacia de contenção está com rachaduras ou falhas estruturais?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A altura da bacia de contenção é adequada ao volume do tanque?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?', cat: 'Estrutural / Efluentes' },
-      { texto: 'O sistema de drenagem oleosa da bacia está funcionando adequadamente?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há trincas, desgaste ou falhas de impermeabilização?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As canaletas estão íntegras e desobstruídas?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A estrutura da bomba de abastecimento está íntegra?', cat: 'Estrutural / Efluentes' },
-      { texto: 'O sump da bomba está seco, sem líquidos acumulados?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As tubulações são aéreas e visíveis para inspeção?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As tubulações estão íntegras e sem vazamentos?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Existe kit de emergência ambiental para contenção de derramamentos (barreiras/absorventes) completo e disponível?', cat: 'Segurança Ambiental' },
-      { texto: 'O aterramento elétrico das bombas e do tanque está instalado e em perfeitas condições?', cat: 'Segurança' }
+      { 
+        texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há sinalização adequada no local, como placas e avisos informativos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'O abastecimento está sendo realizado exclusivamente na pista de abastecimento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'O tanque apresenta ausência de vazamentos aparentes?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Os suspiros/respiros estão íntegros e protegidos contra entrada de água?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A estrutura de apoio/berço do tanque está íntegra e estável?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A bacia de contenção está com rachaduras ou falhas estruturais?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A altura da bacia de contenção é adequada ao volume do tanque?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há manchas de óleo no piso da bacia de contenção, pista de abastecimento ou no solo?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'O sistema de drenagem oleosa da bacia está funcionando adequadamente?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há trincas, desgaste ou falhas de impermeabilização?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As canaletas estão íntegras e desobstruídas?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'O sistema de drenagem direciona o efluente para sistema adequado (CSAO)?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A estrutura da bomba de abastecimento está íntegra?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'O sump da bomba está seco, sem líquidos acumulados?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As tubulações são aéreas e visíveis para inspeção?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As tubulações estão íntegras e sem vazamentos?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Existe kit de emergência ambiental para contenção de derramamentos (barreiras/absorventes) completo e disponível?', 
+        cat: 'Segurança Ambiental' 
+      },
+      { 
+        texto: 'O aterramento elétrico das bombas e do tanque está instalado e em perfeitas condições?', 
+        cat: 'Segurança' 
+      }
     ])
   },
   { 
@@ -1453,25 +1608,82 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Lavador de Veículos e Máquinas', 
     itens: mkItens([
-      { texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', cat: 'Segurança' },
-      { texto: 'Há sinalização adequada no local, como placas e avisos informativos?', cat: 'Segurança' },
-      { texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Há recipientes de coleta de resíduos identificados e em número suficiente?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Os equipamentos e/ou veículos estão passando por lavagem fora da área?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há manchas de óleo no solo?', cat: 'Estrutural / Efluentes' },
-      { texto: 'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As canaletas de drenagem estão desobstruídas e íntegras?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As canaletas foram limpas recentemente?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', cat: 'Estrutural / Efluentes' },
-      { texto: 'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?', cat: 'Estrutural / Efluentes' },
-      { texto: 'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Existe sistema de reuso/recirculação de água de lavagem em operação normal?', cat: 'Uso de Recursos Hídricos' }
+      { 
+        texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há sinalização adequada no local, como placas e avisos informativos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão segregados corretamente (orgânico, reciclável, perigoso)?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Existem resíduos sólidos em contato direto com o solo exposto?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Há recipientes de coleta de resíduos identificados e em número suficiente?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão sendo armazenados temporariamente em local adequado até o destino final?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Há resíduos contaminantes (Estopas, galões de óleo, Bombonas etc.) fora das áreas designadas?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Os equipamentos e/ou veículos estão passando por lavagem fora da área?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há manchas de óleo no solo?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'A caixa separadora de água e óleo (CSAO) está limpa e em funcionamento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As canaletas de drenagem estão desobstruídas e íntegras?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As canaletas foram limpas recentemente?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Existem vazamentos em equipamentos ou veículos estacionados?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Os pisos apresentam trincas, desgaste ou falhas de impermeabilização?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de efluentes fora do sistema de drenagem previsto?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Há escoamento de água da chuva? sistema de drenagem está em funcionamento?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'As fossas e sumidouros apresentam problemas, como estar cheias, com tampa danificada ou canalização entupida ou rompida?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'O Fosso/rampa de lavagem, troca de óleo está desobstruído e sem trincas?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Existe sistema de reuso/recirculação de água de lavagem em operação normal?', 
+        cat: 'Uso de Recursos Hídricos' 
+      }
     ])
   },
   { 
@@ -1479,11 +1691,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Almoxarifado', 
     itens: mkItens([
-      { texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', cat: 'Segurança' },
-      { texto: 'Os produtos químicos/inflamáveis estão armazenados em local segregado e ventilado?', cat: 'Segurança Química' },
-      { texto: 'Há fichas de segurança (FISPQ/FDS) disponíveis para os produtos armazenados?', cat: 'Documentação' },
-      { texto: 'Os produtos estão dispostos sobre estrados/pallets, sem contato direto com o piso?', cat: 'Armazenamento' },
-      { texto: 'Existem vazamentos ou embalagens danificadas?', cat: 'Controle de Vazamentos' }
+      { 
+        texto: 'Há extintores, serragem ou outros recursos para controle de incêndios e vazamentos?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os produtos químicos/inflamáveis estão armazenados em local segregado e ventilado?', 
+        cat: 'Segurança Química' 
+      },
+      { 
+        texto: 'Há fichas de segurança (FISPQ/FDS) disponíveis para os produtos armazenados?', 
+        cat: 'Documentação' 
+      },
+      { 
+        texto: 'Os produtos estão dispostos sobre estrados/pallets, sem contato direto com o piso?', 
+        cat: 'Armazenamento' 
+      },
+      { 
+        texto: 'Existem vazamentos ou embalagens danificadas?', 
+        cat: 'Controle de Vazamentos' 
+      }
     ])
   },
   { 
@@ -1491,10 +1718,22 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Área Administrativa', 
     itens: mkItens([
-      { texto: 'Há sinalização de emergência e rotas de fuga desobstruídas?', cat: 'Segurança' },
-      { texto: 'Os extintores estão dentro da validade e devidamente sinalizados?', cat: 'Segurança' },
-      { texto: 'Os resíduos sólidos estão segregados corretamente (coleta seletiva)?', cat: 'Resíduos' },
-      { texto: 'Há vazamentos ou infiltrações visíveis nas instalações hidráulicas?', cat: 'Estrutural' }
+      { 
+        texto: 'Há sinalização de emergência e rotas de fuga desobstruídas?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os extintores estão dentro da validade e devidamente sinalizados?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os resíduos sólidos estão segregados corretamente (coleta seletiva)?', 
+        cat: 'Resíduos' 
+      },
+      { 
+        texto: 'Há vazamentos ou infiltrações visíveis nas instalações hidráulicas?', 
+        cat: 'Estrutural' 
+      }
     ])
   },
   { 
@@ -1502,11 +1741,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'ETE - Estação de Tratamento de Esgoto', 
     itens: mkItens([
-      { texto: 'Há sinalização adequada e restrição de acesso a pessoas não autorizadas?', cat: 'Segurança' },
-      { texto: 'O sistema de tratamento está em funcionamento normal (sem odores excessivos ou transbordamento)?', cat: 'Operação' },
-      { texto: 'Há descarte de efluente fora do padrão visual esperado (cor, espuma, odor)?', cat: 'Qualidade de Efluente' },
-      { texto: 'Existem vazamentos nas tubulações, tanques ou reatores?', cat: 'Integridade' },
-      { texto: 'O lodo gerado está sendo removido e destinado corretamente?', cat: 'Resíduos' }
+      { 
+        texto: 'Há sinalização adequada e restrição de acesso a pessoas não autorizadas?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'O sistema de tratamento está em funcionamento normal (sem odores excessivos ou transbordamento)?', 
+        cat: 'Operação' 
+      },
+      { 
+        texto: 'Há descarte de efluente fora do padrão visual esperado (cor, espuma, odor)?', 
+        cat: 'Qualidade de Efluente' 
+      },
+      { 
+        texto: 'Existem vazamentos nas tubulações, tanques ou reatores?', 
+        cat: 'Integridade' 
+      },
+      { 
+        texto: 'O lodo gerado está sendo removido e destinado corretamente?', 
+        cat: 'Resíduos' 
+      }
     ])
   },
   { 
@@ -1514,10 +1768,22 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'ETA - Estação de Tratamento de Água', 
     itens: mkItens([
-      { texto: 'Há sinalização adequada e restrição de acesso?', cat: 'Segurança' },
-      { texto: 'Os produtos químicos de tratamento (cloro, coagulantes) estão armazenados corretamente?', cat: 'Segurança Química' },
-      { texto: 'O sistema de filtração/tratamento está operando normalmente dentro da capacidade?', cat: 'Operação' },
-      { texto: 'Existem vazamentos nas tubulações ou tanques de produto?', cat: 'Integridade' }
+      { 
+        texto: 'Há sinalização adequada e restrição de acesso?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Os produtos químicos de tratamento (cloro, coagulantes) estão armazenados corretamente?', 
+        cat: 'Segurança Química' 
+      },
+      { 
+        texto: 'O sistema de filtração/tratamento está operando normalmente dentro da capacidade?', 
+        cat: 'Operação' 
+      },
+      { 
+        texto: 'Existem vazamentos nas tubulações ou tanques de produto?', 
+        cat: 'Integridade' 
+      }
     ])
   },
   { 
@@ -1525,11 +1791,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Depósito de Resíduos Sólidos', 
     itens: mkItens([
-      { texto: 'Os resíduos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?', cat: 'Segregação' },
-      { texto: 'Há recipientes identificados, com tampa e em número suficiente?', cat: 'Recipientes' },
-      { texto: 'Os resíduos perigosos estão protegidos de chuva e sol com piso impermeável?', cat: 'Contenção' },
-      { texto: 'Existem resíduos em contato direto com o solo exposto?', cat: 'Proteção do Solo' },
-      { texto: 'A capacidade máxima de armazenamento temporário está sendo respeitada?', cat: 'Capacidade' }
+      { 
+        texto: 'Os resíduos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?', 
+        cat: 'Segregação' 
+      },
+      { 
+        texto: 'Há recipientes identificados, com tampa e em número suficiente?', 
+        cat: 'Recipientes' 
+      },
+      { 
+        texto: 'Os resíduos perigosos estão protegidos de chuva e sol com piso impermeável?', 
+        cat: 'Contenção' 
+      },
+      { 
+        texto: 'Existem resíduos em contato direto com o solo exposto?', 
+        cat: 'Proteção do Solo' 
+      },
+      { 
+        texto: 'A capacidade máxima de armazenamento temporário está sendo respeitada?', 
+        cat: 'Capacidade' 
+      }
     ])
   },
   { 
@@ -1537,10 +1818,22 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Galpão de Máquinas e Equipamentos', 
     itens: mkItens([
-      { texto: 'Há extintores e sinalização de segurança adequados?', cat: 'Segurança' },
-      { texto: 'Há manchas de óleo ou graxa no piso do galpão?', cat: 'Limpeza/Efluentes' },
-      { texto: 'Existem vazamentos visíveis em máquinas ou equipamentos estacionados?', cat: 'Manutenção' },
-      { texto: 'O piso apresenta trincas ou falhas de impermeabilização?', cat: 'Estrutural' }
+      { 
+        texto: 'Há extintores e sinalização de segurança adequados?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há manchas de óleo ou graxa no piso do galpão?', 
+        cat: 'Limpeza/Efluentes' 
+      },
+      { 
+        texto: 'Existem vazamentos visíveis em máquinas ou equipamentos estacionados?', 
+        cat: 'Manutenção' 
+      },
+      { 
+        texto: 'O piso apresenta trincas ou falhas de impermeabilização?', 
+        cat: 'Estrutural' 
+      }
     ])
   },
   { 
@@ -1548,11 +1841,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Estradas Internas e Vias', 
     itens: mkItens([
-      { texto: 'Está ocorrendo a umectação/molhamento periódico das vias para controle de poeira?', cat: 'Qualidade do Ar' },
-      { texto: 'Foi identificado algum processo erosivo nas vias, canaletas laterais ou taludes?', cat: 'Erosão' },
-      { texto: 'O sistema de drenagem lateral (valetas, bacias de sedimentação) está desobstruído?', cat: 'Drenagem' },
-      { texto: 'Há sinalização adequada de velocidade e tráfego de veículos pesados?', cat: 'Segurança' },
-      { texto: 'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?', cat: 'Manutenção' }
+      { 
+        texto: 'Está ocorrendo a umectação/molhamento periódico das vias para controle de poeira?', 
+        cat: 'Qualidade do Ar' 
+      },
+      { 
+        texto: 'Foi identificado algum processo erosivo nas vias, canaletas laterais ou taludes?', 
+        cat: 'Erosão' 
+      },
+      { 
+        texto: 'O sistema de drenagem lateral (valetas, bacias de sedimentação) está desobstruído?', 
+        cat: 'Drenagem' 
+      },
+      { 
+        texto: 'Há sinalização adequada de velocidade e tráfego de veículos pesados?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Existem pontos de acúmulo de água de chuva ou atoleiros na pista?', 
+        cat: 'Manutenção' 
+      }
     ])
   },
   { 
@@ -1560,27 +1868,90 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Geral', 
     nome: 'Barragem de Recurso Hídrico', 
     itens: mkItens([
-      { texto: 'A barragem possui sinalização, controle de acesso e cercamento em boas condições?', cat: 'Segurança' },
-      { texto: 'Há processos erosivos, ravinamentos ou voçorocas nos taludes de montante, jusante ou ombreiras?', cat: 'Estabilidade dos Taludes' },
-      { texto: 'Existem trincas, recalques, afundamentos, escorregamentos ou deformações no maciço?', cat: 'Estabilidade dos Taludes' },
-      { texto: 'Foram identificados formigueiros, cupinzeiros ou tocas de animais no corpo da barragem?', cat: 'Estabilidade dos Taludes' },
-      { texto: 'A cobertura vegetal dos taludes encontra-se uniforme e sem árvores de grande porte?', cat: 'Estabilidade dos Taludes' },
-      { texto: 'Há surgências (piping), umidade excessiva ou pontos de infiltração no talude de jusante?', cat: 'Segurança Hidráulica' },
-      { texto: 'O nível da água encontra-se dentro da borda livre (freeboard) prevista para operação?', cat: 'Segurança Hidráulica' },
-      { texto: 'O vertedouro/extravasor encontra-se limpo, desobstruído e sem danos estruturais?', cat: 'Extravasor' },
-      { texto: 'Há sinais de erosão na saída do extravasor ou dissipador de energia?', cat: 'Extravasor' },
-      { texto: 'O sistema de descarga de fundo encontra-se íntegro e operacional?', cat: 'Descarga de Fundo' },
-      { texto: 'Existem vazamentos, corrosão ou dificuldades de operação das comportas/registros?', cat: 'Descarga de Fundo' },
-      { texto: 'Existe sistema de captação superficial instalado na barragem?', cat: 'Captação de Água' },
-      { texto: 'A estrutura de captação encontra-se íntegra e sem obstruções?', cat: 'Captação de Água' },
-      { texto: 'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', cat: 'Captação de Água' },
-      { texto: 'As mangueiras, conexões e tubulações apresenta bom estado de conservação?', cat: 'Captação de Água' },
-      { texto: 'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', cat: 'Monitoramento' },
-      { texto: 'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', cat: 'Monitoramento' },
-      { texto: 'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', cat: 'Qualidade Ambiental' },
-      { texto: 'Há presença excessiva de macrófitas, algas ou vegetação aquática?', cat: 'Qualidade Ambiental' },
-      { texto: 'Há indícios de mortandade de peixes ou fauna aquática?', cat: 'Qualidade Ambiental' },
-      { texto: 'O entorno da barragem encontra-se limpo, sem resíduos ou materiais que possam comprometer a operação?', cat: 'Manutenção' }
+      { 
+        texto: 'A barragem possui sinalização, controle de acesso e cercamento em boas condições?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há processos erosivos, ravinamentos ou voçorocas nos taludes de montante, jusante ou ombreiras?', 
+        cat: 'Estabilidade dos Taludes' 
+      },
+      { 
+        texto: 'Existem trincas, recalques, afundamentos, escorregamentos ou deformações no maciço?', 
+        cat: 'Estabilidade dos Taludes' 
+      },
+      { 
+        texto: 'Foram identificados formigueiros, cupinzeiros ou tocas de animais no corpo da barragem?', 
+        cat: 'Estabilidade dos Taludes' 
+      },
+      { 
+        texto: 'A cobertura vegetal dos taludes encontra-se uniforme e sem árvores de grande porte?', 
+        cat: 'Estabilidade dos Taludes' 
+      },
+      { 
+        texto: 'Há surgências (piping), umidade excessiva ou pontos de infiltração no talude de jusante?', 
+        cat: 'Segurança Hidráulica' 
+      },
+      { 
+        texto: 'O nível da água encontra-se dentro da borda livre (freeboard) prevista para operação?', 
+        cat: 'Segurança Hidráulica' 
+      },
+      { 
+        texto: 'O vertedouro/extravasor encontra-se limpo, desobstruído e sem danos estruturais?', 
+        cat: 'Extravasor' 
+      },
+      { 
+        texto: 'Há sinais de erosão na saída do extravasor ou dissipador de energia?', 
+        cat: 'Extravasor' 
+      },
+      { 
+        texto: 'O sistema de descarga de fundo encontra-se íntegro e operacional?', 
+        cat: 'Descarga de Fundo' 
+      },
+      { 
+        texto: 'Existem vazamentos, corrosão ou dificuldades de operação das comportas/registros?', 
+        cat: 'Descarga de Fundo' 
+      },
+      { 
+        texto: 'Existe sistema de captação superficial instalado na barragem?', 
+        cat: 'Captação de Água' 
+      },
+      { 
+        texto: 'A estrutura de captação encontra-se íntegra e sem obstruções?', 
+        cat: 'Captação de Água' 
+      },
+      { 
+        texto: 'A draga ou conjunto moto-bomba apresenta vazamentos de óleo, combustível ou fluido hidráulico?', 
+        cat: 'Captação de Água' 
+      },
+      { 
+        texto: 'As mangueiras, conexões e tubulações apresenta bom estado de conservação?', 
+        cat: 'Captação de Água' 
+      },
+      { 
+        texto: 'O hidrômetro ou medidor de vazão encontra-se instalado e funcionando?', 
+        cat: 'Monitoramento' 
+      },
+      { 
+        texto: 'Os instrumentos de monitoramento (marcos topográficos, piezômetros, réguas limnimétricas, etc.) estão íntegros?', 
+        cat: 'Monitoramento' 
+      },
+      { 
+        texto: 'A água do reservatório apresenta aspecto visual adequado (sem coloração anormal, espuma, óleo ou excesso de sólidos)?', 
+        cat: 'Qualidade Ambiental' 
+      },
+      { 
+        texto: 'Há presença excessiva de macrófitas, algas ou vegetação aquática?', 
+        cat: 'Qualidade Ambiental' 
+      },
+      { 
+        texto: 'Há indícios de mortandade de peixes ou fauna aquática?', 
+        cat: 'Qualidade Ambiental' 
+      },
+      { 
+        texto: 'O entorno da barragem encontra-se limpo, sem resíduos ou materiais que possam comprometer a operação?', 
+        cat: 'Manutenção' 
+      }
     ])
   },
   { 
@@ -1588,14 +1959,38 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Mineração', 
     nome: 'Lavra', 
     itens: mkItens([
-      { texto: 'Há sinalização adequada de área operacional, desmonte e limites de bancada?', cat: 'Sinalização' },
-      { texto: 'Foi identificado processo erosivo nos taludes de lavra ou praças de trabalho?', cat: 'Erosão/Estabilidade' },
-      { texto: 'Está ocorrendo o molhamento constante das vias de lavra para controle de poeira?', cat: 'Qualidade do Ar' },
-      { texto: 'Existem resíduos sólidos descartados diretamente no solo da praça?', cat: 'Resíduos' },
-      { texto: 'Há manchas de óleo/combustível no solo causadas por escavadeiras ou caminhões?', cat: 'Contaminação' },
-      { texto: 'Existem vazamentos visíveis em equipamentos hidráulicos ou de perfuração?', cat: 'Equipamentos' },
-      { texto: 'O sistema de bombeamento e drenagem pluvial da cova está funcionando?', cat: 'Drenagem' },
-      { texto: 'Há afloramento do lençol freático com necessidade de bombeamento monitorado?', cat: 'Recursos Hídricos' }
+      { 
+        texto: 'Há sinalização adequada de área operacional, desmonte e limites de bancada?', 
+        cat: 'Sinalização' 
+      },
+      { 
+        texto: 'Foi identificado processo erosivo nos taludes de lavra ou praças de trabalho?', 
+        cat: 'Erosão/Estabilidade' 
+      },
+      { 
+        texto: 'Está ocorrendo o molhamento constante das vias de lavra para controle de poeira?', 
+        cat: 'Qualidade do Ar' 
+      },
+      { 
+        texto: 'Existem resíduos sólidos descartados diretamente no solo da praça?', 
+        cat: 'Resíduos' 
+      },
+      { 
+        texto: 'Há manchas de óleo/combustível no solo causadas por escavadeiras ou caminhões?', 
+        cat: 'Contaminação' 
+      },
+      { 
+        texto: 'Existem vazamentos visíveis em equipamentos hidráulicos ou de perfuração?', 
+        cat: 'Equipamentos' 
+      },
+      { 
+        texto: 'O sistema de bombeamento e drenagem pluvial da cova está funcionando?', 
+        cat: 'Drenagem' 
+      },
+      { 
+        texto: 'Há afloramento do lençol freático com necessidade de bombeamento monitorado?', 
+        cat: 'Recursos Hídricos' 
+      }
     ])
   },
   { 
@@ -1603,12 +1998,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Mineração', 
     nome: 'Beneficiamento', 
     itens: mkItens([
-      { texto: 'Há extintores e sinalização de segurança em todos os níveis do beneficiamento?', cat: 'Segurança' },
-      { texto: 'Está ocorrendo aspersão de água/supressão de poeira nos britadores e correias?', cat: 'Qualidade do Ar' },
-      { texto: 'Os resíduos de processo (rejeito úmido/seco) são direcionados para local licenciado?', cat: 'Rejeitos' },
-      { texto: 'Existe sistema de contenção e reciclagem para a água de processo?', cat: 'Recursos Hídricos' },
-      { texto: 'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?', cat: 'Contenção' },
-      { texto: 'As fossas e caixas de decantação do setor estão limpas e operacionais?', cat: 'Efluentes' }
+      { 
+        texto: 'Há extintores e sinalização de segurança em todos os níveis do beneficiamento?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Está ocorrendo aspersão de água/supressão de poeira nos britadores e correias?', 
+        cat: 'Qualidade do Ar' 
+      },
+      { 
+        texto: 'Os resíduos de processo (rejeito úmido/seco) são direcionados para local licenciado?', 
+        cat: 'Rejeitos' 
+      },
+      { 
+        texto: 'Existe sistema de contenção e reciclagem para a água de processo?', 
+        cat: 'Recursos Hídricos' 
+      },
+      { 
+        texto: 'Há acúmulo de óleo ou lubrificantes sob os motores e correias transportadoras?', 
+        cat: 'Contenção' 
+      },
+      { 
+        texto: 'As fossas e caixas de decantação do setor estão limpas e operacionais?', 
+        cat: 'Efluentes' 
+      }
     ])
   },
   { 
@@ -1616,10 +2029,22 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Mineração', 
     nome: 'Pilha de Estéril / Áreas Adjacentes', 
     itens: mkItens([
-      { texto: 'Há sinalização adequada nos acessos e praças de descarga?', cat: 'Segurança' },
-      { texto: 'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?', cat: 'Estabilidade' },
-      { texto: 'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?', cat: 'Drenagem' },
-      { texto: 'Existe bacia de sedimentação na saída do efluente pluvial da pilha?', cat: 'Controle de Sólidos' }
+      { 
+        texto: 'Há sinalização adequada nos acessos e praças de descarga?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Foi identificado algum processo erosivo, ravina ou voçoroca nos taludes da pilha?', 
+        cat: 'Estabilidade' 
+      },
+      { 
+        texto: 'As canaletas perimetrais de drenagem pluvial estão íntegras e desobstruídas?', 
+        cat: 'Drenagem' 
+      },
+      { 
+        texto: 'Existe bacia de sedimentação na saída do efluente pluvial da pilha?', 
+        cat: 'Controle de Sólidos' 
+      }
     ])
   },
   { 
@@ -1627,12 +2052,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Fábrica de Rações', 
     itens: mkItens([
-      { texto: 'O sistema de captação de pó/exaustão está em pleno funcionamento e limpo?', cat: 'Controle de Pó/Explosão' },
-      { texto: 'Há acúmulo excessivo de poeira orgânica em pisos, vigas ou painéis elétricos?', cat: 'Limpeza/Risco Incêndio' },
-      { texto: 'Os insumos (vitaminas, minerais, medicamentos) estão armazenados corretamente, sobre estrados?', cat: 'Armazenamento' },
-      { texto: 'O controle de pragas (roedores, aves, insetos) é efetivo na área de produção e armazenagem?', cat: 'Sanidade' },
-      { texto: 'A caldeira (se houver) possui exaustão adequada, sem vazamentos de vapor?', cat: 'Equipamentos/Vapor' },
-      { texto: 'Os resíduos de varrição e descarte (sacarias, pó) são destinados adequadamente?', cat: 'Resíduos' }
+      { 
+        texto: 'O sistema de captação de pó/exaustão está em pleno funcionamento e limpo?', 
+        cat: 'Controle de Pó/Explosão' 
+      },
+      { 
+        texto: 'Há acúmulo excessivo de poeira orgânica em pisos, vigas ou painéis elétricos?', 
+        cat: 'Limpeza/Risco Incêndio' 
+      },
+      { 
+        texto: 'Os insumos (vitaminas, minerais, medicamentos) estão armazenados corretamente, sobre estrados?', 
+        cat: 'Armazenamento' 
+      },
+      { 
+        texto: 'O controle de pragas (roedores, aves, insetos) é efetivo na área de produção e armazenagem?', 
+        cat: 'Sanidade' 
+      },
+      { 
+        texto: 'A caldeira (se houver) possui exaustão adequada, sem vazamentos de vapor?', 
+        cat: 'Equipamentos/Vapor' 
+      },
+      { 
+        texto: 'Os resíduos de varrição e descarte (sacarias, pó) são destinados adequadamente?', 
+        cat: 'Resíduos' 
+      }
     ])
   },
   { 
@@ -1640,11 +2083,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Fertirrigação', 
     itens: mkItens([
-      { texto: 'O sistema de bombeamento e injeção de calda apresenta vazamentos aparentes?', cat: 'Integridade' },
-      { texto: 'Os tanques de mistura possuem bacia de contenção ou piso impermeável no entorno?', cat: 'Proteção do Solo' },
-      { texto: 'As tubulações de distribuição estão íntegras, sem rupturas ou vazamentos na linha?', cat: 'Tubulações' },
-      { texto: 'Há empoçamento ou escoamento superficial da calda em direção a APPs ou cursos d\'água?', cat: 'Proteção Hídrica' },
-      { texto: 'A área de preparo da mistura possui sinalização e os operadores utilizam EPI adequado?', cat: 'Segurança' }
+      { 
+        texto: 'O sistema de bombeamento e injeção de calda apresenta vazamentos aparentes?', 
+        cat: 'Integridade' 
+      },
+      { 
+        texto: 'Os tanques de mistura possuem bacia de contenção ou piso impermeável no entorno?', 
+        cat: 'Proteção do Solo' 
+      },
+      { 
+        texto: 'As tubulações de distribuição estão íntegras, sem rupturas ou vazamentos na linha?', 
+        cat: 'Tubulações' 
+      },
+      { 
+        texto: 'Há empoçamento ou escoamento superficial da calda em direção a APPs ou cursos d\'água?', 
+        cat: 'Proteção Hídrica' 
+      },
+      { 
+        texto: 'A área de preparo da mistura possui sinalização e os operadores utilizam EPI adequado?', 
+        cat: 'Segurança' 
+      }
     ])
   },
   { 
@@ -1652,11 +2110,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Compostagem', 
     itens: mkItens([
-      { texto: 'A praça de compostagem possui piso impermeável ou compactado para evitar infiltração?', cat: 'Proteção do Solo' },
-      { texto: 'Há canaletas para coleta e direcionamento do chorume/lixiviado para caixa de contenção?', cat: 'Efluentes' },
-      { texto: 'A umidade e o revolvimento das leiras estão sendo monitorados (ausência de poças)?', cat: 'Operação' },
-      { texto: 'Existe presença excessiva de moscas, urubus ou forte odor pútrido?', cat: 'Controle de Vetores/Odor' },
-      { texto: 'As leiras estão alocadas respeitando distâncias de segurança de APPs e drenagens naturais?', cat: 'Locação Ambiental' }
+      { 
+        texto: 'A praça de compostagem possui piso impermeável ou compactado para evitar infiltração?', 
+        cat: 'Proteção do Solo' 
+      },
+      { 
+        texto: 'Há canaletas para coleta e direcionamento do chorume/lixiviado para caixa de contenção?', 
+        cat: 'Efluentes' 
+      },
+      { 
+        texto: 'A umidade e o revolvimento das leiras estão sendo monitorados (ausência de poças)?', 
+        cat: 'Operação' 
+      },
+      { 
+        texto: 'Existe presença excessiva de moscas, urubus ou forte odor pútrido?', 
+        cat: 'Controle de Vetores/Odor' 
+      },
+      { 
+        texto: 'As leiras estão alocadas respeitando distâncias de segurança de APPs e drenagens naturais?', 
+        cat: 'Locação Ambiental' 
+      }
     ])
   },
   { 
@@ -1664,12 +2137,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Biodigestor', 
     itens: mkItens([
-      { texto: 'A lona/geomembrana superior (gasômetro) está íntegra, sem furos, ressecamento ou desgaste excessivo?', cat: 'Estanqueidade' },
-      { texto: 'O sistema de queima de biogás (flare) está operante para queima de excedentes?', cat: 'Segurança/Emissões' },
-      { texto: 'A tubulação de entrada de dejetos e saída de biofertilizante apresenta vazamentos?', cat: 'Integridade' },
-      { texto: 'Existe cerca de isolamento com portão trancado ao redor do biodigestor?', cat: 'Segurança Física' },
-      { texto: 'Há placas de sinalização indicando "Perigo de Explosão" e "Gás Inflamável"?', cat: 'Sinalização' },
-      { texto: 'O nível de operação do biodigestor respeita a margem de segurança contra transbordamentos?', cat: 'Operação' }
+      { 
+        texto: 'A lona/geomembrana superior (gasômetro) está íntegra, sem furos, ressecamento ou desgaste excessivo?', 
+        cat: 'Estanqueidade' 
+      },
+      { 
+        texto: 'O sistema de queima de biogás (flare) está operante para queima de excedentes?', 
+        cat: 'Segurança/Emissões' 
+      },
+      { 
+        texto: 'A tubulação de entrada de dejetos e saída de biofertilizante apresenta vazamentos?', 
+        cat: 'Integridade' 
+      },
+      { 
+        texto: 'Existe cerca de isolamento com portão trancado ao redor do biodigestor?', 
+        cat: 'Segurança Física' 
+      },
+      { 
+        texto: 'Há placas de sinalização indicando "Perigo de Explosão" e "Gás Inflamável"?', 
+        cat: 'Sinalização' 
+      },
+      { 
+        texto: 'O nível de operação do biodigestor respeita a margem de segurança contra transbordamentos?', 
+        cat: 'Operação' 
+      }
     ])
   },
   { 
@@ -1677,10 +2168,22 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Confinamento', 
     itens: mkItens([
-      { texto: 'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?', cat: 'Efluentes/Sanidade' },
-      { texto: 'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?', cat: 'Drenagem Pluvial' },
-      { texto: 'Há controle sistemático de vetores (moscas, roedores e insetos)?', cat: 'Controle de Pragas' },
-      { texto: 'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?', cat: 'Resíduos Sanitários' }
+      { 
+        texto: 'O piso/cama do confinamento possui inclinação e drenagem para coleta de dejetos líquidos?', 
+        cat: 'Efluentes/Sanidade' 
+      },
+      { 
+        texto: 'A água da chuva das coberturas/telhados é separada da calha de dejetos (evitando diluição)?', 
+        cat: 'Drenagem Pluvial' 
+      },
+      { 
+        texto: 'Há controle sistemático de vetores (moscas, roedores e insetos)?', 
+        cat: 'Controle de Pragas' 
+      },
+      { 
+        texto: 'A área de disposição de carcaças/animais mortos atende às normas sanitárias (compostagem)?', 
+        cat: 'Resíduos Sanitários' 
+      }
     ])
   },
   { 
@@ -1688,24 +2191,78 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Lagoas de Tratamento de Dejetos', 
     itens: mkItens([
-      { texto: 'A lagoa possui impermeabilização (geomembrana ou revestimento)?', cat: 'Impermeabilização' },
-      { texto: 'A impermeabilização apresenta rasgos, perfurações, deslocamentos ou desgaste?', cat: 'Impermeabilização' },
-      { texto: 'Os taludes apresentam estabilidade adequada, sem erosões, deslizamentos ou recalques?', cat: 'Taludes' },
-      { texto: 'Há presença de vegetação inadequada, árvores, formigueiros ou cupinzeiros?', cat: 'Taludes' },
-      { texto: 'O nível do efluente respeita a borda livre operacional?', cat: 'Capacidade Operacional' },
-      { texto: 'A lagoa possui aeradores?', cat: 'Sistema de Aeração' },
-      { texto: 'Os aeradores encontram-se em funcionamento e com manutenção em dia?', cat: 'Sistema de Aeração' },
-      { texto: 'As tubulações de entrada e saída apresentam vazamentos ou obstruções?', cat: 'Tubulações' },
-      { texto: 'O efluente apresenta aspecto compatível com a etapa de tratamento (cor, odor e sólidos)?', cat: 'Qualidade do Efluente' },
-      { texto: 'Há presença excessiva de espuma, crostas ou materiais flutuantes?', cat: 'Qualidade do Efluente' },
-      { texto: 'Foi realizada limpeza ou remoção periódica do lodo de fundo conforme planejamento operacional?', cat: 'Limpeza e Manutenção' },
-      { texto: 'Há acúmulo excessivo de sedimentos reduzindo o volume útil da lagoa?', cat: 'Limpeza e Manutenção' },
-      { texto: 'Há presença significativa de mosquitos, moscas ou outros vetores?', cat: 'Vetores' },
-      { texto: 'A lagoa possui cercamento e controle de acesso?', cat: 'Segurança' },
-      { texto: 'Existem placas de advertência e sinalização de segurança?', cat: 'Segurança' },
-      { texto: 'Há monitoramento da qualidade do efluente (DBO, DQO, SST, pH ou outros parâmetros)?', cat: 'Monitoramento Ambiental' },
-      { texto: 'Há monitoramento de possíveis vazamentos ou infiltrações no entorno da lagoa?', cat: 'Monitoramento Ambiental' },
-      { texto: 'A área ao redor da lagoa encontra-se limpa, organizada e sem resíduos?', cat: 'Condições Gerais' }
+      { 
+        texto: 'A lagoa possui impermeabilização (geomembrana ou revestimento)?', 
+        cat: 'Impermeabilização' 
+      },
+      { 
+        texto: 'A impermeabilização apresenta rasgos, perfurações, deslocamentos ou desgaste?', 
+        cat: 'Impermeabilização' 
+      },
+      { 
+        texto: 'Os taludes apresentam estabilidade adequada, sem erosões, deslizamentos ou recalques?', 
+        cat: 'Taludes' 
+      },
+      { 
+        texto: 'Há presença de vegetação inadequada, árvores, formigueiros ou cupinzeiros?', 
+        cat: 'Taludes' 
+      },
+      { 
+        texto: 'O nível do efluente respeita a borda livre operacional?', 
+        cat: 'Capacidade Operacional' 
+      },
+      { 
+        texto: 'A lagoa possui aeradores?', 
+        cat: 'Sistema de Aeração' 
+      },
+      { 
+        texto: 'Os aeradores encontram-se em funcionamento e com manutenção em dia?', 
+        cat: 'Sistema de Aeração' 
+      },
+      { 
+        texto: 'As tubulações de entrada e saída apresentam vazamentos ou obstruções?', 
+        cat: 'Tubulações' 
+      },
+      { 
+        texto: 'O efluente apresenta aspecto compatível com a etapa de tratamento (cor, odor e sólidos)?', 
+        cat: 'Qualidade do Efluente' 
+      },
+      { 
+        texto: 'Há presença excessiva de espuma, crostas ou materiais flutuantes?', 
+        cat: 'Qualidade do Efluente' 
+      },
+      { 
+        texto: 'Foi realizada limpeza ou remoção periódica do lodo de fundo conforme planejamento operacional?', 
+        cat: 'Limpeza e Manutenção' 
+      },
+      { 
+        texto: 'Há acúmulo excessivo de sedimentos reduzindo o volume útil da lagoa?', 
+        cat: 'Limpeza e Manutenção' 
+      },
+      { 
+        texto: 'Há presença significativa de mosquitos, moscas ou outros vetores?', 
+        cat: 'Vetores' 
+      },
+      { 
+        texto: 'A lagoa possui cercamento e controle de acesso?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Existem placas de advertência e sinalização de segurança?', 
+        cat: 'Segurança' 
+      },
+      { 
+        texto: 'Há monitoramento da qualidade do efluente (DBO, DQO, SST, pH ou outros parâmetros)?', 
+        cat: 'Monitoramento Ambiental' 
+      },
+      { 
+        texto: 'Há monitoramento de possíveis vazamentos ou infiltrações no entorno da lagoa?', 
+        cat: 'Monitoramento Ambiental' 
+      },
+      { 
+        texto: 'A área ao redor da lagoa encontra-se limpa, organizada e sem resíduos?', 
+        cat: 'Condições Gerais' 
+      }
     ])
   },
   { 
@@ -1713,12 +2270,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Currais', 
     itens: mkItens([
-      { texto: 'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?', cat: 'Manejo de Efluentes' },
-      { texto: 'O efluente do curral é direcionado para esterqueira ou sistema de tratamento adequado?', cat: 'Manejo de Efluentes' },
-      { texto: 'Há acúmulo excessivo de esterco/dejetos gerando odores intensos ou proliferação de moscas?', cat: 'Controle Sanitário' },
-      { texto: 'Existe mitigação de poeira na área de manejo (umectação quando necessário)?', cat: 'Qualidade do Ar' },
-      { texto: 'Os bebedouros possuem sistema de boia funcional evitando vazamentos e desperdício de água?', cat: 'Recursos Hídricos' },
-      { texto: 'Produtos veterinários, agulhas e seringas descartadas possuem recipiente rígido exclusivo?', cat: 'Resíduos Perigosos' }
+      { 
+        texto: 'Existe canaleta perimetral para recolhimento do efluente/chorume gerado no curral?', 
+        cat: 'Manejo de Efluentes' 
+      },
+      { 
+        texto: 'O efluente do curral é direcionado para esterqueira ou sistema de tratamento adequado?', 
+        cat: 'Manejo de Efluentes' 
+      },
+      { 
+        texto: 'Há acúmulo excessivo de esterco/dejetos gerando odores intensos ou proliferação de moscas?', 
+        cat: 'Controle Sanitário' 
+      },
+      { 
+        texto: 'Existe mitigação de poeira na área de manejo (umectação quando necessário)?', 
+        cat: 'Qualidade do Ar' 
+      },
+      { 
+        texto: 'Os bebedouros possuem sistema de boia funcional evitando vazamentos e desperdício de água?', 
+        cat: 'Recursos Hídricos' 
+      },
+      { 
+        texto: 'Produtos veterinários, agulhas e seringas descartadas possuem recipiente rígido exclusivo?', 
+        cat: 'Resíduos Perigosos' 
+      }
     ])
   },
   { 
@@ -1726,12 +2301,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Silos', 
     itens: mkItens([
-      { texto: 'O sistema de exaustão/captação de poeira de grãos (moegas e túneis) está limpo e funcional?', cat: 'Qualidade do Ar/Segurança' },
-      { texto: 'Os resíduos de pré-limpeza de grãos (palhas, pó) possuem abrigo fechado e destinação adequada?', cat: 'Gerenciamento de Resíduos' },
-      { texto: 'O expurgo/fumigação de grãos utiliza inseticidas registrados e armazenados sob tranca?', cat: 'Uso de Químicos' },
-      { texto: 'Os secadores a biomassa/lenha possuem retentor de fagulhas nas chaminés?', cat: 'Segurança/Emissões' },
-      { texto: 'Há trincas, inclinações ou danos estruturais nas paredes dos silos ou moegas?', cat: 'Integridade Estrutural' },
-      { texto: 'O sistema de drenagem de águas pluviais no entorno dos silos está desobstruído?', cat: 'Drenagem' }
+      { 
+        texto: 'O sistema de exaustão/captação de poeira de grãos (moegas e túneis) está limpo e funcional?', 
+        cat: 'Qualidade do Ar/Segurança' 
+      },
+      { 
+        texto: 'Os resíduos de pré-limpeza de grãos (palhas, pó) possuem abrigo fechado e destinação adequada?', 
+        cat: 'Gerenciamento de Resíduos' 
+      },
+      { 
+        texto: 'O expurgo/fumigação de grãos utiliza inseticidas registrados e armazenados sob tranca?', 
+        cat: 'Uso de Químicos' 
+      },
+      { 
+        texto: 'Os secadores a biomassa/lenha possuem retentor de fagulhas nas chaminés?', 
+        cat: 'Segurança/Emissões' 
+      },
+      { 
+        texto: 'Há trincas, inclinações ou danos estruturais nas paredes dos silos ou moegas?', 
+        cat: 'Integridade Estrutural' 
+      },
+      { 
+        texto: 'O sistema de drenagem de águas pluviais no entorno dos silos está desobstruído?', 
+        cat: 'Drenagem' 
+      }
     ])
   },
   { 
@@ -1739,12 +2332,30 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Depósito de Agrotóxicos', 
     itens: mkItens([
-      { texto: 'O depósito possui piso impermeável, liso, sem ralos direcionados à rede pública ou solo?', cat: 'Estrutural/Contenção' },
-      { texto: 'Existe bacia ou rampa de contenção na porta para reter eventuais derramamentos?', cat: 'Segurança Ambiental' },
-      { texto: 'A ventilação do galpão é adequada e os acessos mantidos trancados com sinalização de risco?', cat: 'Segurança de Acesso' },
-      { texto: 'Há chuveiro de emergência e lava-olhos em pleno funcionamento no lado externo?', cat: 'Segurança do Trabalho' },
-      { texto: 'As Fichas de Dados de Segurança (FDS/FISPQ) de todos os produtos estão disponíveis?', cat: 'Documentação' },
-      { texto: 'O kit de mitigação de emergência (serragem/areia, pá, EPIs, tambor) está completo e acessível?', cat: 'Plano de Emergência' }
+      { 
+        texto: 'O depósito possui piso impermeável, liso, sem ralos direcionados à rede pública ou solo?', 
+        cat: 'Estrutural/Contenção' 
+      },
+      { 
+        texto: 'Existe bacia ou rampa de contenção na porta para reter eventuais derramamentos?', 
+        cat: 'Segurança Ambiental' 
+      },
+      { 
+        texto: 'A ventilação do galpão é adequada e os acessos mantidos trancados com sinalização de risco?', 
+        cat: 'Segurança de Acesso' 
+      },
+      { 
+        texto: 'Há chuveiro de emergência e lava-olhos em pleno funcionamento no lado externo?', 
+        cat: 'Segurança do Trabalho' 
+      },
+      { 
+        texto: 'As Fichas de Dados de Segurança (FDS/FISPQ) de todos os produtos estão disponíveis?', 
+        cat: 'Documentação' 
+      },
+      { 
+        texto: 'O kit de mitigação de emergência (serragem/areia, pá, EPIs, tambor) está completo e acessível?', 
+        cat: 'Plano de Emergência' 
+      }
     ])
   },
   { 
@@ -1752,11 +2363,26 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Agro', 
     nome: 'Depósito de Vasilhames Vazios de Agrotóxico', 
     itens: mkItens([
-      { texto: 'O local é coberto, com piso impermeável, livre de inundações e trancado?', cat: 'Estrutural' },
-      { texto: 'Há sinalização de segurança (caveira) informando "Embalagens Vazias"?', cat: 'Sinalização' },
-      { texto: 'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?', cat: 'Tratamento Prévio' },
-      { texto: 'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?', cat: 'Armazenamento' },
-      { texto: 'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?', cat: 'Documentação' }
+      { 
+        texto: 'O local é coberto, com piso impermeável, livre de inundações e trancado?', 
+        cat: 'Estrutural' 
+      },
+      { 
+        texto: 'Há sinalização de segurança (caveira) informando "Embalagens Vazias"?', 
+        cat: 'Sinalização' 
+      },
+      { 
+        texto: 'Todos os vasilhames armazenados passaram pela tríplice lavagem (ou sob pressão) e foram perfurados?', 
+        cat: 'Tratamento Prévio' 
+      },
+      { 
+        texto: 'As embalagens estão acondicionadas dentro das bags de resgate padronizadas?', 
+        cat: 'Armazenamento' 
+      },
+      { 
+        texto: 'Existe comprovante/recibo de devolução atualizado na unidade de recebimento (INPEV/Central)?', 
+        cat: 'Documentação' 
+      }
     ])
   },
   { 
@@ -1764,13 +2390,34 @@ const DEFAULT_ESTRUTURAS = [
     setor: 'Indústrias', 
     nome: 'Planta Industrial', 
     itens: mkItens([
-      { texto: 'Os resíduos sólidos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?', cat: 'Gerenciamento de Resíduos Sólidos' },
-      { texto: 'Os tornos mecânicos, prensas e máquinas apresentam vazamentos de óleo ou escoamento de efluentes oleosos?', cat: 'Estrutural / Efluentes' },
-      { texto: 'Os colaboradores e operadores estão utilizando todos os EPIs obrigatórios para a atividade?', cat: 'Segurança do Trabalho' },
-      { texto: 'Há sinalização adequada de segurança, placas informativas e rotas de fuga desobstruídas?', cat: 'Segurança / Sinalização' },
-      { texto: 'Os banheiros, vestiários e refeitórios estão limpos, organizados e em boas condições sanitárias?', cat: 'Instalações Sanitárias' },
-      { texto: 'Produtos químicos e solventes industriais possuem FISPQ/FDS e estão armazenados sobre bacia de contenção?', cat: 'Segurança Química' },
-      { texto: 'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?', cat: 'Segurança Ambiental' }
+      { 
+        texto: 'Os resíduos sólidos estão segregados corretamente por classe (orgânico, reciclável, perigoso)?', 
+        cat: 'Gerenciamento de Resíduos Sólidos' 
+      },
+      { 
+        texto: 'Os tornos mecânicos, prensas e máquinas apresentam vazamentos de óleo ou escoamento de efluentes oleosos?', 
+        cat: 'Estrutural / Efluentes' 
+      },
+      { 
+        texto: 'Os colaboradores e operadores estão utilizando todos os EPIs obrigatórios para a atividade?', 
+        cat: 'Segurança do Trabalho' 
+      },
+      { 
+        texto: 'Há sinalização adequada de segurança, placas informativas e rotas de fuga desobstruídas?', 
+        cat: 'Segurança / Sinalização' 
+      },
+      { 
+        texto: 'Os banheiros, vestiários e refeitórios estão limpos, organizados e em boas condições sanitárias?', 
+        cat: 'Instalações Sanitárias' 
+      },
+      { 
+        texto: 'Produtos químicos e solventes industriais possuem FISPQ/FDS e estão armazenados sobre bacia de contenção?', 
+        cat: 'Segurança Química' 
+      },
+      { 
+        texto: 'Existem kits de emergência para contenção de vazamentos de óleo ou químicos no galpão?', 
+        cat: 'Segurança Ambiental' 
+      }
     ])
   }
 ];
@@ -1778,39 +2425,6 @@ const DEFAULT_ESTRUTURAS = [
 /* ============================================================
    LÓGICA SÍNCRONA DE ÍNDICE (PERFORMANCE) E ESTADO CORE
    ============================================================ */
-function analisarCriticidade(itens) {
-  let critMax = null;
-  let totalNA = 0;
-  const counts = { baixa: 0, media: 0, alta: 0, critica: 0 };
-  const categorias = {}; 
-  const ncsResumo = [];
-  const peso = { critica: 4, alta: 3, media: 2, baixa: 1 };
-  
-  (itens || []).forEach(i => {
-    if (i.status === 'na') {
-      totalNA++;
-    }
-    if (i.status === 'nc') {
-      if (i.criticidade) {
-        counts[i.criticidade]++;
-        const val = peso[i.criticidade];
-        const maxVal = peso[critMax] || 0;
-        if (val > maxVal) critMax = i.criticidade;
-      }
-      
-      const cat = (i.categoria && i.categoria.trim() !== '') ? i.categoria : 'Sem categoria';
-      categorias[cat] = (categorias[cat] || 0) + 1;
-      
-      ncsResumo.push({
-        texto: i.texto,
-        categoria: i.categoria,
-        criticidade: i.criticidade
-      });
-    }
-  });
-  return { critMax, counts, categorias, totalNA, ncsResumo };
-}
-
 const state = {
   view: 'dashboard',
   empreendimentos: [],
@@ -1827,7 +2441,7 @@ const state = {
     rank: { emp: [], est: [], mes: '', equipe: '' },
     evo:  { emp: [], est: [], mes: '', equipe: '' }
   },
-  rankingModo: 'emp', // 'emp' ou 'est'
+  rankingModo: 'emp',
   evoAgrupamento: 'mes',
   evoEmps: [],
   evoEsts: []
@@ -1858,7 +2472,6 @@ function serieEvolucaoAgrupada(index, modo) {
       return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
     };
     
-    // Detecta se o conjunto filtrado abrange mais de um mês/ano
     const mesesDistintos = new Set(vs.map(v => {
       const d = new Date(v.dataHora);
       return isNaN(d) ? '' : d.getFullYear() + '-' + d.getMonth();
@@ -2164,56 +2777,52 @@ window.abrirGraficoEvolucao = function() {
     if(canvas) {
       if(window.evoChartFullInstance) window.evoChartFullInstance.destroy();
       
-      const taxa = s.labels.map((_, i) => {
-        const tot = (s.confs[i] || 0) + (s.ncs[i] || 0);
-        return tot ? +(s.confs[i] / tot * 100).toFixed(1) : 0;
-      });
-      
       window.evoChartFullInstance = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: { 
           labels: s.labels, 
-          datasets: [{
-            label: 'Conformidade (%)', 
-            data: taxa,
-            borderColor: '#2F9E44', 
-            backgroundColor: 'rgba(47,158,68,0.12)',
-            fill: true, 
-            tension: 0.35, 
-            borderWidth: 3, 
-            pointRadius: 5, 
-            pointHoverRadius: 7,
-            pointBackgroundColor: '#2F9E44', 
-            _conf: s.confs, 
-            _nc: s.ncs
-          }]
+          datasets: [
+            { 
+              label: 'Conformidades', 
+              data: s.confs, 
+              borderColor: '#2F9E44', 
+              backgroundColor: 'rgba(47,158,68,0.10)', 
+              fill: false, 
+              tension: 0.35, 
+              borderWidth: 3, 
+              pointRadius: 4, 
+              pointHoverRadius: 6 
+            },
+            { 
+              label: 'Não Conformidades', 
+              data: s.ncs, 
+              borderColor: '#C4332C', 
+              backgroundColor: 'rgba(196,51,44,0.10)', 
+              fill: false, 
+              tension: 0.35, 
+              borderWidth: 3, 
+              pointRadius: 4, 
+              pointHoverRadius: 6 
+            }
+          ]
         },
         options: { 
           responsive: true, 
-          maintainAspectRatio: false,
+          maintainAspectRatio: false, 
+          interaction: { mode: 'index', intersect: false },
           scales: { 
             y: { 
               min: 0, 
-              max: 100, 
-              ticks: { callback: v => v + '%' }, 
-              title: { display: true, text: 'Conformidade' } 
+              ticks: { precision: 0 }, 
+              title: { display: true, text: 'Quantidade de itens' } 
             },
             x: { 
               ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } 
             }
           },
           plugins: { 
-            legend: { display: false },
-            tooltip: { 
-              callbacks: { 
-                label: (ctx) => {
-                  const i = ctx.dataIndex;
-                  const c = ctx.dataset._conf[i] || 0;
-                  const n = ctx.dataset._nc[i] || 0;
-                  return [`Conformidade: ${ctx.parsed.y}%`, `Conformes: ${c}  ·  NCs: ${n}`];
-                }
-              }
-            }
+            legend: { position: 'bottom' }, 
+            tooltip: { mode: 'index', intersect: false } 
           }
         }
       });
@@ -2767,6 +3376,843 @@ async function saveVistoria(v) {
   showToast(syncSuccess ? 'Salvo na Nuvem com sucesso!' : 'Salvo OFFLINE. Sincronize depois.');
 }
   /* ============================================================
+   TELAS: EMPREENDIMENTOS E BIBLIOTECA
+   ============================================================ */
+function viewEmpreendimentos() {
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Cadastro</div>
+      <h1 class="view-title">Empreendimentos</h1>
+    </div>
+    <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
+  </div>
+  ${state.empreendimentos.length === 0 ? `
+    <div class="empty card">
+      <div class="ic">🏢</div>Nenhum empreendimento cadastrado.
+    </div>
+  ` : `
+  <div class="grid cols-2">
+    ${state.empreendimentos.map((e) => {
+      const visual = getSetorVisual(e.tipo);
+      return `
+      <div class="visual-card visual-card-large">
+        <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
+        <div class="visual-card-body">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <h3 class="visual-card-title">${esc(e.nome)}</h3>
+            <span class="badge na">${esc(e.tipo || 'Geral')}</span>
+          </div>
+          <div class="visual-card-desc" style="margin-top:12px;">
+            <strong style="display:block; margin-bottom:6px; color:var(--ink);">Estruturas Vinculadas:</strong>
+            ${(e.estruturas || []).length > 0 ? 
+              e.estruturas.map(estRef => {
+                const strObj = state.estruturas.find(s => s.id === estRef || s.nome === estRef);
+                if (!strObj) {
+                  return `<span class="est-list-chip" style="color:var(--nc);" title="Precisa ser atualizada">⚠️ Desconhecida</span>`;
+                }
+                return `<span class="est-list-chip">${esc(strObj.nome)}</span>`;
+              }).join('') : 
+              '<span class="hint">Nenhuma estrutura vinculada.</span>'
+            }
+          </div>
+        </div>
+        <div class="visual-card-foot">
+          <button class="btn ghost sm" onclick="editarEmpreendimento('${e.id}')">✏️ Editar</button>
+          <button class="btn ghost sm danger" onclick="excluirEmpreendimento('${e.id}')">✕ Excluir</button>
+        </div>
+      </div>
+      `;
+    }).join('')}
+  </div>
+  `}
+  `;
+}
+
+function bindEmpreendimentos() {
+  document.getElementById('btn-add-emp')?.addEventListener('click', () => abrirModalEmpreendimento());
+}
+
+window.editarEmpreendimento = function(id) {
+  const emp = state.empreendimentos.find(e => e.id === id);
+  if(emp) {
+    abrirModalEmpreendimento(emp);
+  }
+}
+
+function abrirModalEmpreendimento(empExistente = null) {
+  const isEdit = !!empExistente;
+  const id = isEdit ? empExistente.id : uid();
+  const nome = isEdit ? empExistente.nome : '';
+  const tipo = isEdit ? (empExistente.tipo || 'Geral') : 'Geral';
+  const vinculadas = isEdit ? (empExistente.estruturas || []) : [];
+
+  const html = `
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>${isEdit ? 'Editar Empreendimento' : 'Novo Empreendimento'}</h3>
+        <button class="btn ghost sm" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label">Nome do Empreendimento</label>
+          <input type="text" id="mod-emp-nome" value="${esc(nome)}">
+        </div>
+        <div class="field">
+          <label class="field-label">Setor / Tipo Principal</label>
+          <select id="mod-emp-tipo">
+            <option value="Geral" ${tipo === 'Geral' ? 'selected' : ''}>Geral</option>
+            <option value="Mineração" ${tipo === 'Mineração' ? 'selected' : ''}>Mineração</option>
+            <option value="Agro" ${tipo === 'Agro' ? 'selected' : ''}>Agro</option>
+            <option value="Indústrias" ${tipo === 'Indústrias' ? 'selected' : ''}>Indústrias</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Vincular Estruturas Existentes na Biblioteca</label>
+          <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fafbf9;">
+            ${state.estruturas.map(est => `
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; cursor:pointer; padding:4px; border-radius:4px; transition:background 0.2s;">
+                <input type="checkbox" class="mod-emp-est" value="${esc(est.id)}" ${(vinculadas.includes(est.id) || vinculadas.includes(est.nome)) ? 'checked' : ''} style="width:auto;"> ${esc(est.nome)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn primary" id="btn-save-emp">${isEdit ? 'Salvar Alterações' : 'Criar Empreendimento'}</button>
+      </div>
+    </div>
+  </div>`;
+  
+  document.getElementById('modal-root').innerHTML = html;
+  
+  document.getElementById('btn-save-emp').addEventListener('click', async () => {
+    const novoNome = document.getElementById('mod-emp-nome').value.trim();
+    const novoTipo = document.getElementById('mod-emp-tipo').value;
+    const novasVinculadas = Array.from(document.querySelectorAll('.mod-emp-est:checked')).map(cb => cb.value);
+    
+    if(!novoNome) {
+      return showToast('O Nome é obrigatório');
+    }
+    
+    const obj = { 
+      id, 
+      nome: novoNome, 
+      tipo: novoTipo, 
+      estruturas: novasVinculadas, 
+      criado_em: isEdit ? empExistente.criado_em : new Date().toISOString() 
+    };
+    
+    if(isEdit) {
+      const idx = state.empreendimentos.findIndex(e => e.id === id);
+      state.empreendimentos[idx] = obj;
+    } else {
+      state.empreendimentos.push(obj);
+    }
+
+    await storageSet('empreendimentos', state.empreendimentos);
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('empreendimentos').upsert(obj);
+    }
+    
+    closeModal(); 
+    render(); 
+    showToast('Empreendimento salvo com sucesso!');
+  });
+}
+
+window.excluirEmpreendimento = async function(id) {
+  if(confirm('Tem certeza de que deseja excluir este empreendimento permanentemente?')) {
+    state.empreendimentos = state.empreendimentos.filter(e => e.id !== id);
+    await storageSet('empreendimentos', state.empreendimentos);
+    
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('empreendimentos').delete().eq('id', id);
+    }
+    
+    render();
+  }
+}
+
+function viewEstruturas() {
+  if(state.estruturaEditando) return viewEditorEstrutura();
+
+  const setoresDef = [
+    { id: 'Geral', icon: '🏭⛏️🌾', title: 'Setor Geral / Misto' },
+    { id: 'Mineração', icon: '⛏️', title: 'Mineração e Processamento' },
+    { id: 'Agro', icon: '🌾', title: 'Agronegócio e Criação' },
+    { id: 'Indústrias', icon: '⚙️', title: 'Indústrias e Manufatura' }
+  ];
+
+  let html = `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Biblioteca</div>
+      <h1 class="view-title">Estruturas de Inspeção</h1>
+    </div>
+    <button class="btn primary" id="btn-add-est">+ Nova Estrutura</button>
+  </div>`;
+
+  if(state.estruturas.length === 0) {
+    return html + `
+      <div class="empty card">
+        <div class="ic">🏗️</div>Nenhuma estrutura cadastrada na biblioteca.
+      </div>`;
+  }
+
+  setoresDef.forEach(setor => {
+    const ests = state.estruturas.filter(e => (e.setor || 'Geral') === setor.id);
+    if(ests.length > 0) {
+      html += `
+      <div class="sector-header">
+        <div class="sector-icon">${setor.icon}</div>
+        <h2 class="sector-title">${setor.title}</h2>
+      </div>
+      <div class="grid cols-3">
+        ${ests.map(e => `
+          <div class="visual-card">
+            <div class="visual-card-body">
+              <h3 class="visual-card-title">${esc(e.nome)}</h3>
+              <div class="visual-card-desc" style="margin-top: 8px;">
+                ${(e.itens || []).length} itens de verificação no checklist.
+              </div>
+            </div>
+            <div class="visual-card-foot">
+              <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">✏️ Editar</button>
+              <button class="btn ghost sm" onclick="duplicarEstrutura('${e.id}')">📋 Duplicar</button>
+              <button class="btn ghost sm danger" onclick="excluirEstrutura('${e.id}')">✕</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+  });
+
+  return html;
+}
+
+function bindEstruturas() {
+  if(state.estruturaEditando) return bindEditorEstrutura();
+
+  document.getElementById('btn-add-est')?.addEventListener('click', () => {
+    state.estruturaEditando = { id: uid(), nome: 'Nova Estrutura', setor: 'Geral', itens: [] };
+    render();
+  });
+}
+
+window.editarEstrutura = function(id) {
+  const est = state.estruturas.find(e => e.id === id);
+  if(est) { 
+    state.estruturaEditando = JSON.parse(JSON.stringify(est)); 
+    render(); 
+  }
+}
+
+window.duplicarEstrutura = async function(id) {
+  const est = state.estruturas.find(e => e.id === id);
+  if(est) {
+    const clone = JSON.parse(JSON.stringify(est));
+    clone.id = uid();
+    clone.nome = clone.nome + ' (Cópia)';
+    clone.itens = clone.itens.map(i => ({...i, id: uid()}));
+    
+    state.estruturas.push(clone);
+    await storageSet('estruturas', state.estruturas);
+    
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('estruturas').upsert({
+        id: clone.id,
+        nome: clone.nome,
+        setor: clone.setor,
+        itens: { setor: clone.setor, list: clone.itens }
+      });
+    }
+    
+    render(); 
+    showToast('Estrutura duplicada na nuvem e local!');
+  }
+}
+
+window.excluirEstrutura = async function(id) {
+  if(confirm('Tem certeza? Essa exclusão afetará novos check-lists (os antigos mantêm o histórico salvo).')) {
+    state.estruturas = state.estruturas.filter(e => e.id !== id);
+    await storageSet('estruturas', state.estruturas);
+    
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('estruturas').delete().eq('id', id);
+    }
+    
+    render();
+  }
+}
+
+function viewEditorEstrutura() {
+  const est = state.estruturaEditando;
+  return `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Edição</div>
+      <h1 class="view-title">Montar Checklist: ${esc(est.nome)}</h1>
+    </div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="state.estruturaEditando=null; render();">Cancelar</button>
+      <button class="btn primary" id="btn-save-est">💾 Salvar Estrutura</button>
+    </div>
+  </div>
+  
+  <div class="card card-pad" style="margin-bottom:24px;">
+    <div class="grid cols-2">
+      <div class="field">
+        <label class="field-label">Nome da Estrutura</label>
+        <input type="text" id="ed-est-nome" value="${esc(est.nome)}">
+      </div>
+      <div class="field">
+        <label class="field-label">Setor / Categoria Principal</label>
+        <select id="ed-est-setor">
+          <option value="Geral" ${est.setor === 'Geral' ? 'selected' : ''}>Geral (Misto)</option>
+          <option value="Mineração" ${est.setor === 'Mineração' ? 'selected' : ''}>Mineração</option>
+          <option value="Agro" ${est.setor === 'Agro' ? 'selected' : ''}>Agro</option>
+          <option value="Indústrias" ${est.setor === 'Indústrias' ? 'selected' : ''}>Indústrias</option>
+        </select>
+      </div>
+    </div>
+    <div class="rowflex" style="margin-top:10px;">
+      <button class="btn primary sm" id="btn-ed-add-item">+ Adicionar 1 Item</button>
+      <button class="btn ghost sm" id="btn-ed-bulk-paste">📋 Colar em Bloco (1 por linha)</button>
+    </div>
+  </div>
+
+  <div id="ed-est-itens-list">
+    ${est.itens.map((it, i) => `
+      <div class="card card-pad" style="margin-bottom:16px; border:1px solid var(--line); background:var(--surface);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--surface-2);">
+          <span class="badge na" style="font-size:12px;">Item #${i+1}</span>
+          <div class="rowflex" style="gap:6px;">
+            <button class="btn ghost sm" onclick="moverItemEst(${i}, -1)" title="Mover para cima">▲ Subir</button>
+            <button class="btn ghost sm" onclick="moverItemEst(${i}, 1)" title="Mover para baixo">▼ Descer</button>
+            <button class="btn ghost sm danger" onclick="removerItemEst(${i})" title="Remover item">✕ Excluir</button>
+          </div>
+        </div>
+        <div class="grid cols-2" style="gap:16px;">
+          <div style="grid-column: 1 / -1;">
+            <label class="field-label">Pergunta / Item a ser Inspecionado</label>
+            <textarea class="ed-item-txt" data-idx="${i}" style="width:100%; min-height:64px; font-size:14px; font-family:inherit; padding:10px; border:1px solid var(--line); border-radius:8px;" placeholder="Digite o texto da pergunta...">${esc(it.texto)}</textarea>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label class="field-label">Categoria / Tipologia (Ex: Segurança, Gerenciamento de Resíduos Sólidos...)</label>
+            <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria || '')}" placeholder="Digite a categoria...">
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+function bindEditorEstrutura() {
+  document.getElementById('btn-ed-add-item')?.addEventListener('click', () => {
+    state.estruturaEditando.itens.push({ id: uid(), texto: '', categoria: '' });
+    render();
+  });
+
+  document.getElementById('btn-ed-bulk-paste')?.addEventListener('click', () => {
+    const txt = prompt("Cole os itens de inspeção (um por linha):");
+    if(txt) {
+      const linhas = txt.split('\n').map(l => l.trim()).filter(l => l);
+      linhas.forEach(l => state.estruturaEditando.itens.push({ id: uid(), texto: l, categoria: '' }));
+      render();
+    }
+  });
+
+  document.querySelectorAll('.ed-item-txt').forEach(inp => {
+    inp.addEventListener('change', (e) => { 
+      state.estruturaEditando.itens[e.target.dataset.idx].texto = e.target.value; 
+    });
+  });
+  
+  document.querySelectorAll('.ed-item-cat').forEach(inp => {
+    inp.addEventListener('change', (e) => { 
+      state.estruturaEditando.itens[e.target.dataset.idx].categoria = e.target.value; 
+    });
+  });
+
+  document.getElementById('btn-save-est')?.addEventListener('click', async () => {
+    const est = state.estruturaEditando;
+    est.nome = document.getElementById('ed-est-nome').value.trim();
+    est.setor = document.getElementById('ed-est-setor').value;
+    
+    if(!est.nome) {
+      return showToast('Nome obrigatório!');
+    }
+    
+    const idx = state.estruturas.findIndex(x => x.id === est.id);
+    if(idx >= 0) {
+      state.estruturas[idx] = est;
+    } else {
+      state.estruturas.push(est);
+    }
+    
+    await storageSet('estruturas', state.estruturas);
+    
+    if(_supabase && navigator.onLine) {
+      const { error } = await _supabase.from('estruturas').upsert({
+        id: est.id,
+        nome: est.nome,
+        setor: est.setor,
+        itens: { setor: est.setor, list: est.itens }
+      });
+      if(error) {
+        console.error('Erro ao salvar no Supabase:', error);
+        showToast('Salvo localmente! Aviso: erro de sincro com nuvem.');
+      } else {
+        showToast('Estrutura salva na Nuvem e localmente!');
+      }
+    } else {
+      showToast('Estrutura salva localmente!');
+    }
+    
+    state.estruturaEditando = null;
+    render();
+  });
+}
+
+window.moverItemEst = function(idx, dir) {
+  const arr = state.estruturaEditando.itens;
+  if(idx + dir < 0 || idx + dir >= arr.length) return;
+  const temp = arr[idx];
+  arr[idx] = arr[idx + dir];
+  arr[idx + dir] = temp;
+  render();
+}
+
+window.removerItemEst = function(idx) {
+  state.estruturaEditando.itens.splice(idx, 1);
+  render();
+}
+
+/* ============================================================
+   TELA: NOVO CHECK-LIST (ASSISTENTE COMPLETO)
+   ============================================================ */
+function viewNovaVistoria() {
+  if (!state.novaVistoria) {
+    state.novaVistoria = { 
+      step: 1, 
+      emp: '', 
+      est: '', 
+      equipe: '', 
+      resp: '', 
+      dataHora: new Date().toISOString(), 
+      gps: null, 
+      itens: [], 
+      respostas: {}, 
+      mostrarTodasEstruturas: false 
+    };
+  }
+  
+  const nv = state.novaVistoria;
+
+  if (nv.step === 1) {
+    const dataHoraVal = toDatetimeLocalValue(nv.dataHora);
+    const empObj = state.empreendimentos.find(e => e.nome === nv.emp);
+    const isEdit = !!nv.id;
+
+    let estruturasExibidas = state.estruturas;
+    let possuiVinculo = false;
+
+    if (empObj && empObj.estruturas && empObj.estruturas.length > 0) {
+      possuiVinculo = true;
+      if (!nv.mostrarTodasEstruturas) {
+        estruturasExibidas = state.estruturas.filter(s => 
+          empObj.estruturas.includes(s.id) || empObj.estruturas.includes(s.nome)
+        );
+      }
+    }
+
+    return `
+    <div class="view-head">
+      <div>
+        <div class="eyebrow">${isEdit ? 'Edição' : 'Novo Check-list'}</div>
+        <h1 class="view-title">${isEdit ? 'Editar Dados do Check-list' : 'Iniciar Check-list'}</h1>
+      </div>
+    </div>
+    
+    <div class="card card-pad" style="max-width: 600px;">
+      <div class="field">
+        <label class="field-label">Empreendimento Inspecionado</label>
+        <select id="nv-emp" ${isEdit ? 'disabled' : ''}>
+          <option value="">-- Selecione --</option>
+          ${state.empreendimentos.map(e => `
+            <option value="${e.nome}" ${nv.emp === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>
+          `).join('')}
+        </select>
+      </div>
+      
+      <div class="field">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <label class="field-label" style="margin-bottom:0;">Estrutura Alvo</label>
+          ${possuiVinculo && !isEdit ? `
+            <button type="button" class="btn ghost sm" id="btn-toggle-todas-est" style="font-size:11.5px; padding:2px 8px; border:1px solid var(--line);">
+              ${nv.mostrarTodasEstruturas ? '🔒 Ver Apenas Vinculadas' : '🌐 Outras Estruturas'}
+            </button>
+          ` : ''}
+        </div>
+        <select id="nv-est" ${(!nv.emp || isEdit) ? 'disabled' : ''}>
+          <option value="">${nv.emp ? '-- Selecione a Estrutura --' : '-- Primeiro selecione o Empreendimento --'}</option>
+          ${estruturasExibidas.map(e => `
+            <option value="${e.nome}" ${nv.est === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>
+          `).join('')}
+        </select>
+        ${possuiVinculo && !nv.mostrarTodasEstruturas && !isEdit ? `
+          <div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Exibindo apenas a(s) ${estruturasExibidas.length} estrutura(s) vinculada(s) a este empreendimento.</div>
+        ` : ''}
+        ${possuiVinculo && nv.mostrarTodasEstruturas && !isEdit ? `
+          <div class="hint" style="font-size:12px; color:var(--alta); margin-top:4px;">Exibindo toda a biblioteca de estruturas.</div>
+        ` : ''}
+      </div>
+      
+      <div class="field">
+        <label class="field-label">Data e Hora do Check-list</label>
+        <input type="datetime-local" id="nv-data-hora" value="${dataHoraVal}">
+      </div>
+      
+      <div class="field">
+        <label class="field-label">Equipe</label>
+        <select id="nv-equipe">
+          <option value="">-- Selecione --</option>
+          <option value="Auditoria Interna" ${nv.equipe === 'Auditoria Interna' ? 'selected' : ''}>Auditoria Interna (MapaBase)</option>
+          <option value="Auditoria Externa" ${nv.equipe === 'Auditoria Externa' ? 'selected' : ''}>Auditoria Externa (Cliente)</option>
+        </select>
+      </div>
+      
+      <div class="field">
+        <label class="field-label">Nome do Responsável/Inspetor</label>
+        <input type="text" id="nv-resp" value="${esc(nv.resp)}">
+      </div>
+      
+      <div class="field" style="margin-top:20px;">
+        <label class="field-label">Localização (GPS)</label>
+        <div class="rowflex">
+          <button class="btn ghost sm" id="btn-gps">📍 ${nv.gps ? 'Recapturar GPS' : 'Capturar GPS Agora'}</button>
+          <span style="font-size:13px; color:var(--ink-soft);" id="gps-status">
+            ${nv.gps ? `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}` : 'Não capturado'}
+          </span>
+        </div>
+      </div>
+      
+      <button class="btn primary" id="btn-nv-start" style="width:100%; margin-top: 24px; padding:12px;">
+        ${isEdit ? 'Continuar Edição do Check-list' : 'Iniciar Check-list'}
+      </button>
+    </div>`;
+  }
+
+  if (nv.step === 2) {
+    return `
+    <div class="view-head no-print">
+      <div>
+        <div class="eyebrow">Execução</div>
+        <h1 class="view-title">Execução do Check-list</h1>
+      </div>
+      <button class="btn ghost" id="btn-nv-back">← Retornar aos Dados</button>
+    </div>
+    
+    <div class="card card-pad no-print" style="margin-bottom: 24px; background:var(--surface-2);">
+      <strong>Local:</strong> ${esc(nv.emp)} &nbsp;|&nbsp; 
+      <strong>Estrutura:</strong> ${esc(nv.est)} &nbsp;|&nbsp; 
+      <strong>Data:</strong> ${fmtDate(nv.dataHora)}
+    </div>
+    
+    ${nv.itens.map((it, i) => {
+      const resp = nv.respostas[it.id] || { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
+      const isNC = resp.status === 'nc';
+      
+      return `
+      <div class="item-card" data-item-id="${it.id}">
+        <div class="item-top">
+          <div style="flex:1;">
+            <span class="item-num">Item ${i+1} ${it.categoria ? `· ${esc(it.categoria)}` : ''}</span>
+            <div class="item-txt">
+              ${esc(it.texto)}
+              <button class="btn ghost sm" style="padding:0 4px; border:none; margin-left:4px; font-size:12px; color:var(--ink-faint);" onclick="window.editarTextoItemNV('${it.id}')" title="Editar Tópico">✏️</button>
+              <button class="btn ghost sm danger" style="padding:0 4px; border:none; margin-left:2px; font-size:12px; color:var(--nc);" onclick="window.removerItemNV('${it.id}')" title="Excluir Tópico">✕</button>
+            </div>
+          </div>
+          <div class="seg">
+            <button class="c ${resp.status === 'conforme' ? 'active' : ''}" data-status="conforme" data-id="${it.id}">Conforme</button>
+            <button class="n ${resp.status === 'nc' ? 'active' : ''}" data-status="nc" data-id="${it.id}">Não Conf.</button>
+            <button class="a ${resp.status === 'na' ? 'active' : ''}" data-status="na" data-id="${it.id}">N/A</button>
+          </div>
+        </div>
+        
+        <div class="item-extra ${resp.status ? '' : 'hidden'}">
+          <div class="field">
+            <label class="field-label">Observação ${isNC ? '<span style="color:var(--nc);">* (Obrigatória)</span>' : ''}</label>
+            <input type="text" class="nv-obs" data-id="${it.id}" value="${esc(resp.observacao)}" placeholder="Descreva a situação...">
+          </div>
+          
+          <div class="nc-fields ${isNC ? '' : 'hidden'}">
+            <div class="grid cols-2">
+              <div class="field">
+                <label class="field-label">Criticidade</label>
+                <select class="nv-crit" data-id="${it.id}">
+                  <option value="baixa" ${resp.criticidade === 'baixa' ? 'selected' : ''}>Baixa (Monitorar)</option>
+                  <option value="media" ${resp.criticidade === 'media' ? 'selected' : ''}>Média (Corrigir no prazo)</option>
+                  <option value="alta" ${resp.criticidade === 'alta' ? 'selected' : ''}>Alta (Ação imediata recomendada)</option>
+                  <option value="critica" ${resp.criticidade === 'critica' ? 'selected' : ''}>Crítica (Paralisação/Risco grave)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Recomendação Técnica</label>
+                <input type="text" class="nv-recom" data-id="${it.id}" value="${esc(resp.recomendacao)}" placeholder="Ação corretiva...">
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-top:10px;">
+            <label class="field-label">Evidências Fotográficas (fotos com coordenadas - timestamp)</label>
+            <div class="photo-row" id="photos-${it.id}">
+              ${resp.fotos.map((f, pIdx) => `
+                <div class="photo-thumb">
+                  <img src="${f}" style="width:100%;height:100%;object-fit:cover;border-radius:7px;">
+                  <button class="btn ghost sm danger" style="position:absolute;top:-5px;right:-5px;background:#fff;padding:2px 6px;border-radius:50%;box-shadow:var(--shadow);" onclick="removeFoto('${it.id}', ${pIdx})">✕</button>
+                </div>
+              `).join('')}
+              <label class="photo-add">
+                +<input type="file" accept="image/*" style="display:none;" onchange="addFoto(event, '${it.id}')">
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    
+    <div style="margin: 24px 0; text-align: center;">
+      <button class="btn ghost" id="btn-nv-add-item" style="border: 2px dashed var(--line); width: 100%; padding:16px; color:var(--ink-soft); font-size:15px; transition:all 0.2s;">
+        + Adicionar Novo Tópico neste Check-list
+      </button>
+    </div>
+
+    <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; position:sticky; bottom:16px; box-shadow:var(--shadow); z-index:10;">
+      <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.</div>
+      <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Check-list</button>
+    </div>`;
+  }
+}
+
+function bindNovaVistoria() {
+  const nv = state.novaVistoria;
+  
+  if (nv && nv.step === 1) {
+    document.getElementById('nv-emp')?.addEventListener('change', (e) => {
+      nv.emp = e.target.value;
+      nv.est = '';
+      render();
+    });
+
+    document.getElementById('btn-toggle-todas-est')?.addEventListener('click', () => {
+      nv.mostrarTodasEstruturas = !nv.mostrarTodasEstruturas;
+      render();
+    });
+
+    document.getElementById('btn-gps')?.addEventListener('click', () => {
+      document.getElementById('gps-status').textContent = 'Buscando satélites...';
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          nv.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          document.getElementById('gps-status').textContent = `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}`;
+        },
+        err => { 
+          document.getElementById('gps-status').textContent = 'Erro ou permissão negada.'; 
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    document.getElementById('btn-nv-start')?.addEventListener('click', () => {
+      if (!nv.id) {
+         nv.emp = document.getElementById('nv-emp').value;
+         nv.est = document.getElementById('nv-est').value;
+      }
+      
+      nv.equipe = document.getElementById('nv-equipe').value;
+      nv.resp = document.getElementById('nv-resp').value;
+      
+      const dataHoraInput = document.getElementById('nv-data-hora').value;
+      
+      if (!nv.emp || !nv.est || !nv.equipe || !nv.resp || !dataHoraInput) {
+        return showToast('Preencha todos os campos obrigatórios!');
+      }
+      
+      nv.dataHora = new Date(dataHoraInput).toISOString();
+
+      if(nv.itens.length === 0) {
+        const estruturaRef = state.estruturas.find(e => e.nome === nv.est);
+        nv.itens = estruturaRef ? JSON.parse(JSON.stringify(estruturaRef.itens)) : [];
+      }
+      
+      nv.step = 2;
+      render();
+    });
+  }
+
+  if (nv && nv.step === 2) {
+    document.getElementById('btn-nv-back')?.addEventListener('click', () => { 
+      nv.step = 1; 
+      render(); 
+    });
+    
+    document.getElementById('btn-nv-add-item')?.addEventListener('click', () => {
+      const texto = prompt('Digite a pergunta/tópico a ser verificado:');
+      if (texto && texto.trim()) {
+        const newItemId = uid();
+        state.novaVistoria.itens.push({
+          id: newItemId,
+          texto: texto.trim(),
+          categoria: 'Adicional (Campo)'
+        });
+        state.novaVistoria.respostas[newItemId] = { 
+          status: '', 
+          observacao: '', 
+          criticidade: 'media', 
+          recomendacao: '', 
+          fotos: [] 
+        };
+        render();
+        showToast('Novo tópico adicionado!');
+        setTimeout(() => document.getElementById('btn-nv-add-item').scrollIntoView({behavior: "smooth"}), 100);
+      }
+    });
+
+    document.querySelectorAll('.seg button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        const st = e.target.dataset.status;
+        
+        if(!nv.respostas[id]) {
+          nv.respostas[id] = { observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
+        }
+        
+        nv.respostas[id].status = st;
+        
+        const parentCard = e.target.closest('.item-card');
+        parentCard.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        
+        const itemExtra = parentCard.querySelector('.item-extra');
+        const ncFields = parentCard.querySelector('.nc-fields');
+        
+        itemExtra.classList.remove('hidden');
+        if (st === 'nc') {
+          ncFields.classList.remove('hidden');
+        } else {
+          ncFields.classList.add('hidden');
+        }
+
+        setTimeout(() => parentCard.scrollIntoView({behavior: "smooth", block: "center"}), 50);
+      });
+    });
+
+    document.querySelectorAll('.nv-obs').forEach(inp => {
+      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].observacao = e.target.value);
+    });
+    
+    document.querySelectorAll('.nv-crit').forEach(inp => {
+      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].criticidade = e.target.value);
+    });
+    
+    document.querySelectorAll('.nv-recom').forEach(inp => {
+      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].recomendacao = e.target.value);
+    });
+
+    document.getElementById('btn-nv-save')?.addEventListener('click', async () => {
+      const faltam = nv.itens.filter(it => !nv.respostas[it.id]?.status);
+      if(faltam.length > 0) {
+        return showToast('Responda todos os itens do check-list antes de salvar!');
+      }
+      
+      const ncsSemObs = nv.itens.filter(it => nv.respostas[it.id]?.status === 'nc' && !nv.respostas[it.id]?.observacao.trim());
+      if(ncsSemObs.length > 0) {
+        return showToast('Toda Não Conformidade exige uma Observação justificando o problema.');
+      }
+
+      const finalItens = nv.itens.map(it => ({
+        ...it,
+        status: nv.respostas[it.id].status,
+        observacao: nv.respostas[it.id].observacao,
+        criticidade: nv.respostas[it.id].status === 'nc' ? nv.respostas[it.id].criticidade : null,
+        recomendacao: nv.respostas[it.id].status === 'nc' ? nv.respostas[it.id].recomendacao : null,
+        fotos: nv.respostas[it.id].fotos
+      }));
+
+      const isEdit = !!nv.id;
+
+      const vistObj = {
+        id: isEdit ? nv.id : uid(),
+        empreendimentoNome: nv.emp,
+        estruturaNome: nv.est,
+        equipe: nv.equipe,
+        responsavel: nv.resp,
+        dataHora: nv.dataHora,
+        gps: nv.gps,
+        itens: finalItens
+      };
+
+      await saveVistoria(vistObj);
+      state.novaVistoria = null;
+      setView('vistorias');
+    });
+  }
+}
+
+window.editarTextoItemNV = function(id) {
+  const nv = state.novaVistoria;
+  if(!nv) return;
+  
+  const item = nv.itens.find(i => i.id === id);
+  if(!item) return;
+  
+  const novoTexto = prompt('Editar tópico de inspeção:', item.texto);
+  if(novoTexto !== null && novoTexto.trim() !== '') {
+    item.texto = novoTexto.trim();
+    render();
+  }
+};
+
+window.removerItemNV = function(id) {
+  if(!state.novaVistoria) return;
+  
+  if(confirm('Tem certeza que deseja remover este item deste check-list?')) {
+    state.novaVistoria.itens = state.novaVistoria.itens.filter(i => i.id !== id);
+    delete state.novaVistoria.respostas[id];
+    render();
+  }
+};
+
+window.addFoto = async function(event, itemId) {
+  const file = event.target.files[0];
+  if(!file) return;
+  
+  showToast('Comprimindo foto...');
+  try {
+    const base64 = await fileToCompressedDataURL(file);
+    if(!state.novaVistoria.respostas[itemId]) {
+      state.novaVistoria.respostas[itemId] = { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
+    }
+    state.novaVistoria.respostas[itemId].fotos.push(base64);
+    render();
+    setTimeout(() => document.getElementById('photos-'+itemId).scrollIntoView({behavior: "smooth", block: "center"}), 100);
+  } catch(e) { 
+    console.error(e);
+    showToast('Erro ao processar foto.'); 
+  }
+}
+
+window.removeFoto = function(itemId, photoIdx) {
+  state.novaVistoria.respostas[itemId].fotos.splice(photoIdx, 1);
+  render();
+}
+
+/* ============================================================
    TELA: DASHBOARD GERAL E GRÁFICOS (Performance Síncrona)
    ============================================================ */
 function viewDashboard() {
@@ -3027,56 +4473,55 @@ function bindDashboard() {
       titleEl.innerHTML = `Evolução do Desempenho <span style="font-size:16px;color:var(--ink-soft);font-weight:500;">${periodo}</span>`;
     }
     
-    const taxa = s.labels.map((_, i) => {
-      const tot = (s.confs[i] || 0) + (s.ncs[i] || 0);
-      return tot ? +(s.confs[i] / tot * 100).toFixed(1) : 0;
-    });
-    
     if(window.dashEvoChartInstance) window.dashEvoChartInstance.destroy();
     
     window.dashEvoChartInstance = new Chart(evoCanvas.getContext('2d'), {
-      type:'line',
-      data:{ 
+      type: 'line',
+      data: { 
         labels: s.labels, 
-        datasets:[{
-          label: 'Conformidade (%)', 
-          data: taxa,
-          borderColor: '#2F9E44', 
-          backgroundColor: 'rgba(47,158,68,0.12)',
-          fill: true, 
-          tension: 0.35, 
-          borderWidth: 3, 
-          pointRadius: 5, 
-          pointHoverRadius: 7,
-          pointBackgroundColor: '#2F9E44', 
-          _conf: s.confs, 
-          _nc: s.ncs
-        }]
+        datasets: [
+          { 
+            label: 'Conformidades', 
+            data: s.confs, 
+            borderColor: '#2F9E44', 
+            backgroundColor: 'rgba(47,158,68,0.10)', 
+            fill: false, 
+            tension: 0.35, 
+            borderWidth: 3, 
+            pointRadius: 4, 
+            pointHoverRadius: 6 
+          },
+          { 
+            label: 'Não Conformidades', 
+            data: s.ncs, 
+            borderColor: '#C4332C', 
+            backgroundColor: 'rgba(196,51,44,0.10)', 
+            fill: false, 
+            tension: 0.35, 
+            borderWidth: 3, 
+            pointRadius: 4, 
+            pointHoverRadius: 6 
+          }
+        ]
       },
-      options:{ 
+      options: { 
         responsive: true, 
-        maintainAspectRatio: false,
+        maintainAspectRatio: false, 
+        interaction: { mode: 'index', intersect: false },
         scales: { 
           y: { 
             min: 0, 
-            max: 100, 
-            ticks: { callback: v => v + '%' }, 
-            title: { display: true, text: 'Conformidade' } 
-          } 
+            ticks: { precision: 0 }, 
+            title: { display: true, text: 'Quantidade de itens' } 
+          },
+          x: { 
+            ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } 
+          }
         },
         plugins: { 
-          legend: { display: false },
-          tooltip: { 
-            callbacks: { 
-              label: (ctx) => {
-                const i = ctx.dataIndex;
-                const c = ctx.dataset._conf[i] || 0;
-                const n = ctx.dataset._nc[i] || 0;
-                return [`Conformidade: ${ctx.parsed.y}%`, `Conformes: ${c}  ·  NCs: ${n}`];
-              }
-            }
-          }
-        }
+          legend: { position: 'bottom' }, 
+          tooltip: { mode: 'index', intersect: false } 
+        } 
       }
     });
   }
@@ -3109,7 +4554,7 @@ function bindDashboard() {
       });
   }
 
-  // Pendências Recorrentes síncronas do índice
+  /* Pendências Recorrentes síncronas do índice */
   const recorr = new Map();
   filtradas.forEach(ix => {
     if (!ix.ncsResumo) return;
@@ -3143,236 +4588,6 @@ function bindDashboard() {
       </div>`
       : '<div class="empty" style="padding:16px;color:var(--conforme);">Nenhuma pendência recorrente. 👏</div>';
   }
-}
-
-/* ============================================================
-   TELA: RANKING IGD (ESTADO ATUAL E TENDÊNCIA)
-   ============================================================ */
-function viewRanking() {
-  return `
-  <div class="view-head no-print">
-    <div>
-      <div class="eyebrow">Auditoria</div>
-      <h1 class="view-title">Ranking de Desempenho (IGD)</h1>
-    </div>
-    <div class="rowflex">
-      <button class="btn ghost" onclick="window.print()">🖨️ Imprimir Ranking</button>
-    </div>
-  </div>
-  
-  ${renderFilterBar('rank')}
-  
-  <div class="card card-pad" style="margin-bottom:16px;background:var(--surface-2,#f7f9f7);">
-    <h4 style="margin:0 0 8px;font-family:var(--font-display);">O que é o IGD (Índice Geral de Desempenho)?</h4>
-    <p style="margin:0 0 8px;font-size:14px;color:var(--ink-soft);line-height:1.6;">
-      O IGD resume, em uma nota de <strong>0 a 100</strong>, a saúde ambiental de cada unidade.
-      Quanto <strong>maior</strong>, melhor. Ele não conta apenas <em>quantas</em> não conformidades existem,
-      mas também a <strong>gravidade</strong> delas — uma pendência crítica pesa mais que uma leve.
-      Assim, duas unidades com o mesmo número de problemas podem ter notas diferentes se uma tiver riscos mais graves.
-    </p>
-    <p style="margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ink);">
-      O ranking mostra a situação MAIS RECENTE de cada estrutura. Não conformidades já corrigidas deixam de contar.
-    </p>
-    <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;">
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--conforme);vertical-align:middle;"></span> <strong>90–100 · Bom:</strong> conformidade alta, poucos riscos</span>
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--media);vertical-align:middle;"></span> <strong>70–89 · Atenção:</strong> pendências relevantes a corrigir</span>
-      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--nc);vertical-align:middle;"></span> <strong>Abaixo de 70 · Crítico:</strong> prioridade de ação imediata</span>
-    </div>
-    <div style="margin-top:10px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px;">
-      <strong>Como a gravidade pesa no cálculo:</strong>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;">
-        <span style="padding:2px 8px;border-radius:6px;background:var(--critica);color:#fff;">Crítica = peso 4</span>
-        <span style="padding:2px 8px;border-radius:6px;background:var(--alta);color:#fff;">Alta = peso 3</span>
-        <span style="padding:2px 8px;border-radius:6px;background:var(--media);color:#fff;">Média = peso 2</span>
-        <span style="padding:2px 8px;border-radius:6px;background:var(--baixa);color:#fff;">Baixa = peso 1</span>
-      </div>
-      <p style="margin:8px 0 0;color:var(--ink-soft);">O IGD parte de 100 e desconta conforme o peso das não conformidades. Uma unidade com muitas NCs graves cai mais que uma com poucas NCs leves — por isso reflete o risco real, não só a quantidade.</p>
-    </div>
-  </div>
-
-  <div class="card card-pad">
-    <div class="rowflex" style="justify-content:space-between; margin-bottom: 24px;">
-      <h3 style="margin:0; font-family:var(--font-display); font-size:22px;">Índice de Gestão e Desempenho</h3>
-      <select id="ranking-modo" class="btn ghost sm no-print" style="height:auto; padding:4px 8px; font-weight:500;">
-        <option value="emp" ${state.rankingModo === 'emp' ? 'selected' : ''}>Por Empreendimento</option>
-        <option value="est" ${state.rankingModo === 'est' ? 'selected' : ''}>Por Estrutura</option>
-      </select>
-    </div>
-    
-    <div id="ranking-container">
-      <div class="empty">Processando ranking, aguarde...</div>
-    </div>
-  </div>`;
-}
-
-async function bindRanking() {
-  bindFilterBar('rank');
-  
-  document.getElementById('ranking-modo')?.addEventListener('change', (e) => {
-    state.rankingModo = e.target.value;
-    render();
-  });
-
-  const container = document.getElementById('ranking-container');
-  const filtradas = aplicarFiltros(state.vistoriasIndex, 'rank');
-  
-  if(filtradas.length === 0) {
-    container.innerHTML = `<div class="empty" style="padding:20px;">Nenhum dado encontrado para gerar o ranking.</div>`;
-    return;
-  }
-
-  const estGroups = {};
-  filtradas.forEach(v => {
-    if(!v.empreendimentoNome || !v.estruturaNome) return;
-    const key = v.empreendimentoNome + '::' + v.estruturaNome;
-    if(!estGroups[key]) estGroups[key] = [];
-    estGroups[key].push(v);
-  });
-
-  const estruturas = [];
-  Object.keys(estGroups).forEach(key => {
-    const group = estGroups[key].sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
-    const atual = group[group.length - 1];
-    const ant = group.length > 1 ? group[group.length - 2] : null;
-    
-    estruturas.push({
-      empreendimento: atual.empreendimentoNome,
-      estrutura: atual.estruturaNome,
-      dataHora: atual.dataHora,
-      igdAtual: igdDeUm(atual),
-      igdAnterior: ant ? igdDeUm(ant) : null
-    });
-  });
-
-  let linhas = [];
-  
-  if (state.rankingModo === 'est') {
-    linhas = estruturas.map(e => ({
-      nome: e.estrutura,
-      subnome: e.empreendimento,
-      dataHora: e.dataHora,
-      igdAtual: e.igdAtual,
-      igdAnterior: e.igdAnterior
-    }));
-  } else {
-    const empGroups = {};
-    estruturas.forEach(e => {
-      if(!empGroups[e.empreendimento]) {
-        empGroups[e.empreendimento] = { estruturas: [], dataHoraMaisRecente: e.dataHora };
-      }
-      empGroups[e.empreendimento].estruturas.push(e);
-      if (new Date(e.dataHora) > new Date(empGroups[e.empreendimento].dataHoraMaisRecente)) {
-        empGroups[e.empreendimento].dataHoraMaisRecente = e.dataHora;
-      }
-    });
-
-    Object.keys(empGroups).forEach(emp => {
-      const ests = empGroups[emp].estruturas;
-      const sumAtual = ests.reduce((sum, e) => sum + e.igdAtual, 0);
-      const avgAtual = sumAtual / ests.length;
-
-      const estsComAnt = ests.filter(e => e.igdAnterior !== null);
-      let avgAnterior = null;
-      if (estsComAnt.length > 0) {
-        const sumAnt = estsComAnt.reduce((sum, e) => sum + e.igdAnterior, 0);
-        avgAnterior = sumAnt / estsComAnt.length;
-      }
-
-      linhas.push({
-        nome: emp,
-        subnome: ests.length + (ests.length === 1 ? ' estrutura' : ' estruturas'),
-        dataHora: empGroups[emp].dataHoraMaisRecente,
-        igdAtual: avgAtual,
-        igdAnterior: avgAnterior
-      });
-    });
-  }
-
-  const seisMesesAtras = new Date();
-  seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
-
-  linhas.forEach(l => {
-    l.isVencido = new Date(l.dataHora) < seisMesesAtras;
-  });
-
-  linhas.sort((a, b) => a.igdAtual - b.igdAtual);
-
-  const pior = linhas[0];
-  const melhor = linhas[linhas.length - 1];
-  const igdMedio = Math.round(linhas.reduce((s, r) => s + r.igdAtual, 0) / linhas.length);
-  const vencidosCount = linhas.filter(l => l.isVencido).length;
-
-  const classificarIgd = igd => {
-    if (igd >= 90) return { rotulo: 'Bom', cor: 'var(--conforme)' };
-    if (igd >= 70) return { rotulo: 'Atenção', cor: 'var(--media)' };
-    return { rotulo: 'Crítico', cor: 'var(--nc)' };
-  };
-
-  const formatIgd = v => Math.round(v * 10) / 10;
-
-  const getTendencia = (atual, ant) => {
-    if (ant === null) return `<span style="color:var(--ink-faint);font-size:12px;">— Primeiro registro</span>`;
-    const diff = atual - ant;
-    if (diff >= 3) return `<span style="color:var(--conforme);font-weight:600;">📈 Melhorou (+${diff.toFixed(1)})</span>`;
-    if (diff <= -3) return `<span style="color:var(--nc);font-weight:600;">📉 Piorou (${diff.toFixed(1)})</span>`;
-    return `<span style="color:var(--ink-soft);font-weight:600;">➡️ Estável</span>`;
-  };
-
-  const resumoHtml = `
-    <div class="grid cols-4" style="margin-bottom:24px;">
-      <div class="card kpi"><div class="num" style="color:var(--nc); font-size:32px;">${formatIgd(pior.igdAtual)}%</div><div class="lbl">Pior Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(pior.nome)}</span></div></div>
-      <div class="card kpi"><div class="num" style="color:var(--conforme); font-size:32px;">${formatIgd(melhor.igdAtual)}%</div><div class="lbl">Melhor Desempenho<br><span style="font-size:11px;color:var(--ink);">${esc(melhor.nome)}</span></div></div>
-      <div class="card kpi"><div class="num" style="color:var(--ink); font-size:32px;">${igdMedio}%</div><div class="lbl">IGD Médio</div></div>
-      <div class="card kpi"><div class="num" style="color:var(--alta); font-size:32px;">${vencidosCount}</div><div class="lbl">Estruturas com dado vencido</div></div>
-    </div>
-  `;
-
-  const tabelaHtml = `
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 50px;">Pos</th>
-            <th>Nome</th>
-            <th>Última Inspeção</th>
-            <th>IGD (Atual)</th>
-            <th>Tendência</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${linhas.map((r, i) => {
-            const igd = formatIgd(r.igdAtual);
-            const cls = classificarIgd(r.igdAtual);
-            const alertIcon = i < 3 ? '⚠️ ' : '';
-            const dataFormatada = fmtDate(r.dataHora).split(' às')[0];
-            const seloVencido = r.isVencido ? ' <span title="Dado desatualizado (>6 meses)" style="cursor:help;">⏳</span>' : '';
-
-            return `
-            <tr style="break-inside: avoid;">
-              <td><strong>${alertIcon}${i + 1}º</strong></td>
-              <td>
-                <strong style="font-weight:600;">${esc(r.nome)}</strong><br>
-                <span style="font-size:11.5px;color:var(--ink-soft);">${esc(r.subnome)}</span>
-              </td>
-              <td style="color:var(--ink-soft);">${dataFormatada}${seloVencido}</td>
-              <td style="min-width:200px;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <div style="flex:1;background:#eee;border-radius:6px;height:10px;overflow:hidden;">
-                    <div style="width:${igd}%;height:100%;background:${cls.cor};"></div>
-                  </div>
-                  <span style="font-weight:700;color:${cls.cor};white-space:nowrap;">${igd}% · ${cls.rotulo}</span>
-                </div>
-              </td>
-              <td>${getTendencia(r.igdAtual, r.igdAnterior)}</td>
-            </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  container.innerHTML = resumoHtml + tabelaHtml;
 }
 
 /* ============================================================
@@ -3469,6 +4684,447 @@ function bindVistorias() {
   bindFilterBar('hist'); 
 }
 
+window.abrirVistoria = async function(id) {
+  showToast('Carregando relatório...'); 
+  try {
+    const v = await loadVistoria(id);
+    if (v && v.itens && v.itens.length > 0) { 
+      state.vistoriaAberta = v; 
+      setView('vistoria-detalhe'); 
+    } else if (v) {
+      showToast('O relatório foi baixado, mas a lista de perguntas está vazia.');
+    } else {
+      console.warn('Ação interrompida: vistoria retornou null.');
+    }
+  } catch (e) {
+    showToast('Erro ao abrir tela: ' + e.message);
+  }
+}
+
+window.removerItemHistorico = async function(vistId, itemId) {
+  if(!confirm('Tem certeza que deseja excluir permanentemente este item do relatório salvo?')) return;
+  showToast('Removendo item e recalculando...');
+  
+  const v = await loadVistoria(vistId);
+  if(!v) return showToast('Erro ao carregar a vistoria original.');
+
+  v.itens = v.itens.filter(i => i.id !== itemId);
+  await saveVistoria(v); 
+  
+  state.vistoriaAberta = v;
+  render(); 
+}
+
+/* ============================================================
+   TELA: DETALHE / RELATÓRIO INDIVIDUAL (PDF)
+   ============================================================ */
+function viewVistoriaDetalhe(vistoriaParam) {
+  const v = vistoriaParam || state.vistoriaAberta;
+  if (!v) return 'Erro.';
+  const ncs = v.itens.filter(i => i.status === 'nc');
+
+  return `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Relatório</div>
+      <h1 class="view-title">${esc(v.estruturaNome)}</h1>
+    </div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="setView('vistorias')">← Voltar</button>
+      <button class="btn ghost" onclick="editarVistoriaAtual()">✏️ Editar</button>
+      <button class="btn ghost danger" onclick="deletarVistoriaAtual()">✕ Excluir Relatório</button>
+      <button class="btn primary" onclick="window.print()">🖨️ Imprimir PDF</button>
+    </div>
+  </div>
+  
+  <div class="print-only-title" style="display:none; text-align:center;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório de Inspeção - ${esc(v.estruturaNome)}</h1>
+    <p style="color:var(--ink-soft); margin-top:8px;">${esc(v.empreendimentoNome)}</p>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:24px; background:var(--surface-2);">
+    <div class="grid cols-4">
+      <div><span class="eyebrow">Data e Hora</span><br><strong>${fmtDate(v.dataHora)}</strong></div>
+      <div><span class="eyebrow">Equipe</span><br><strong>${esc(v.equipe || '—')}</strong></div>
+      <div><span class="eyebrow">Responsável</span><br><strong>${esc(v.responsavel)}</strong></div>
+      <div><span class="eyebrow">Geolocalização (GPS)</span><br><strong>${v.gps ? `${v.gps.lat.toFixed(5)}, ${v.gps.lng.toFixed(5)}` : 'N/A'}</strong></div>
+    </div>
+  </div>
+
+  <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Checklist Completo</h3>
+  <div class="card table-wrapper" style="margin-bottom:28px;">
+    <table>
+      <thead><tr><th>Item</th><th>Status</th><th>Observação</th><th class="no-print" style="width: 50px;">Ação</th></tr></thead>
+      <tbody>
+        ${v.itens.map(it => `
+          <tr style="break-inside: avoid;">
+            <td style="width:50%; font-weight:500;">${esc(it.texto)}</td>
+            <td><span class="badge ${it.status === 'conforme' ? 'conforme' : it.status === 'nc' ? 'nc' : 'na'}">${it.status.toUpperCase()}</span></td>
+            <td style="font-size:13px; color:var(--ink-soft);">${esc(it.observacao) || '—'}</td>
+            <td class="no-print"><button class="btn ghost sm danger" onclick="removerItemHistorico('${v.id}', '${it.id}')" title="Excluir item do check-list salvo">✕</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  ${ncs.length > 0 ? `
+    <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px; color:var(--nc);">Plano de Ação (Não Conformidades)</h3>
+    <div class="card table-wrapper" style="margin-bottom:28px; border-color:var(--nc-bg);">
+      <table>
+        <thead><tr><th>Problema (Item)</th><th>Criticidade</th><th>Recomendação Técnica</th></tr></thead>
+        <tbody>
+          ${ncs.map(it => `
+            <tr style="break-inside: avoid;">
+              <td style="font-weight:600;">${esc(it.texto)}</td>
+              <td><span class="badge ${it.criticidade}">${criticidadeLabel(it.criticidade)}</span></td>
+              <td style="font-size:13.5px;">${esc(it.recomendacao) || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : ''}
+
+  ${v.itens.some(i => i.fotos && i.fotos.length) ? `
+    <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Relatório Fotográfico</h3>
+    <div class="grid cols-2">
+      ${v.itens.filter(i => i.fotos && i.fotos.length).map(it => `
+        <div class="card card-pad" style="break-inside: avoid;">
+          <div style="font-weight:600;margin-bottom:12px; font-size:13px;">Ref: ${esc(it.texto)}</div>
+          <div class="photo-row">
+            ${it.fotos.map(f => `<img src="${f}" style="width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line);">`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : ''}
+  `;
+}
+
+function bindVistoriaDetalhe() {}
+
+window.deletarVistoriaAtual = async function() {
+  if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
+    const id = state.vistoriaAberta.id;
+    state.vistoriasIndex = state.vistoriasIndex.filter(v => v.id !== id);
+    await storageSet('vistorias:index', state.vistoriasIndex);
+    await storageRemove('vistoria:'+id);
+    if(_supabase && navigator.onLine) await _supabase.from('vistorias').delete().eq('id', id);
+    state.vistoriaAberta = null;
+    setView('vistorias');
+    showToast('Check-list excluído.');
+  }
+}
+
+window.editarVistoriaAtual = function() {
+  try {
+    const v = state.vistoriaAberta;
+    if(!v || !v.itens) {
+      showToast('Erro: Os dados desse check-list estão corrompidos ou incompletos.');
+      return;
+    }
+    
+    const respostas = {};
+    v.itens.forEach(it => {
+      respostas[it.id] = { 
+        status: it.status || '', 
+        observacao: it.observacao || '', 
+        criticidade: it.criticidade || 'media', 
+        recomendacao: it.recomendacao || '', 
+        fotos: it.fotos || [] 
+      };
+    });
+    
+    state.novaVistoria = {
+      id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
+      equipe: v.equipe || '',
+      resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
+      itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
+    };
+    setView('nova');
+  } catch (e) {
+    showToast('Erro na abertura do painel de edição: ' + e.message);
+  }
+}
+
+window.gerarPdfUnico = async function(id) {
+  const v = await loadVistoria(id);
+  if(v) {
+    const originalAberta = state.vistoriaAberta;
+    const originalView = state.view;
+    state.vistoriaAberta = v;
+    
+    const content = document.getElementById('content');
+    content.innerHTML = `
+      <div class="no-print view-head"><button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button><button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button></div>
+      ${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}
+    `;
+    state.vistoriaAberta = originalAberta;
+  }
+};
+
+window.gerarPdfMes = async function(mesIso, empNome) {
+  const vistsIdx = state.vistoriasIndex.filter(v => v.empreendimentoNome === empNome && new Date(v.dataHora).toISOString().slice(0, 7) === mesIso);
+  const vists = [];
+  for(let idx of vistsIdx) { const full = await loadVistoria(idx.id); if(full) vists.push(full); }
+  
+  if(vists.length === 0) return showToast('Nada para imprimir');
+  
+  const originalView = state.view;
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="no-print view-head">
+      <button class="btn ghost" onclick="setView('${originalView}')">← Voltar</button>
+      <button class="btn primary" onclick="window.print()">🖨️ Confirmar Impressão</button>
+    </div>
+    <div class="print-only-title" style="display:block; text-align:center; margin-bottom:40px;">
+      <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório Mensal de Check-lists</h1>
+      <p style="color:var(--ink-soft); font-size:18px; margin-top:8px;">${esc(empNome)} | Período: ${formatMesIsoParaExtenso(mesIso)}</p>
+    </div>
+    ${vists.map((v) => {
+      return `<div style="page-break-after:always; margin-bottom:60px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
+    }).join('')}
+  `;
+};
+
+/* ============================================================
+   TELA: EVOLUÇÃO (Multi-Seleção e Multi-Linhas)
+   ============================================================ */
+window.toggleEvoEmp = function(val, checked) {
+  if (checked) {
+    if (!state.evoEmps.includes(val)) state.evoEmps.push(val);
+  } else {
+    state.evoEmps = state.evoEmps.filter(e => e !== val);
+  }
+  const validEsts = new Set(state.vistoriasIndex.filter(v => state.evoEmps.includes(v.empreendimentoNome)).map(v => v.estruturaNome));
+  state.evoEsts = state.evoEsts.filter(est => validEsts.has(est));
+  render();
+};
+
+window.toggleEvoEst = function(val, checked) {
+  if (checked) {
+    if (!state.evoEsts.includes(val)) state.evoEsts.push(val);
+  } else {
+    state.evoEsts = state.evoEsts.filter(e => e !== val);
+  }
+  render();
+};
+
+function viewEvolucao() {
+  const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
+  let ests = [];
+  if(state.evoEmps && state.evoEmps.length > 0){
+    ests = [...new Set(state.vistoriasIndex.filter(v => state.evoEmps.includes(v.empreendimentoNome)).map(v => v.estruturaNome).filter(Boolean))].sort();
+  }
+  
+  const empLabel = state.evoEmps.length === 0 ? '-- Selecione --' : (state.evoEmps.length === 1 ? state.evoEmps[0] : `${state.evoEmps.length} selecionados`);
+  const estLabel = state.evoEsts.length === 0 ? '-- Selecione --' : (state.evoEsts.length === 1 ? state.evoEsts[0] : `${state.evoEsts.length} selecionadas`);
+
+  let html = `
+  <div class="view-head no-print">
+    <div><div class="eyebrow">Auditoria</div><h1 class="view-title">Evolução dos Check-lists</h1></div>
+    <div class="rowflex">
+      <button class="btn ghost" onclick="window.print()" id="btn-print-evo" style="${(!state.evoEmps.length || !state.evoEsts.length) ? 'display:none;' : ''}">🖨️ Exportar PDF</button>
+      <button class="btn ghost" onclick="exportarExcel('evo')" id="btn-excel-evo" style="${(!state.evoEmps.length || !state.evoEsts.length) ? 'display:none;' : ''}">📊 Exportar Excel</button>
+    </div>
+  </div>
+  
+  <div class="print-only-title" style="display:none; text-align:center; margin-bottom: 20px;">
+    <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Evolução dos Check-lists</h1>
+    <p style="color:var(--ink-soft); margin-top:8px;">${esc(state.evoEmps.join(', '))} | ${esc(state.evoEsts.join(', '))}</p>
+  </div>
+
+  <div class="card card-pad no-print" style="margin-bottom:24px; background:var(--surface-2);">
+    <div class="grid cols-2">
+      <div class="field">
+        <label class="field-label">Empreendimentos</label>
+        <details class="multi-select-details" id="det-evo-emp">
+          <summary class="multi-select-summary">${esc(empLabel)}</summary>
+          <div class="multi-select-dropdown">
+            ${emps.map(e => `
+              <label>
+                <input type="checkbox" onchange="toggleEvoEmp('${esc(e)}', this.checked)" ${state.evoEmps.includes(e) ? 'checked' : ''}>
+                ${esc(e)}
+              </label>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+      <div class="field">
+        <label class="field-label">Estruturas Inspecionadas</label>
+        <details class="multi-select-details" id="det-evo-est" ${!state.evoEmps.length ? 'disabled style="opacity:0.5;pointer-events:none;"' : ''}>
+          <summary class="multi-select-summary">${esc(estLabel)}</summary>
+          <div class="multi-select-dropdown">
+            ${ests.map(e => `
+              <label>
+                <input type="checkbox" onchange="toggleEvoEst('${esc(e)}', this.checked)" ${state.evoEsts.includes(e) ? 'checked' : ''}>
+                ${esc(e)}
+              </label>
+            `).join('')}
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>`;
+
+  if(!state.evoEmps.length || !state.evoEsts.length) {
+    return html + `<div class="empty card no-print"><div class="ic">📈</div>Utilize os filtros acima para visualizar a linha do tempo.</div>`;
+  }
+
+  const history = state.vistoriasIndex.filter(vi => state.evoEmps.includes(vi.empreendimentoNome) && state.evoEsts.includes(vi.estruturaNome))
+    .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+
+  if(history.length === 0) return html + `<div class="empty card no-print">Nenhum check-list encontrado para esta combinação.</div>`;
+
+  html += `
+  <div class="card card-pad" style="margin-bottom:30px; height: 320px; display:flex; align-items:center; justify-content:center;">
+    <canvas id="evoChart"></canvas>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:24px;break-inside:avoid;">
+    <div class="rowflex" style="justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;font-family:var(--font-display);font-size:22px;">Evolução Item a Item</h3>
+      <button class="btn primary sm no-print" onclick="gerarRelatorioGerencial()" ${state.evoEsts.length > 1 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>📄 Relatório Gerencial</button>
+    </div>
+    <div id="evo-matriz"><div class="empty">Carregando matriz…</div></div>
+  </div>
+  <div id="evo-comentarios" class="grid cols-2" style="align-items:start;margin-bottom:24px;"></div>
+
+  <div class="card table-wrapper">
+    <table>
+      <thead><tr><th>Empreendimento</th><th>Estrutura</th><th>Data da Inspeção</th><th>Responsável</th><th>Status (NCs)</th><th class="no-print">Ação</th></tr></thead>
+      <tbody>
+        ${[...history].reverse().map(h => `
+          <tr>
+            <td style="font-weight:600;">${esc(h.empreendimentoNome)}</td>
+            <td style="font-weight:600;">${esc(h.estruturaNome)}</td>
+            <td>${fmtDate(h.dataHora)}</td>
+            <td>${esc(h.responsavel)}</td>
+            <td>${h.totalNC > 0 ? `<span class="badge nc">${h.totalNC} Não Conformidades</span>` : `<span class="badge conforme">100% Conforme</span>`}</td>
+            <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${h.id}')">🔍 Ver Relatório</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>`;
+  return html;
+}
+
+async function bindEvolucao() {
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('.multi-select-details').forEach(det => {
+      if(!det.contains(e.target)) det.removeAttribute('open');
+    });
+  });
+
+  const canvas = document.getElementById('evoChart');
+  if (canvas) {
+    if (window.evoChartInstance) window.evoChartInstance.destroy();
+    
+    const selectedVists = state.vistoriasIndex.filter(v => state.evoEmps.includes(v.empreendimentoNome) && state.evoEsts.includes(v.estruturaNome))
+      .sort((a,b)=> new Date(a.dataHora) - new Date(b.dataHora));
+      
+    const uniqueDatesIso = [...new Set(selectedVists.map(v => v.dataHora))].sort((a,b)=> new Date(a) - new Date(b));
+    const labels = uniqueDatesIso.map(iso => fmtDate(iso).split(' às')[0]);
+    
+    const datasets = state.evoEsts.map((est, index) => {
+      const vistsEst = selectedVists.filter(v => v.estruturaNome === est);
+      
+      const data = uniqueDatesIso.map(iso => {
+         const fmt = fmtDate(iso).split(' às')[0];
+         const match = vistsEst.find(v => fmtDate(v.dataHora).split(' às')[0] === fmt);
+         return match ? (match.totalNC || 0) : null; 
+      });
+      
+      const color = `hsl(${(index * 137.5) % 360}, 70%, 45%)`;
+      return {
+        label: est,
+        data: data,
+        borderColor: color,
+        backgroundColor: color,
+        fill: false,
+        tension: 0.3,
+        spanGaps: true,
+        borderWidth: 3,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      };
+    });
+
+    const ctx = canvas.getContext('2d');
+    window.evoChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: datasets
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        scales: { y: { min: 0, ticks: { precision: 0 }, title: { display: true, text: 'Não Conformidades' } } },
+        plugins: { legend: { position: 'bottom' } }
+      }
+    });
+  }
+
+  if (state.evoEsts.length === 1 && state.evoEmps.length > 0) {
+    const selectedVists = state.vistoriasIndex.filter(v => state.evoEmps.includes(v.empreendimentoNome) && v.estruturaNome === state.evoEsts[0]);
+    const empDaEstrutura = selectedVists.find(v => v.estruturaNome === state.evoEsts[0])?.empreendimentoNome;
+    
+    if (empDaEstrutura) {
+      const m = await matrizEvolucao(empDaEstrutura, state.evoEsts[0]);
+      window._matrizEvoCache = m;
+
+      const cor = st => st==='conforme'?'var(--conforme-bg)':st==='nc'?'var(--nc-bg)':st==='na'?'var(--na-bg)':'#fff';
+      const txt = st => st==='conforme'?'✓':st==='nc'?'✕':st==='na'?'N/A':'—';
+      const bCls = { regularizado:'conforme', recorrente:'nc', novo:'alta', agravou:'critica', conforme:'conforme', nc:'nc', na:'na' };
+      const bTxt = { regularizado:'Regularizado', recorrente:'Recorrente', novo:'Novo', agravou:'Agravou', conforme:'Conforme', nc:'Não Conf.', na:'N/A' };
+
+      const matEl = document.getElementById('evo-matriz');
+      if (matEl) {
+        matEl.innerHTML = `
+        <div class="table-wrapper">
+          <table style="min-width:100%;font-size:13px;">
+            <thead>
+              <tr>
+                <th style="min-width:220px;">Item</th>
+                ${m.vistorias.map(v=>`<th style="text-align:center;white-space:nowrap;">${fmtDate(v.dataHora).split(' às')[0]}</th>`).join('')}
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${m.linhas.map(l=>`
+                <tr>
+                  <td style="font-weight:500;">${esc(l.texto)}</td>
+                  ${l.celulas.map(c=>`<td style="text-align:center;background:${cor(c.status)};font-weight:700;">${txt(c.status)}</td>`).join('')}
+                  <td><span class="badge ${bCls[l.classificacao]||'na'}">${bTxt[l.classificacao]||'—'}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>`;
+      }
+
+      const com = gerarComentarios(m);
+      const bloco = (titulo, arr, cls) => `
+        <div class="card card-pad" style="break-inside:avoid;">
+          <h4 style="margin:0 0 12px;color:var(--${cls});">${titulo} (${arr.length})</h4>
+          ${arr.length?'<ul style="margin:0;padding-left:18px;line-height:1.7;">'+arr.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':'<p style="color:var(--ink-faint);margin:0;">Nenhum.</p>'}
+        </div>`;
+      const comEl = document.getElementById('evo-comentarios');
+      if (comEl) {
+        comEl.innerHTML = bloco('✅ Melhorias',com.regularizados,'conforme')+bloco('🔴 Recorrentes',com.recorrentes,'nc')+bloco('⚠️ Novos',com.novos,'alta')+bloco('📈 Agravamentos',com.agravados,'critica');
+      }
+    }
+  } else if (state.evoEsts.length > 1) {
+    document.getElementById('evo-matriz').innerHTML = `<div class="empty">Selecione apenas UMA estrutura para ver a análise item a item.</div>`;
+    document.getElementById('evo-comentarios').innerHTML = '';
+    window._matrizEvoCache = null;
+  }
+}
+
 /* ============================================================
    TELA: MAPEAMENTO DE NCs CONSOLIDADAS
    ============================================================ */
@@ -3540,7 +5196,7 @@ function bindNcs() {
 }
 
 /* ============================================================
-   EXPORTAÇÃO EXCEL E INICIALIZAÇÃO
+   EXPORTAÇÃO E INICIALIZAÇÃO
    ============================================================ */
 window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') {
   showToast('Gerando base Excel, aguarde...');
