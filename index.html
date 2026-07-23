@@ -3113,11 +3113,6 @@ function setView(viewName) {
   render();
   window.scrollTo(0, 0);
 }
-  state.view = viewName;
-  closeModal();
-  render();
-  window.scrollTo(0, 0);
-}
 
 function render() {
   if (!state.ready) return;
