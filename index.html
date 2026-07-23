@@ -3385,7 +3385,7 @@ async function saveVistoria(v) {
         }
       });
       if (!error) syncSuccess = true;
-    } catch(e) {}
+    } catch(e) { console.error('Falha ao sincronizar vistoria com a nuvem:', e); }
   }
 
   v.syncStatus = syncSuccess ? 'synced' : 'pending';
@@ -5071,18 +5071,34 @@ async function bindEvolucao() {
     const uniqueDatesIso = [...new Set(selectedVists.map(v => v.dataHora))].sort((a,b)=> new Date(a) - new Date(b));
     const labels = uniqueDatesIso.map(iso => fmtDate(iso).split(' às')[0]);
     
-    const datasets = state.evoEsts.map((est, index) => {
-      const vistsEst = selectedVists.filter(v => v.estruturaNome === est);
-      
+    // Uma linha por combinação empreendimento + estrutura (permite comparar a
+    // MESMA estrutura entre empreendimentos diferentes, sem somar).
+    const multiEmp = state.evoEmps.length > 1;
+    const combos = [];
+    state.evoEmps.forEach(emp => {
+      state.evoEsts.forEach(est => {
+        // só cria a linha se existir ao menos um check-list dessa combinação
+        if (selectedVists.some(v => v.empreendimentoNome === emp && v.estruturaNome === est)) {
+          combos.push({ emp, est });
+        }
+      });
+    });
+
+    const datasets = combos.map((combo, index) => {
+      const vistsCombo = selectedVists.filter(v => v.empreendimentoNome === combo.emp && v.estruturaNome === combo.est);
+
       const data = uniqueDatesIso.map(iso => {
          const fmt = fmtDate(iso).split(' às')[0];
-         const match = vistsEst.find(v => fmtDate(v.dataHora).split(' às')[0] === fmt);
-         return match ? (match.totalNC || 0) : null; 
+         const match = vistsCombo.find(v => fmtDate(v.dataHora).split(' às')[0] === fmt);
+         return match ? (match.totalNC || 0) : null;
       });
-      
+
+      // Mais de um empreendimento selecionado -> "Empreendimento — Estrutura"
+      // para diferenciar; um só -> apenas a estrutura (evita repetição).
+      const label = multiEmp ? `${combo.emp} — ${combo.est}` : combo.est;
       const color = `hsl(${(index * 137.5) % 360}, 70%, 45%)`;
       return {
-        label: est,
+        label: label,
         data: data,
         borderColor: color,
         backgroundColor: color,
