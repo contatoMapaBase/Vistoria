@@ -3066,7 +3066,53 @@ async function bindRanking() {
   container.innerHTML = resumoHtml + tabelaHtml;
 }
 
+  // REMOVER APÓS RODAR UMA VEZ
+window.rodarBackfillEquipe = async function() {
+  if (!confirm('Marcar TODOS os check-lists sem equipe definida como "Auditoria Externa (Cliente)"? Os que já têm equipe não serão alterados. Esta ação altera apenas o campo Equipe.')) {
+    return;
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  showToast('Iniciando backfill...');
+
+  for (let entry of state.vistoriasIndex) {
+    if (!entry.equipe || entry.equipe.trim() === '') {
+      try {
+        entry.equipe = 'Auditoria Externa';
+        const fullVistoria = await loadVistoria(entry.id);
+        if (fullVistoria) {
+          fullVistoria.equipe = 'Auditoria Externa';
+          await storageSet('vistoria:' + fullVistoria.id, fullVistoria);
+          
+          if (_supabase && navigator.onLine && entry.syncStatus === 'synced') {
+            await _supabase.from('vistorias').update({ equipe: 'Auditoria Externa' }).eq('id', entry.id);
+          }
+          updated++;
+        } else {
+          skipped++; 
+        }
+      } catch (e) {
+        console.error('Erro no backfill do ID', entry.id, e);
+        skipped++;
+      }
+    } else {
+      skipped++;
+    }
+  }
+  
+  await storageSet('vistorias:index', state.vistoriasIndex);
+  render();
+  showToast(`Backfill concluído: ${updated} marcados como Externa, ${skipped} pulados.`);
+};
+
+/* A FUNÇÃO QUE VOCÊ PESQUISOU VAI ESTAR LOGO AQUI ABAIXO: */
 function setView(viewName) {
+  state.view = viewName;
+  closeModal();
+  render();
+  window.scrollTo(0, 0);
+}
   state.view = viewName;
   closeModal();
   render();
@@ -4256,7 +4302,9 @@ function viewDashboard() {
       <div class="eyebrow">Visão Geral</div>
       <h1 class="view-title">Painel de Inspeções</h1>
     </div>    
-    <div class="rowflex">      
+    <div class="rowflex">    
+    <!-- REMOVER APÓS RODAR UMA VEZ -->
+      <button class="btn ghost danger" onclick="rodarBackfillEquipe()">🔧 Definir Antigos como Externa</button>
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
       <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
