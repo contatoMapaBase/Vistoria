@@ -3442,6 +3442,7 @@ async function loadVistoria(id) {
       if (!error && data) {
         let itensParsed = typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens;
         let gpsParsed  = typeof data.gps  === 'string' ? JSON.parse(data.gps)  : data.gps;
+        let critMap    = typeof data.criticidades_map === 'string' ? JSON.parse(data.criticidades_map) : data.criticidades_map;
         
         const v = {
           id: data.id, 
@@ -3452,6 +3453,7 @@ async function loadVistoria(id) {
           dataHora: data.data_hora, 
           gps: gpsParsed,
           itens: Array.isArray(itensParsed) ? itensParsed : [], 
+          observacaoGeral: (critMap && critMap._obsGeral) ? critMap._obsGeral : '', 
           syncStatus: 'synced'
         };
         
@@ -3502,7 +3504,8 @@ window.sincronizarPendentes = async function() {
           ...analise.counts, 
           _categorias: analise.categorias, 
           _na: analise.totalNA, 
-          _ncs: analise.ncsResumo 
+          _ncs: analise.ncsResumo,
+          _obsGeral: v.observacaoGeral || ''
         }
       });
       
@@ -3550,7 +3553,8 @@ async function saveVistoria(v) {
           ...analise.counts, 
           _categorias: analise.categorias, 
           _na: analise.totalNA, 
-          _ncs: analise.ncsResumo 
+          _ncs: analise.ncsResumo,
+          _obsGeral: v.observacaoGeral || ''
         }
       });
       if (!error) syncSuccess = true;
@@ -4016,6 +4020,7 @@ function viewNovaVistoria() {
       gps: null, 
       itens: [], 
       respostas: {}, 
+      observacaoGeral: '', 
       mostrarTodasEstruturas: false 
     };
   }
@@ -4211,6 +4216,12 @@ function viewNovaVistoria() {
       </button>
     </div>
 
+    <div class="card card-pad no-print" style="margin-bottom:8px; border-left:4px solid var(--accent);">
+      <label class="field-label" for="nv-obs-geral" style="font-size:13px;">📝 Observações Gerais do Check-list <span style="font-weight:500; color:var(--ink-faint);">(opcional)</span></label>
+      <textarea id="nv-obs-geral" rows="4" placeholder="Considerações gerais sobre a inspeção: contexto, condições climáticas, resumo do inspetor, pontos de atenção, próximos passos… (campo opcional)">${esc(nv.observacaoGeral || '')}</textarea>
+      <div class="hint" style="font-size:11.5px; color:var(--ink-faint); margin-top:6px;">Este texto é opcional e aparecerá no relatório final, no histórico e ao editar o check-list.</div>
+    </div>
+
     <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; position:sticky; bottom:16px; box-shadow:var(--shadow); z-index:10;">
       <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.</div>
       <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Check-list</button>
@@ -4347,6 +4358,10 @@ function bindNovaVistoria() {
       inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].recomendacao = e.target.value);
     });
 
+    document.getElementById('nv-obs-geral')?.addEventListener('input', e => {
+      nv.observacaoGeral = e.target.value;
+    });
+
     document.getElementById('btn-nv-save')?.addEventListener('click', async () => {
       const faltam = nv.itens.filter(it => !nv.respostas[it.id]?.status);
       if(faltam.length > 0) {
@@ -4357,6 +4372,10 @@ function bindNovaVistoria() {
       if(ncsSemObs.length > 0) {
         return showToast('Toda Não Conformidade exige uma Observação justificando o problema.');
       }
+
+      // Garante que o texto das observações gerais (opcional) seja capturado mesmo sem disparar o evento
+      const obsGeralEl = document.getElementById('nv-obs-geral');
+      if (obsGeralEl) nv.observacaoGeral = obsGeralEl.value;
 
       const finalItens = nv.itens.map(it => ({
         ...it,
@@ -4377,7 +4396,8 @@ function bindNovaVistoria() {
         responsavel: nv.resp,
         dataHora: nv.dataHora,
         gps: nv.gps,
-        itens: finalItens
+        itens: finalItens,
+        observacaoGeral: nv.observacaoGeral || ''
       };
 
       await saveVistoria(vistObj);
@@ -5029,6 +5049,13 @@ function viewVistoriaDetalhe(vistoriaParam) {
     </div>
   </div>
 
+  ${(v.observacaoGeral && v.observacaoGeral.trim()) ? `
+    <div class="card card-pad" style="margin-bottom:24px; border-left:4px solid var(--accent); break-inside: avoid;">
+      <div class="eyebrow" style="margin-bottom:8px;">📝 Observações Gerais</div>
+      <div style="font-size:14px; color:var(--ink); line-height:1.55; white-space:pre-wrap;">${esc(v.observacaoGeral)}</div>
+    </div>
+  ` : ''}
+
   <h3 style="margin:0 0 16px; font-family:var(--font-display); font-size:24px;">Checklist Completo</h3>
   <div class="card table-wrapper" style="margin-bottom:28px;">
     <table>
@@ -5120,7 +5147,9 @@ window.editarVistoriaAtual = function() {
       id: v.id, step: 1, emp: v.empreendimentoNome, est: v.estruturaNome,
       equipe: v.equipe || '',
       resp: v.responsavel, gps: v.gps, dataHora: v.dataHora,
-      itens: v.itens, respostas: respostas, mostrarTodasEstruturas: true
+      itens: v.itens, respostas: respostas,
+      observacaoGeral: v.observacaoGeral || '',
+      mostrarTodasEstruturas: true
     };
     setView('nova');
   } catch (e) {
