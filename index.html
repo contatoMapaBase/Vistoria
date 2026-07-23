@@ -2665,22 +2665,28 @@ async function matrizEvolucao(empNome, estNome) {
 function _classificar(celulas) {
   const pres = celulas.filter(c => c.status === 'conforme' || c.status === 'nc');
   if(!pres.length) return 'na';
-  
+
   const ult = pres[pres.length - 1];
   const pen = pres.length > 1 ? pres[pres.length - 2] : null;
-  
-  if(pen && pen.status === 'nc' && ult.status === 'conforme') return 'regularizado';
-  if((pen && pen.status === 'conforme' && ult.status === 'nc') || (!pen && ult.status === 'nc')) return 'novo';
-  if(pen && pen.status === 'nc' && ult.status === 'nc' && (_PESO[ult.criticidade] || 0) > (_PESO[pen.criticidade] || 0)) return 'agravou';
-  
-  let seg = 0; 
-  for(let k = pres.length - 1; k >= 0 && pres[k].status === 'nc'; k--) {
-    seg++;
+  const anteriores = pres.slice(0, -1);              // tudo antes da última avaliação
+  const jaFoiNCantes = anteriores.some(c => c.status === 'nc');
+
+  // 1) Última é Conforme -> resolvido (se antes era NC) ou sempre conforme
+  if(ult.status === 'conforme') {
+    return (pen && pen.status === 'nc') ? 'regularizado' : 'conforme';
   }
-  
-  if(seg >= 2) return 'recorrente';
-  
-  return ult.status === 'conforme' ? 'conforme' : 'nc';
+
+  // Daqui pra baixo, a última avaliação é NC.
+
+  // 2) NOVO = está NC agora e NUNCA tinha sido NC em nenhuma inspeção anterior.
+  if(!jaFoiNCantes) return 'novo';
+
+  // 3) AGRAVOU = NC nas duas últimas e a criticidade subiu.
+  if(pen && pen.status === 'nc' && (_PESO[ult.criticidade] || 0) > (_PESO[pen.criticidade] || 0)) return 'agravou';
+
+  // 4) Já foi NC antes e está NC de novo = REINCIDENTE (recorrente).
+  //    Cobre tanto NCs consecutivas quanto as que oscilam (ex.: ✕ ✓ ✕).
+  return 'recorrente';
 }
 
 function gerarComentarios(matriz) {
@@ -5227,6 +5233,20 @@ function viewEvolucao() {
         </details>
       </div>
     </div>
+    <div class="field" style="margin-top:16px;">
+      <label class="field-label">Filtrar por Categoria (opcional)</label>
+      <select id="evo-categoria-select" onchange="state.evoCategoria = this.value; render();" style="max-width:360px;">
+        <option value="">Todas as categorias (total de NCs)</option>
+        ${(() => {
+          const cats = new Set();
+          state.vistoriasIndex
+            .filter(v => state.evoEmps.includes(v.empreendimentoNome) && state.evoEsts.includes(v.estruturaNome))
+            .forEach(v => { if(Array.isArray(v.ncsResumo)) v.ncsResumo.forEach(nc => cats.add((nc.categoria && nc.categoria.trim()) ? nc.categoria.trim() : 'Sem categoria')); });
+          return [...cats].sort().map(c => `<option value="${esc(c)}" ${state.evoCategoria===c?'selected':''}>${esc(c)}</option>`).join('');
+        })()}
+      </select>
+      ${state.evoCategoria ? `<p style="font-size:12px;color:var(--ink-soft);margin:6px 0 0;">Mostrando apenas as NCs da categoria "<strong>${esc(state.evoCategoria)}</strong>".</p>` : ''}
+    </div>
   </div>`;
 
   if(!state.evoEmps.length || !state.evoEsts.length) {
@@ -5241,7 +5261,7 @@ function viewEvolucao() {
   html += `
   <div class="card card-pad" style="margin-bottom:30px;">
     <div class="rowflex no-print" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3 style="margin:0;font-family:var(--font-display);font-size:20px;font-weight:600;">Evolução Comparativa (Não Conformidades)</h3>
+      <h3 style="margin:0;font-family:var(--font-display);font-size:20px;font-weight:600;">Evolução Comparativa (Não Conformidades)${state.evoCategoria ? ` — ${esc(state.evoCategoria)}` : ''}</h3>
       <div class="rowflex">
         <button class="btn ghost sm" onclick="abrirGraficoEvolucaoAba()">🔍 Ampliar</button>
         <button class="btn ghost sm" onclick="baixarGraficoEvolucao('evoChartInstance')">⬇️ Baixar PNG</button>
@@ -5317,7 +5337,17 @@ async function bindEvolucao() {
       const data = uniqueDatesIso.map(iso => {
          const fmt = fmtDate(iso).split(' às')[0];
          const match = vistsCombo.find(v => fmtDate(v.dataHora).split(' às')[0] === fmt);
-         return match ? (match.totalNC || 0) : null;
+         if (!match) return null;
+         // Se há categoria filtrada, conta só as NCs daquela categoria (via ncsResumo);
+         // senão, usa o total de NCs do check-list.
+         if (state.evoCategoria) {
+           if (!Array.isArray(match.ncsResumo)) return 0;
+           return match.ncsResumo.filter(nc => {
+             const c = (nc.categoria && nc.categoria.trim()) ? nc.categoria.trim() : 'Sem categoria';
+             return c === state.evoCategoria;
+           }).length;
+         }
+         return match.totalNC || 0;
       });
 
       // Mais de um empreendimento selecionado -> "Empreendimento — Estrutura"
@@ -5366,7 +5396,7 @@ async function bindEvolucao() {
       const cor = st => st==='conforme'?'var(--conforme-bg)':st==='nc'?'var(--nc-bg)':st==='na'?'var(--na-bg)':'#fff';
       const txt = st => st==='conforme'?'✓':st==='nc'?'✕':st==='na'?'N/A':'—';
       const bCls = { regularizado:'conforme', recorrente:'nc', novo:'alta', agravou:'critica', conforme:'conforme', nc:'nc', na:'na' };
-      const bTxt = { regularizado:'Regularizado', recorrente:'Recorrente', novo:'Novo', agravou:'Agravou', conforme:'Conforme', nc:'Não Conf.', na:'N/A' };
+      const bTxt = { regularizado:'Regularizado', recorrente:'Reincidente', novo:'Novo', agravou:'Agravou', conforme:'Conforme', nc:'Não Conf.', na:'N/A' };
 
       const matEl = document.getElementById('evo-matriz');
       if (matEl) {
@@ -5415,6 +5445,16 @@ async function bindEvolucao() {
    TELA: MAPEAMENTO DE NCs CONSOLIDADAS
    ============================================================ */
 function viewNcs() {
+  // categorias existentes nas NCs (para popular o filtro)
+  const cats = new Set();
+  state.vistoriasIndex.forEach(ix => {
+    if(Array.isArray(ix.ncsResumo)) ix.ncsResumo.forEach(nc => {
+      cats.add((nc.categoria && nc.categoria.trim() !== '') ? nc.categoria.trim() : 'Sem categoria');
+    });
+  });
+  const catAtual = (state.filtros.nc && state.filtros.nc.categoria) ? state.filtros.nc.categoria : '';
+  const catOptions = [...cats].sort().map(c => `<option value="${esc(c)}" ${catAtual===c?'selected':''}>${esc(c)}</option>`).join('');
+
   return `
   <div class="view-head no-print">
     <div><div class="eyebrow">Consolidado</div><h1 class="view-title">Mapeamento de NCs</h1></div>
@@ -5424,6 +5464,13 @@ function viewNcs() {
     </div>
   </div>
   ${renderFilterBar('nc')}
+  <div class="card card-pad no-print" style="margin-bottom:16px;padding:12px 16px;">
+    <label class="field-label" style="margin-bottom:6px;">Filtrar por Categoria da NC</label>
+    <select id="filter-nc-categoria" onchange="if(!state.filtros.nc) state.filtros.nc={}; state.filtros.nc.categoria=this.value; carregarNcsNaTela();" style="max-width:320px;">
+      <option value="">Todas as Categorias</option>
+      ${catOptions}
+    </select>
+  </div>
   <div id="ncs-container">
     <div class="empty card"><div class="ic">⚠️</div>Clique no botão acima para compilar todas as pendências.</div>
   </div>`;
@@ -5450,6 +5497,15 @@ window.carregarNcsNaTela = async function() {
     }
   });
 
+  // filtro por categoria da NC (select próprio da tela)
+  const catFiltro = (state.filtros.nc && state.filtros.nc.categoria) ? state.filtros.nc.categoria : '';
+  if (catFiltro) {
+    allNcs = allNcs.filter(nc => {
+      const c = (nc.item.categoria && nc.item.categoria.trim() !== '') ? nc.item.categoria.trim() : 'Sem categoria';
+      return c === catFiltro;
+    });
+  }
+
   if(allNcs.length === 0) {
     container.innerHTML = '<div class="empty card" style="color:var(--conforme);"><div class="ic">✨</div>Nenhuma não conformidade encontrada com os filtros selecionados!</div>';
     return;
@@ -5464,16 +5520,18 @@ window.carregarNcsNaTela = async function() {
     <p style="margin:6px 0 0;font-size:15px;color:#555;">${descricaoPeriodo('nc', filtradas)}</p>
     ${(state.filtros.nc.emp && state.filtros.nc.emp.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Empreendimentos: ${state.filtros.nc.emp.map(e=>esc(e)).join(', ')}</p>` : ''}
     ${(state.filtros.nc.est && state.filtros.nc.est.length) ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Estruturas: ${state.filtros.nc.est.map(e=>esc(e)).join(', ')}</p>` : ''}
+    ${catFiltro ? `<p style="margin:2px 0 0;font-size:13px;color:#777;">Categoria: ${esc(catFiltro)}</p>` : ''}
     <p style="margin:4px 0 0;font-size:12px;color:#999;">Total de NCs: ${allNcs.length} · Emitido em ${new Date().toLocaleDateString('pt-BR')}</p>
   </div>
   <div class="card table-wrapper" style="border-color:var(--nc-bg);">
     <table>
-      <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Item Reprovado</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
+      <thead><tr><th>Criticidade</th><th>Local / Estrutura</th><th>Categoria</th><th>Item Reprovado</th><th>Data</th><th class="no-print">Ação</th></tr></thead>
       <tbody>
         ${allNcs.map(nc => `
           <tr style="break-inside:avoid;">
             <td><span class="badge ${nc.item.criticidade}">${criticidadeLabel(nc.item.criticidade)}</span></td>
             <td><strong>${esc(nc.emp)}</strong><br><span style="font-size:12px;color:var(--ink-soft);">${esc(nc.est)}</span></td>
+            <td style="font-size:12.5px;color:var(--ink-soft);white-space:nowrap;">${esc(nc.item.categoria) || 'Sem categoria'}</td>
             <td style="max-width:280px; font-weight:500;">${esc(nc.item.texto)}</td>
             <td style="font-size:13px;">${fmtDate(nc.data).split(' às')[0]}</td>
             <td class="no-print"><button class="btn ghost sm" onclick="abrirVistoria('${nc.vistId}')">Abrir</button></td>
