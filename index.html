@@ -4008,6 +4008,33 @@ window.removerItemEst = function(idx) {
 /* ============================================================
    TELA: NOVO CHECK-LIST (ASSISTENTE COMPLETO)
    ============================================================ */
+// Inicia um check-list NOVO do zero, descartando qualquer edição/rascunho pendente.
+window.novoCheckList = function() {
+  const nv = state.novaVistoria;
+  const emAndamento = nv && (nv.id || nv.step === 2 || nv.emp || nv.est || nv.resp || (nv.itens && nv.itens.length));
+  if (emAndamento) {
+    const editando = !!nv.id;
+    const msg = editando
+      ? 'Existe uma edição em andamento que ainda não foi concluída. Iniciar um NOVO check-list vai descartar essas alterações. Deseja continuar?'
+      : 'Existe um check-list em andamento. Iniciar um novo vai descartar o preenchimento atual. Deseja continuar?';
+    if (!confirm(msg)) return;
+  }
+  state.novaVistoria = null;
+  setView('nova');
+};
+
+// Sai do check-list atual (novo ou edição) sem salvar e volta para a tela apropriada.
+window.cancelarCheckList = function() {
+  const nv = state.novaVistoria;
+  const editando = !!(nv && nv.id);
+  const msg = editando
+    ? 'Descartar as alterações não salvas e voltar ao histórico? As mudanças feitas nesta edição (ainda não concluídas) serão perdidas.'
+    : 'Descartar este novo check-list e voltar? Os dados preenchidos serão perdidos.';
+  if (!confirm(msg)) return;
+  state.novaVistoria = null;
+  setView(editando ? 'vistorias' : 'dashboard');
+};
+
 function viewNovaVistoria() {
   if (!state.novaVistoria) {
     state.novaVistoria = { 
@@ -4058,6 +4085,7 @@ function viewNovaVistoria() {
         <div class="eyebrow">${isEdit ? 'Edição' : 'Novo Check-list'}</div>
         <h1 class="view-title">${isEdit ? 'Editar Dados do Check-list' : 'Iniciar Check-list'}</h1>
       </div>
+      <button class="btn ghost" onclick="cancelarCheckList()">← ${isEdit ? 'Voltar ao Histórico' : 'Cancelar'}</button>
     </div>
     
     <div class="card card-pad" style="max-width: 600px;">
@@ -4545,7 +4573,7 @@ function viewDashboard() {
       ${window._backfillNcsFeito ? '' : '<button class="btn ghost danger" onclick="rodarBackfillNcs()" title="Recupera as pendências recorrentes dos check-lists antigos. Roda uma vez e some.">🔧 Recuperar Recorrentes</button>'}
       <button class="btn ghost" onclick="window.print()">🖨️ Exportar PDF</button>      
       <button class="btn ghost" onclick="exportarExcel('total')">📊 Exportar Excel</button>      
-      <button class="btn primary" onclick="setView('nova')">+ Novo Check-list</button>    
+      <button class="btn primary" onclick="novoCheckList()">+ Novo Check-list</button>    
     </div>  
   </div>  
   
