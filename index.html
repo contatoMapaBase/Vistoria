@@ -5305,9 +5305,10 @@ function viewVistorias() {
                         <td class="clickable" onclick="abrirVistoria('${v.id}')"><span style="font-size:12.5px;color:var(--ink-soft);">${esc(v.equipe || '—')}</span></td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.syncStatus === 'pending' ? '<span class="badge pending">⏳ Local</span>' : '<span class="badge conforme">✅ Nuvem</span>'}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.totalNC > 0 ? `<span class="badge nc">${v.totalNC}</span>` : `<span class="badge conforme">OK</span>`}</td>
-                        <td style="text-align:right; width:240px;">
+                        <td style="text-align:right; width:290px;">
                           <div class="rowflex" style="justify-content:flex-end; gap:6px;">
                             <button class="btn ghost sm" onclick="abrirVistoria('${v.id}')">🔍 Abrir</button>
+                            <button class="btn ghost sm" onclick="window.duplicarVistoria('${v.id}')">⧉ Duplicar</button>
                             <button class="btn ghost sm" onclick="window.gerarPdfUnico('${v.id}')">🖨️ PDF</button>
                             <button class="btn ghost sm" onclick="exportarExcel('vist', '${v.id}')">📊 CSV</button>
                           </div>
@@ -5460,6 +5461,32 @@ function viewVistoriaDetalhe(vistoriaParam) {
 }
 
 function bindVistoriaDetalhe() {}
+
+// Duplica um check-list do histórico: cria uma cópia editável, com data de hoje.
+// As fotos NÃO são copiadas (evidência é específica de cada inspeção) — a cópia
+// nasce sem fotos e você anexa as novas ao editar.
+window.duplicarVistoria = async function(id) {
+  const origem = await loadVistoria(id);
+  if(!origem) { showToast('Não foi possível carregar o check-list para duplicar.'); return; }
+
+  if(!confirm('Duplicar este check-list?\n\nSerá criada uma cópia EDITÁVEL, com a data de hoje, mantendo estrutura, itens, respostas e observações. As FOTOS não são copiadas — você anexa as novas ao editar.')) return;
+
+  const copia = {
+    id: uid(),
+    empreendimentoNome: origem.empreendimentoNome,
+    estruturaNome: origem.estruturaNome,
+    equipe: origem.equipe || '',
+    responsavel: origem.responsavel || '',
+    dataHora: new Date().toISOString(),
+    gps: null,
+    itens: (origem.itens || []).map(it => ({ ...it, fotos: [] })),
+    observacaoGeral: origem.observacaoGeral || ''
+  };
+
+  await saveVistoria(copia);
+  showToast('Check-list duplicado! Ele já está no histórico — abra para editar.');
+  setView('vistorias');
+};
 
 window.deletarVistoriaAtual = async function() {
   if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
