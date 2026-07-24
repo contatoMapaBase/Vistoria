@@ -4,6 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>MapaBase — Gestão de Inspeções Ambientais</title>
+
+  <!-- PWA / uso offline -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#16241C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MapaBase">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="icon" type="image/png" href="./icon-192.png">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1088,6 +1098,74 @@ window.rodarBackfillNcs = async function() {
   showToast(`Concluído: ${updated} check-lists reprocessados, ${skipped} pulados.`);
 };
 async function storageRemove(key) { return await idb.remove(key); }
+
+/* ============================================================
+   RASCUNHO AUTOMÁTICO — salva o check-list em andamento no
+   aparelho (IndexedDB) para não perder o preenchimento em caso
+   de fechamento, travamento ou troca de app. É best-effort e
+   silencioso; o registro só é apagado ao concluir ou cancelar.
+   ============================================================ */
+const RASCUNHO_KEY = 'rascunho:emAndamento';
+let _rascunhoTimer = null;
+
+// Copia o que está digitado nos campos da tela para o objeto em memória,
+// garantindo que texto ainda não "confirmado" (sem sair do campo) entre no rascunho.
+function flushNovaVistoriaDoDom() {
+  const nv = state.novaVistoria;
+  if (!nv) return;
+  const g = id => document.getElementById(id);
+  if (nv.step === 1) {
+    if (g('nv-equipe')) nv.equipe = g('nv-equipe').value;
+    if (g('nv-resp')) nv.resp = g('nv-resp').value;
+  } else if (nv.step === 2) {
+    document.querySelectorAll('.nv-obs').forEach(i => { if (nv.respostas[i.dataset.id]) nv.respostas[i.dataset.id].observacao = i.value; });
+    document.querySelectorAll('.nv-recom').forEach(i => { if (nv.respostas[i.dataset.id]) nv.respostas[i.dataset.id].recomendacao = i.value; });
+    document.querySelectorAll('.nv-crit').forEach(i => { if (nv.respostas[i.dataset.id]) nv.respostas[i.dataset.id].criticidade = i.value; });
+    if (g('nv-obs-geral')) nv.observacaoGeral = g('nv-obs-geral').value;
+  }
+}
+
+// Considera "com conteúdo" só o que vale a pena recuperar (evita propor retomar um formulário vazio).
+function rascunhoTemConteudo(r) {
+  if (!r) return false;
+  if (r.step === 2) return true;
+  const temResposta = r.respostas && Object.values(r.respostas).some(x =>
+    x && (x.status || (x.observacao && x.observacao.trim()) || (x.fotos && x.fotos.length) || (x.recomendacao && x.recomendacao.trim()))
+  );
+  return !!(temResposta || r.emp || r.est || (r.resp && r.resp.trim()) || (r.equipe && r.equipe.trim()));
+}
+
+async function salvarRascunhoAgora() {
+  try {
+    const nv = state.novaVistoria;
+    if (!nv) return;
+    flushNovaVistoriaDoDom();
+    if (!rascunhoTemConteudo(nv)) return;
+    await storageSet(RASCUNHO_KEY, { ...nv, _salvoEm: Date.now() });
+    const el = document.getElementById('rascunho-status');
+    if (el) el.textContent = '💾 Rascunho salvo às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { /* silencioso: rascunho é best-effort */ }
+}
+
+// Agenda o salvamento ~1s após a última alteração (debounce), para não gravar a cada tecla.
+function agendarSalvarRascunho() {
+  clearTimeout(_rascunhoTimer);
+  _rascunhoTimer = setTimeout(salvarRascunhoAgora, 1200);
+}
+
+async function limparRascunho() {
+  clearTimeout(_rascunhoTimer);
+  try { await storageRemove(RASCUNHO_KEY); } catch (e) {}
+}
+
+// Momentos críticos no celular: ao ir para segundo plano (troca de app / standby)
+// ou ao fechar a página, grava na hora — não espera o debounce.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && state.view === 'nova' && state.novaVistoria) salvarRascunhoAgora();
+});
+window.addEventListener('pagehide', () => {
+  if (state.view === 'nova' && state.novaVistoria) salvarRascunhoAgora();
+});
 
 /* ============================================================
    UTILITÁRIOS GERAIS E FUNÇÕES DE FORMATAÇÃO
@@ -3281,6 +3359,7 @@ function setView(viewName) {
   closeModal();
   render();
   window.scrollTo(0, 0);
+  if (typeof gerenciarWakeLock === 'function') gerenciarWakeLock();
 }
 
 function render() {
@@ -4019,6 +4098,7 @@ window.novoCheckList = function() {
       : 'Existe um check-list em andamento. Iniciar um novo vai descartar o preenchimento atual. Deseja continuar?';
     if (!confirm(msg)) return;
   }
+  limparRascunho();
   state.novaVistoria = null;
   setView('nova');
 };
@@ -4031,6 +4111,7 @@ window.cancelarCheckList = function() {
     ? 'Descartar as alterações não salvas e voltar ao histórico? As mudanças feitas nesta edição (ainda não concluídas) serão perdidas.'
     : 'Descartar este novo check-list e voltar? Os dados preenchidos serão perdidos.';
   if (!confirm(msg)) return;
+  limparRascunho();
   state.novaVistoria = null;
   setView(editando ? 'vistorias' : 'dashboard');
 };
@@ -4251,7 +4332,7 @@ function viewNovaVistoria() {
     </div>
 
     <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; position:sticky; bottom:16px; box-shadow:var(--shadow); z-index:10;">
-      <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.</div>
+      <div style="font-size:13px; color:var(--ink-soft); font-weight:500;">Revise todos os itens antes de salvar.<br><span id="rascunho-status" style="font-size:11px; font-weight:400; color:var(--ink-faint);">Rascunho automático ativo</span></div>
       <button class="btn primary" id="btn-nv-save" style="padding:12px 24px; font-size:15px;">✔️ Concluir Check-list</button>
     </div>`;
   }
@@ -4278,6 +4359,7 @@ function bindNovaVistoria() {
         pos => {
           nv.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
           document.getElementById('gps-status').textContent = `Lat: ${nv.gps.lat.toFixed(5)}, Lng: ${nv.gps.lng.toFixed(5)}`;
+          agendarSalvarRascunho();
         },
         err => { 
           document.getElementById('gps-status').textContent = 'Erro ou permissão negada.'; 
@@ -4314,6 +4396,7 @@ function bindNovaVistoria() {
       
       nv.step = 2;
       render();
+      salvarRascunhoAgora();
     });
   }
 
@@ -4321,6 +4404,7 @@ function bindNovaVistoria() {
     document.getElementById('btn-nv-back')?.addEventListener('click', () => { 
       nv.step = 1; 
       render(); 
+      agendarSalvarRascunho();
     });
     
     document.getElementById('btn-nv-add-item')?.addEventListener('click', () => {
@@ -4340,6 +4424,7 @@ function bindNovaVistoria() {
           fotos: [] 
         };
         render();
+        agendarSalvarRascunho();
         showToast('Novo tópico adicionado!');
         setTimeout(() => document.getElementById('btn-nv-add-item').scrollIntoView({behavior: "smooth"}), 100);
       }
@@ -4355,6 +4440,7 @@ function bindNovaVistoria() {
         }
         
         nv.respostas[id].status = st;
+        agendarSalvarRascunho();
         
         const parentCard = e.target.closest('.item-card');
         parentCard.querySelectorAll('.seg button').forEach(b => b.classList.remove('active'));
@@ -4375,19 +4461,20 @@ function bindNovaVistoria() {
     });
 
     document.querySelectorAll('.nv-obs').forEach(inp => {
-      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].observacao = e.target.value);
+      inp.addEventListener('input', e => { nv.respostas[e.target.dataset.id].observacao = e.target.value; agendarSalvarRascunho(); });
     });
     
     document.querySelectorAll('.nv-crit').forEach(inp => {
-      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].criticidade = e.target.value);
+      inp.addEventListener('change', e => { nv.respostas[e.target.dataset.id].criticidade = e.target.value; agendarSalvarRascunho(); });
     });
     
     document.querySelectorAll('.nv-recom').forEach(inp => {
-      inp.addEventListener('change', e => nv.respostas[e.target.dataset.id].recomendacao = e.target.value);
+      inp.addEventListener('input', e => { nv.respostas[e.target.dataset.id].recomendacao = e.target.value; agendarSalvarRascunho(); });
     });
 
     document.getElementById('nv-obs-geral')?.addEventListener('input', e => {
       nv.observacaoGeral = e.target.value;
+      agendarSalvarRascunho();
     });
 
     document.getElementById('btn-nv-save')?.addEventListener('click', async () => {
@@ -4429,6 +4516,7 @@ function bindNovaVistoria() {
       };
 
       await saveVistoria(vistObj);
+      await limparRascunho();
       state.novaVistoria = null;
       setView('vistorias');
     });
@@ -4513,6 +4601,7 @@ window.addFoto = async function(event, itemId) {
     }
     state.novaVistoria.respostas[itemId].fotos.push(base64);
     render();
+    salvarRascunhoAgora();
     setTimeout(() => document.getElementById('photos-'+itemId).scrollIntoView({behavior: "smooth", block: "center"}), 100);
   } catch(e) { 
     console.error(e);
@@ -4523,6 +4612,7 @@ window.addFoto = async function(event, itemId) {
 window.removeFoto = function(itemId, photoIdx) {
   state.novaVistoria.respostas[itemId].fotos.splice(photoIdx, 1);
   render();
+  salvarRascunhoAgora();
 }
 
 /* ============================================================
@@ -5718,6 +5808,23 @@ async function iniciarApp() {
 
   state.ready = true;
   render();
+
+  // Recuperação de rascunho: se houver um check-list não finalizado salvo
+  // automaticamente, oferece continuar de onde parou.
+  try {
+    const rasc = await storageGet(RASCUNHO_KEY);
+    if (rascunhoTemConteudo(rasc)) {
+      const quando = rasc._salvoEm ? new Date(rasc._salvoEm).toLocaleString('pt-BR') : '';
+      const ok = confirm('Há um check-list não finalizado' + (quando ? ', salvo automaticamente em ' + quando : '') + '.\n\nOK = continuar de onde parou\nCancelar = descartar esse rascunho');
+      if (ok) {
+        delete rasc._salvoEm;
+        state.novaVistoria = rasc;
+        setView('nova');
+      } else {
+        await limparRascunho();
+      }
+    }
+  } catch (e) { /* rascunho é best-effort */ }
 }
 
 async function checkAuth() {
@@ -5757,6 +5864,48 @@ document.getElementById('btn-logout').onclick = async () => {
     window.location.reload(); 
   }
 };
+
+/* ============================================================
+   PWA: uso offline confiável
+   - Service Worker: permite abrir/recarregar o app SEM internet.
+   - Armazenamento persistente: evita que o sistema apague os dados locais.
+   - Wake Lock: mantém a tela acesa durante o preenchimento (evita standby).
+   ============================================================ */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Procura automaticamente por uma versão nova publicada (só efetiva quando online).
+      const checarAtualizacao = () => { try { reg.update(); } catch (e) {} };
+      checarAtualizacao();
+      // Reverifica ao voltar o foco para o app e a cada 30 minutos.
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checarAtualizacao(); });
+      setInterval(checarAtualizacao, 30 * 60 * 1000);
+    }).catch(err => console.warn('SW não registrado:', err));
+  });
+}
+
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persisted()
+    .then(persistido => { if (!persistido) return navigator.storage.persist(); })
+    .catch(() => {});
+}
+
+let _wakeLock = null;
+async function gerenciarWakeLock() {
+  try {
+    const querer = (state.view === 'nova');
+    if (querer && !_wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    } else if (!querer && _wakeLock) {
+      await _wakeLock.release();
+      _wakeLock = null;
+    }
+  } catch (e) { /* best-effort: alguns navegadores não suportam */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') gerenciarWakeLock();
+});
 
 checkAuth();
 </script>
