@@ -1158,6 +1158,83 @@ async function registrarCategorias(itens) {
 }
 
 /* ============================================================
+   FOTOS NO STORAGE (bucket privado 'fotos-vistorias')
+   - Fotos novas nascem em base64 (funcionam offline).
+   - Na sincronização, sobem para o Storage; o base64 é trocado por
+     uma referência "spath:<caminho>" e a cópia local sai do aparelho.
+   - Para exibir, gera-se um link assinado temporário (exige internet).
+   ============================================================ */
+const FOTOS_BUCKET = 'fotos-vistorias';
+const FOTO_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90"><rect width="100%" height="100%" fill="#e9ece5"/><text x="50%" y="50%" font-size="11" fill="#7a8a7f" text-anchor="middle" dominant-baseline="middle">carregando...</text></svg>');
+const FOTO_ERRO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100"><rect width="100%" height="100%" fill="#f3e6e6"/><text x="50%" y="50%" font-size="10" fill="#b06a6a" text-anchor="middle" dominant-baseline="middle">foto na nuvem (sem conexao)</text></svg>');
+
+function ehFotoRemota(f) { return typeof f === 'string' && f.startsWith('spath:'); }
+function caminhoFoto(f) { return ehFotoRemota(f) ? f.slice(6) : null; }
+
+// Monta a tag <img> de uma foto: base64 direto, ou remota via link assinado (preenchido depois).
+function fotoImgTag(f, extraAttrs, styleCss) {
+  if (ehFotoRemota(f)) {
+    return `<img class="foto-remota" data-path="${esc(caminhoFoto(f))}" src="${FOTO_PLACEHOLDER}" ${extraAttrs || ''} style="${styleCss || ''}">`;
+  }
+  return `<img src="${f}" ${extraAttrs || ''} style="${styleCss || ''}">`;
+}
+
+// Gera os links assinados das fotos remotas visíveis e preenche os <img>.
+async function hidratarFotosRemotas() {
+  if (!_supabase) return;
+  const imgs = Array.from(document.querySelectorAll('img.foto-remota:not([data-hidratada])'));
+  if (imgs.length === 0) return;
+  const paths = [...new Set(imgs.map(i => i.dataset.path).filter(Boolean))];
+  if (paths.length === 0) return;
+  try {
+    const { data, error } = await _supabase.storage.from(FOTOS_BUCKET).createSignedUrls(paths, 3600);
+    if (error) throw error;
+    const mapa = {};
+    (data || []).forEach(d => { if (d && d.path && d.signedUrl) mapa[d.path] = d.signedUrl; });
+    imgs.forEach(img => {
+      const url = mapa[img.dataset.path];
+      if (url) { img.src = url; img.dataset.hidratada = '1'; }
+      else { img.src = FOTO_ERRO; img.dataset.hidratada = 'erro'; }
+    });
+  } catch (e) {
+    imgs.forEach(img => { img.src = FOTO_ERRO; img.dataset.hidratada = 'erro'; });
+  }
+}
+
+function base64ParaBlob(dataUrl) {
+  const partes = dataUrl.split(',');
+  const mime = (partes[0].match(/data:(.*?);base64/) || [])[1] || 'image/jpeg';
+  const bin = atob(partes[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// Sobe para o Storage as fotos ainda em base64 de uma vistoria, trocando cada
+// uma pela referência "spath:<caminho>". Só remove o base64 após upload OK
+// (assim a foto nunca se perde). Retorna true se TODAS já estão na nuvem.
+async function subirFotosDaVistoria(v) {
+  if (!_supabase || !navigator.onLine) return false;
+  let todas = true;
+  for (const it of (v.itens || [])) {
+    if (!Array.isArray(it.fotos)) continue;
+    for (let i = 0; i < it.fotos.length; i++) {
+      const f = it.fotos[i];
+      if (typeof f === 'string' && f.startsWith('data:')) {
+        try {
+          const blob = base64ParaBlob(f);
+          const path = `${v.id}/${it.id}-${i}-${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+          const { error } = await _supabase.storage.from(FOTOS_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+          if (error) { console.error('Falha upload foto:', error); todas = false; }
+          else { it.fotos[i] = 'spath:' + path; }
+        } catch (e) { console.error('Erro ao subir foto:', e); todas = false; }
+      }
+    }
+  }
+  return todas;
+}
+
+/* ============================================================
    RASCUNHO AUTOMÁTICO — salva o check-list em andamento no
    aparelho (IndexedDB) para não perder o preenchimento em caso
    de fechamento, travamento ou troca de app. É best-effort e
@@ -3462,6 +3539,7 @@ function render() {
     content.innerHTML = views[state.view].html();
     if(views[state.view].bind) views[state.view].bind();
   }
+  hidratarFotosRemotas();
 }
 
 /* ============================================================
@@ -3546,6 +3624,7 @@ async function loadVistoriasNuvem() {
             equipe: d.equipe || '',
             responsavel: d.responsavel, 
             dataHora: d.data_hora, 
+            atualizadoEm: d.atualizado_em || null,
             totalItens: d.total_itens,
             totalNC: d.total_nc, 
             totalNA: _na || 0,
@@ -3576,6 +3655,17 @@ async function loadVistoriasNuvem() {
 
 async function loadVistoria(id) {
   try {
+    // A cópia local PENDENTE é sempre a mais recente: é uma edição/criação que
+    // ainda não foi confirmada na nuvem. Nesse caso, usamos a local e NÃO
+    // sobrescrevemos com a versão da nuvem (que está atrasada). Isso vale
+    // inclusive durante a sincronização, que também chama esta função.
+    const localExistente = await storageGet('vistoria:' + id);
+    const idxEntry = state.vistoriasIndex.find(x => x.id === id);
+    const estaPendente = (localExistente && localExistente.syncStatus === 'pending') || (idxEntry && idxEntry.syncStatus === 'pending');
+    if (estaPendente && localExistente) {
+      return localExistente;
+    }
+
     if (_supabase && navigator.onLine) {
       const { data, error } = await _supabase.from('vistorias').select('*').eq('id', id).single();
       
@@ -3594,6 +3684,7 @@ async function loadVistoria(id) {
           gps: gpsParsed,
           itens: Array.isArray(itensParsed) ? itensParsed : [], 
           observacaoGeral: (data.observacao_geral != null && data.observacao_geral !== '') ? data.observacao_geral : ((critMap && critMap._obsGeral) ? critMap._obsGeral : ''), 
+          atualizadoEm: data.atualizado_em || null,
           syncStatus: 'synced'
         };
         
@@ -3630,6 +3721,8 @@ window.sincronizarPendentes = async function() {
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
     if(v) {
+      // Sobe as fotos (base64 -> Storage) antes de enviar a vistoria.
+      const todasFotos = await subirFotosDaVistoria(v);
       const analise = analisarCriticidade(v.itens);
 
       const { error } = await _supabase.from('vistorias').upsert({
@@ -3645,6 +3738,7 @@ window.sincronizarPendentes = async function() {
         total_nc: v.itens.filter(i => i.status === 'nc').length,
         criticidade_max: analise.critMax,
         observacao_geral: v.observacaoGeral || '',
+        atualizado_em: v.atualizadoEm || new Date().toISOString(),
         criticidades_map: { 
           ...analise.counts, 
           _categorias: analise.categorias, 
@@ -3654,17 +3748,21 @@ window.sincronizarPendentes = async function() {
       });
       
       if(!error) {
-        v.syncStatus = 'synced'; 
-        p.syncStatus = 'synced';
+        // Só vira "synced" quando todas as fotos já subiram; senão continua
+        // pendente para tentar subir o restante na próxima sincronização.
+        const novoStatus = todasFotos ? 'synced' : 'pending';
+        v.syncStatus = novoStatus; 
+        p.syncStatus = novoStatus;
         p.equipe = v.equipe || '';
         p.criticidades = analise.counts;
         p.categorias = analise.categorias;
         p.totalNA = analise.totalNA;
         p.ncsResumo = analise.ncsResumo || [];
         p.criticidadeMax = analise.critMax;
+        p.atualizadoEm = v.atualizadoEm || p.atualizadoEm;
 
         await storageSet('vistoria:' + v.id, v);
-        successCount++;
+        if (novoStatus === 'synced') successCount++;
       }
     }
   }
@@ -3679,6 +3777,9 @@ window.sincronizarPendentes = async function() {
 async function saveVistoria(v) {
   const analise = analisarCriticidade(v.itens);
 
+  // Carimbo de última edição/salvamento (data e hora em que foi concluído/editado).
+  v.atualizadoEm = new Date().toISOString();
+
   // 1) Salva LOCALMENTE na hora, como pendente. Rápido e sem depender da rede —
   //    é o que faz o "Concluir" ser instantâneo mesmo com fotos pesadas.
   v.syncStatus = 'pending';
@@ -3690,6 +3791,7 @@ async function saveVistoria(v) {
     equipe: v.equipe || '',
     responsavel: v.responsavel, 
     dataHora: v.dataHora,
+    atualizadoEm: v.atualizadoEm,
     totalNC: v.itens.filter(i => i.status === 'nc').length,
     totalNA: analise.totalNA,
     ncsResumo: analise.ncsResumo || [],
@@ -4359,7 +4461,7 @@ function viewNovaVistoria() {
             <div class="photo-row" id="photos-${it.id}">
               ${resp.fotos.map((f, pIdx) => `
                 <div class="photo-thumb">
-                  <img src="${f}" onclick="abrirFotoZoom(this.src)" style="width:100%;height:100%;object-fit:cover;border-radius:7px;cursor:zoom-in;">
+                  ${fotoImgTag(f, 'onclick="abrirFotoZoom(this.src)"', 'width:100%;height:100%;object-fit:cover;border-radius:7px;cursor:zoom-in;')}
                   <button class="btn ghost sm danger" style="position:absolute;top:-5px;right:-5px;background:#fff;padding:2px 6px;border-radius:50%;box-shadow:var(--shadow);" onclick="event.stopPropagation(); removeFoto('${it.id}', ${pIdx})">✕</button>
                 </div>
               `).join('')}
@@ -5198,7 +5300,7 @@ function viewVistorias() {
                   <tbody>
                     ${vists.map(v => `
                       <tr>
-                        <td class="clickable" onclick="abrirVistoria('${v.id}')" style="width:140px;"><strong>${fmtDate(v.dataHora).split(' às')[0]}</strong><br><span style="font-size:11.5px;color:var(--ink-faint);">${fmtDate(v.dataHora).split('às ')[1]}</span></td>
+                        <td class="clickable" onclick="abrirVistoria('${v.id}')" style="width:140px;"><strong>${fmtDate(v.dataHora).split(' às')[0]}</strong><br><span style="font-size:11.5px;color:var(--ink-faint);">${fmtDate(v.dataHora).split('às ')[1]}</span>${v.atualizadoEm ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">✎ Editado ${esc(fmtDate(v.atualizadoEm))}</span>` : ''}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${esc(v.estruturaNome)}</td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')"><span style="font-size:12.5px;color:var(--ink-soft);">${esc(v.equipe || '—')}</span></td>
                         <td class="clickable" onclick="abrirVistoria('${v.id}')">${v.syncStatus === 'pending' ? '<span class="badge pending">⏳ Local</span>' : '<span class="badge conforme">✅ Nuvem</span>'}</td>
@@ -5348,7 +5450,7 @@ function viewVistoriaDetalhe(vistoriaParam) {
         <div class="card card-pad" style="break-inside: avoid;">
           <div style="font-weight:600;margin-bottom:12px; font-size:13px;">Ref: ${esc(it.texto)}</div>
           <div class="photo-row">
-            ${it.fotos.map(f => `<img src="${f}" onclick="abrirFotoZoom(this.src)" style="width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line); cursor:zoom-in;">`).join('')}
+            ${it.fotos.map(f => fotoImgTag(f, 'onclick="abrirFotoZoom(this.src)"', 'width:100%; height:auto; max-height:240px; object-fit:contain; border-radius:8px; border:1px solid var(--line); cursor:zoom-in;')).join('')}
           </div>
         </div>
       `).join('')}
@@ -5361,11 +5463,17 @@ function bindVistoriaDetalhe() {}
 
 window.deletarVistoriaAtual = async function() {
   if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
-    const id = state.vistoriaAberta.id;
+    const aberta = state.vistoriaAberta;
+    const id = aberta.id;
+    const paths = [];
+    (aberta.itens || []).forEach(it => (it.fotos || []).forEach(f => { if (ehFotoRemota(f)) paths.push(caminhoFoto(f)); }));
     state.vistoriasIndex = state.vistoriasIndex.filter(v => v.id !== id);
     await storageSet('vistorias:index', state.vistoriasIndex);
     await storageRemove('vistoria:'+id);
-    if(_supabase && navigator.onLine) await _supabase.from('vistorias').delete().eq('id', id);
+    if(_supabase && navigator.onLine) {
+      await _supabase.from('vistorias').delete().eq('id', id);
+      if(paths.length) { try { await _supabase.storage.from(FOTOS_BUCKET).remove(paths); } catch(e) { console.warn('Fotos da nuvem não removidas:', e); } }
+    }
     state.vistoriaAberta = null;
     setView('vistorias');
     showToast('Check-list excluído.');
@@ -5418,6 +5526,10 @@ window.gerarPdfUnico = async function(id) {
       ${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}
     `;
     state.vistoriaAberta = originalAberta;
+    await hidratarFotosRemotas();
+    if (!navigator.onLine && v.itens.some(i => (i.fotos||[]).some(ehFotoRemota))) {
+      showToast('Atenção: sem internet, as fotos que já estão na nuvem não sairão no PDF.');
+    }
   }
 };
 
@@ -5443,6 +5555,10 @@ window.gerarPdfMes = async function(mesIso, empNome) {
       return `<div style="page-break-after:always; margin-bottom:60px;">${viewVistoriaDetalhe(v).replace(/class="view-head no-print"/, 'style="display:none;"')}</div>`;
     }).join('')}
   `;
+  await hidratarFotosRemotas();
+  if (!navigator.onLine && vists.some(v => v.itens.some(i => (i.fotos||[]).some(ehFotoRemota)))) {
+    showToast('Atenção: sem internet, as fotos que já estão na nuvem não sairão no PDF.');
+  }
 };
 
 /* ============================================================
