@@ -5623,7 +5623,7 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
   showToast('Gerando base Excel, aguarde...');
   
   let csvContent = "\uFEFF"; 
-  csvContent += "Empreendimento;Estrutura;Equipe;Data e Hora;Responsável;Item de Inspeção;Categoria;Status;Observação Registrada;Criticidade;Recomendação Técnica\n";
+  csvContent += "Empreendimento;Estrutura;Equipe;Data e Hora;Responsável;Item de Inspeção;Categoria;Status;Observação Registrada;Criticidade;Recomendação Técnica;Observações Gerais\n";
 
   const escCsv = (texto) => {
     if (!texto) return '""';
@@ -5659,6 +5659,7 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
     const est = escCsv(v.estruturaNome);
     const equipe = escCsv(v.equipe);
     const resp = escCsv(v.responsavel);
+    const obsGeral = escCsv(v.observacaoGeral);
 
     v.itens.forEach(it => {
       const itemTxt = escCsv(it.texto);
@@ -5669,7 +5670,7 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
       const crit = escCsv(it.criticidade ? criticidadeLabel(it.criticidade) : '');
       const rec = escCsv(it.recomendacao);
 
-      csvContent += `${emp};${est};${equipe};${escCsv(dataFmt)};${resp};${itemTxt};${cat};${status};${obs};${crit};${rec}\n`;
+      csvContent += `${emp};${est};${equipe};${escCsv(dataFmt)};${resp};${itemTxt};${cat};${status};${obs};${crit};${rec};${obsGeral}\n`;
     });
   }
 
