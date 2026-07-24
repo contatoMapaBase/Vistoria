@@ -1100,6 +1100,64 @@ window.rodarBackfillNcs = async function() {
 async function storageRemove(key) { return await idb.remove(key); }
 
 /* ============================================================
+   CATEGORIAS — reúne todas as categorias já usadas para sugerir
+   ao adicionar/editar itens. Fontes:
+   - Biblioteca de estruturas (todos os itens, completo);
+   - Histórico de vistorias (categorias de não conformidade, via índice);
+   - Lista persistente que cresce a cada vistoria salva (captura todas,
+     inclusive de itens conformes e categorias digitadas no campo);
+   - Check-list atualmente aberto.
+   O campo continua permitindo digitar uma categoria nova.
+   ============================================================ */
+function coletarCategorias() {
+  const set = new Set();
+  const add = c => { if (c && typeof c === 'string' && c.trim() && c.trim() !== 'Sem categoria') set.add(c.trim()); };
+
+  // Biblioteca de estruturas
+  (state.estruturas || []).forEach(e => (e.itens || []).forEach(it => add(it.categoria)));
+
+  // Histórico (índice): categorias de NC + resumo de NCs
+  (state.vistoriasIndex || []).forEach(v => {
+    if (v.categorias) Object.keys(v.categorias).forEach(add);
+    (v.ncsResumo || []).forEach(nc => add(nc.categoria));
+  });
+
+  // Lista persistente acumulada
+  (state.categoriasConhecidas || []).forEach(add);
+
+  // Check-list atual
+  if (state.novaVistoria) (state.novaVistoria.itens || []).forEach(it => add(it.categoria));
+
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+}
+
+// Gera as <option> para um <datalist> de categorias.
+function optionsCategoriasHtml() {
+  return coletarCategorias().map(c => `<option value="${esc(c)}"></option>`).join('');
+}
+
+// <datalist> completo com um id específico.
+function datalistCategoriasHtml(id) {
+  return `<datalist id="${id}">${optionsCategoriasHtml()}</datalist>`;
+}
+
+// Registra as categorias de um conjunto de itens na lista persistente.
+async function registrarCategorias(itens) {
+  try {
+    const atual = new Set(state.categoriasConhecidas || []);
+    let mudou = false;
+    (itens || []).forEach(it => {
+      const c = (it.categoria || '').trim();
+      if (c && c !== 'Sem categoria' && !atual.has(c)) { atual.add(c); mudou = true; }
+    });
+    if (mudou) {
+      state.categoriasConhecidas = Array.from(atual);
+      await storageSet('categorias:conhecidas', state.categoriasConhecidas);
+    }
+  } catch (e) { /* best-effort */ }
+}
+
+/* ============================================================
    RASCUNHO AUTOMÁTICO — salva o check-list em andamento no
    aparelho (IndexedDB) para não perder o preenchimento em caso
    de fechamento, travamento ou troca de app. É best-effort e
@@ -1107,6 +1165,8 @@ async function storageRemove(key) { return await idb.remove(key); }
    ============================================================ */
 const RASCUNHO_KEY = 'rascunho:emAndamento';
 let _rascunhoTimer = null;
+let _salvandoVistoria = false; // trava para impedir salvar o mesmo check-list mais de uma vez
+let _sincronizandoPendentes = false; // trava para impedir sincronizações simultâneas
 
 // Copia o que está digitado nos campos da tela para o objeto em memória,
 // garantindo que texto ainda não "confirmado" (sem sair do campo) entre no rascunho.
@@ -1254,7 +1314,7 @@ function descricaoPeriodo(prefix, lista) {
 
 function fileToCompressedDataURL(file) {
   return new Promise((resolve, reject) => {
-    const MAX_WIDTH = 1200;   
+    const MAX_WIDTH = 1000;   
     const QUALITY   = 0.6;    
 
     function getOrientation(buffer) {
@@ -2583,6 +2643,7 @@ const state = {
   empreendimentos: [],
   estruturas: [],
   vistoriasIndex: [],
+  categoriasConhecidas: [],
   ready: false,
   novaVistoria: null,
   vistoriaAberta: null,
@@ -3555,12 +3616,16 @@ async function loadVistoria(id) {
 }
 
 window.sincronizarPendentes = async function() {
+  if(_sincronizandoPendentes) return; // evita execuções simultâneas
   if(!navigator.onLine) { showToast('Sem conexão!'); return; }
   const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
   if(pendentes.length === 0) { showToast('Nenhum check-list pendente.'); return; }
   
+  _sincronizandoPendentes = true;
   showToast(`Sincronizando ${pendentes.length}...`);
   let successCount = 0;
+
+  try {
 
   for(let p of pendentes) {
     const v = await loadVistoria(p.id);
@@ -3606,42 +3671,18 @@ window.sincronizarPendentes = async function() {
   await storageSet('vistorias:index', state.vistoriasIndex);
   render();
   showToast(`${successCount} sincronizados!`);
+  } finally {
+    _sincronizandoPendentes = false;
+  }
 };
 
 async function saveVistoria(v) {
-  let isOnline = navigator.onLine;
-  let syncSuccess = false;
-  
   const analise = analisarCriticidade(v.itens);
 
-  if (isOnline && _supabase) {
-    try {
-      const { error } = await _supabase.from('vistorias').upsert({
-        id: v.id,
-        empreendimento_nome: v.empreendimentoNome,
-        estrutura_nome: v.estruturaNome,
-        equipe: v.equipe || '',
-        responsavel: v.responsavel,
-        data_hora: v.dataHora,
-        gps: v.gps,
-        itens: v.itens,
-        total_itens: v.itens.length,
-        total_nc: v.itens.filter(i => i.status === 'nc').length,
-        criticidade_max: analise.critMax,
-        observacao_geral: v.observacaoGeral || '',
-        criticidades_map: { 
-          ...analise.counts, 
-          _categorias: analise.categorias, 
-          _na: analise.totalNA, 
-          _ncs: analise.ncsResumo
-        }
-      });
-      if (!error) syncSuccess = true;
-    } catch(e) { console.error('Falha ao sincronizar vistoria com a nuvem:', e); }
-  }
+  // 1) Salva LOCALMENTE na hora, como pendente. Rápido e sem depender da rede —
+  //    é o que faz o "Concluir" ser instantâneo mesmo com fotos pesadas.
+  v.syncStatus = 'pending';
 
-  v.syncStatus = syncSuccess ? 'synced' : 'pending';
-  
   const idxData = {
     id: v.id, 
     empreendimentoNome: v.empreendimentoNome, 
@@ -3665,8 +3706,17 @@ async function saveVistoria(v) {
 
   await storageSet('vistorias:index', state.vistoriasIndex);
   await storageSet('vistoria:' + v.id, v);
+  registrarCategorias(v.itens);
 
-  showToast(syncSuccess ? 'Salvo na Nuvem com sucesso!' : 'Salvo OFFLINE. Sincronize depois.');
+  // 2) Sobe para a nuvem em SEGUNDO PLANO (sem travar). O envio das fotos
+  //    acontece por trás; a vistoria troca de "⏳ Local" para "✅ Nuvem"
+  //    quando terminar. Offline, fica pendente e sobe sozinha ao reconectar.
+  if (navigator.onLine && _supabase) {
+    showToast('Salvo! Enviando para a nuvem em segundo plano...');
+    sincronizarPendentes();
+  } else {
+    showToast('Salvo no aparelho. Sincroniza quando houver internet.');
+  }
 }
   /* ============================================================
    TELAS: EMPREENDIMENTOS E BIBLIOTECA
@@ -3995,12 +4045,13 @@ function viewEditorEstrutura() {
           </div>
           <div style="grid-column: 1 / -1;">
             <label class="field-label">Categoria / Tipologia (Ex: Segurança, Gerenciamento de Resíduos Sólidos...)</label>
-            <input type="text" class="ed-item-cat" data-idx="${i}" value="${esc(it.categoria || '')}" placeholder="Digite a categoria...">
+            <input type="text" class="ed-item-cat" data-idx="${i}" list="ed-cat-sugestoes" value="${esc(it.categoria || '')}" placeholder="Digite a categoria...">
           </div>
         </div>
       </div>
     `).join('')}
-  </div>`;
+  </div>
+  ${datalistCategoriasHtml('ed-cat-sugestoes')}`;
 }
 
 function bindEditorEstrutura() {
@@ -4313,7 +4364,7 @@ function viewNovaVistoria() {
                 </div>
               `).join('')}
               <label class="photo-add">
-                +<input type="file" accept="image/*" style="display:none;" onchange="addFoto(event, '${it.id}')">
+                +<input type="file" accept="image/*" multiple style="display:none;" onchange="addFoto(event, '${it.id}')">
               </label>
             </div>
           </div>
@@ -4410,26 +4461,7 @@ function bindNovaVistoria() {
     });
     
     document.getElementById('btn-nv-add-item')?.addEventListener('click', () => {
-      const texto = prompt('Digite a pergunta/tópico a ser verificado:');
-      if (texto && texto.trim()) {
-        const newItemId = uid();
-        state.novaVistoria.itens.push({
-          id: newItemId,
-          texto: texto.trim(),
-          categoria: 'Adicional (Campo)'
-        });
-        state.novaVistoria.respostas[newItemId] = { 
-          status: '', 
-          observacao: '', 
-          criticidade: 'media', 
-          recomendacao: '', 
-          fotos: [] 
-        };
-        render();
-        agendarSalvarRascunho();
-        showToast('Novo tópico adicionado!');
-        setTimeout(() => document.getElementById('btn-nv-add-item').scrollIntoView({behavior: "smooth"}), 100);
-      }
+      window.abrirAdicionarItemNV();
     });
 
     document.querySelectorAll('.seg button').forEach(btn => {
@@ -4479,7 +4511,10 @@ function bindNovaVistoria() {
       agendarSalvarRascunho();
     });
 
-    document.getElementById('btn-nv-save')?.addEventListener('click', async () => {
+    document.getElementById('btn-nv-save')?.addEventListener('click', async (ev) => {
+      // Impede que cliques repetidos (ex.: por achar que travou) criem cópias.
+      if (_salvandoVistoria) return;
+
       const faltam = nv.itens.filter(it => !nv.respostas[it.id]?.status);
       if(faltam.length > 0) {
         return showToast('Responda todos os itens do check-list antes de salvar!');
@@ -4503,10 +4538,14 @@ function bindNovaVistoria() {
         fotos: nv.respostas[it.id].fotos
       }));
 
-      const isEdit = !!nv.id;
+      // Gera o id UMA vez e reaproveita em tentativas seguintes (evita duplicar).
+      // Em edição, usa o id existente. Assim, salvar de novo ATUALIZA o mesmo
+      // registro em vez de criar outro.
+      if (!nv.id && !nv._idFinal) nv._idFinal = uid();
+      const idFinal = nv.id || nv._idFinal;
 
       const vistObj = {
-        id: isEdit ? nv.id : uid(),
+        id: idFinal,
         empreendimentoNome: nv.emp,
         estruturaNome: nv.est,
         equipe: nv.equipe,
@@ -4517,13 +4556,79 @@ function bindNovaVistoria() {
         observacaoGeral: nv.observacaoGeral || ''
       };
 
-      await saveVistoria(vistObj);
-      await limparRascunho();
-      state.novaVistoria = null;
-      setView('vistorias');
+      // Trava + feedback visual no botão
+      _salvandoVistoria = true;
+      const btn = ev.currentTarget;
+      const textoOriginal = btn.textContent;
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.textContent = '⏳ Salvando...';
+
+      try {
+        await saveVistoria(vistObj);
+        await limparRascunho();
+        state.novaVistoria = null;
+        setView('vistorias');
+      } catch (err) {
+        console.error('Falha ao concluir check-list:', err);
+        showToast('Erro ao salvar. Tente novamente.');
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.textContent = textoOriginal;
+      } finally {
+        _salvandoVistoria = false;
+      }
     });
   }
 }
+
+// Abre janela para adicionar um novo tópico ao check-list, com Tópico e Categoria juntos.
+window.abrirAdicionarItemNV = function() {
+  if(!state.novaVistoria) return;
+  const html = `
+  <div class="modal-backdrop" style="z-index:100000;" onclick="if(event.target===this) closeModal()">
+    <div class="modal" style="max-width:560px; width:92%;">
+      <div class="modal-head">
+        <h3 style="margin:0;font-family:var(--font-display);">Adicionar Tópico</h3>
+        <button class="btn ghost sm" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:16px;">
+          <label class="field-label">Tópico de inspeção</label>
+          <textarea id="add-item-texto" rows="3" style="width:100%;" placeholder="Digite a pergunta/tópico a ser verificado..."></textarea>
+        </div>
+        <div class="field" style="margin-bottom:20px;">
+          <label class="field-label">Categoria</label>
+          <input type="text" id="add-item-cat" list="add-cat-sugestoes" placeholder="Ex.: Segurança, Gerenciamento Estrutural, Efluentes" style="width:100%;">
+          <datalist id="add-cat-sugestoes">${optionsCategoriasHtml()}</datalist>
+          <p style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;">Selecione uma existente ou digite uma nova. Em branco = "Sem categoria".</p>
+        </div>
+        <div class="rowflex" style="justify-content:flex-end;gap:8px;">
+          <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn primary" onclick="window.confirmarAdicionarItemNV()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+  setTimeout(() => { const t = document.getElementById('add-item-texto'); if(t) t.focus(); }, 50);
+};
+
+window.confirmarAdicionarItemNV = function() {
+  const nv = state.novaVistoria;
+  if(!nv) return;
+  const texto = document.getElementById('add-item-texto').value.trim();
+  const cat = document.getElementById('add-item-cat').value.trim();
+  if(texto === '') { showToast('O tópico não pode ficar vazio.'); return; }
+  const newItemId = uid();
+  nv.itens.push({ id: newItemId, texto: texto, categoria: cat });
+  nv.respostas[newItemId] = { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
+  closeModal();
+  render();
+  agendarSalvarRascunho();
+  showToast('Novo tópico adicionado!');
+  setTimeout(() => document.getElementById('btn-nv-add-item')?.scrollIntoView({behavior: "smooth"}), 100);
+};
 
 window.editarTextoItemNV = function(id) {
   const nv = state.novaVistoria;
@@ -4546,15 +4651,8 @@ window.editarTextoItemNV = function(id) {
         <div class="field" style="margin-bottom:20px;">
           <label class="field-label">Categoria</label>
           <input type="text" id="edit-item-cat" list="edit-cat-sugestoes" value="${esc(item.categoria || '')}" placeholder="Ex.: Segurança, Gerenciamento Estrutural, Efluentes" style="width:100%;">
-          <datalist id="edit-cat-sugestoes">
-            <option value="Segurança"></option>
-            <option value="Gerenciamento Estrutural"></option>
-            <option value="Efluentes"></option>
-            <option value="Resíduos"></option>
-            <option value="Emissões Atmosféricas"></option>
-            <option value="Documentação / Legal"></option>
-          </datalist>
-          <p style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;">Deixe em branco para "Sem categoria".</p>
+          <datalist id="edit-cat-sugestoes">${optionsCategoriasHtml()}</datalist>
+          <p style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;">Selecione uma existente ou digite uma nova. Em branco = "Sem categoria".</p>
         </div>
         <div class="rowflex" style="justify-content:flex-end;gap:8px;">
           <button class="btn ghost" onclick="closeModal()">Cancelar</button>
@@ -4609,23 +4707,36 @@ window.moverItemNV = function(id, dir) {
 };
 
 window.addFoto = async function(event, itemId) {
-  const file = event.target.files[0];
-  if(!file) return;
-  
-  showToast('Comprimindo foto...');
-  try {
-    const base64 = await fileToCompressedDataURL(file);
-    if(!state.novaVistoria.respostas[itemId]) {
-      state.novaVistoria.respostas[itemId] = { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
-    }
-    state.novaVistoria.respostas[itemId].fotos.push(base64);
-    render();
-    salvarRascunhoAgora();
-    setTimeout(() => document.getElementById('photos-'+itemId).scrollIntoView({behavior: "smooth", block: "center"}), 100);
-  } catch(e) { 
-    console.error(e);
-    showToast('Erro ao processar foto.'); 
+  const files = Array.from(event.target.files || []);
+  if(files.length === 0) return;
+
+  if(!state.novaVistoria.respostas[itemId]) {
+    state.novaVistoria.respostas[itemId] = { status: '', observacao: '', criticidade: 'media', recomendacao: '', fotos: [] };
   }
+
+  const total = files.length;
+  let ok = 0, erros = 0;
+  for(let i = 0; i < total; i++) {
+    showToast(total > 1 ? `Comprimindo foto ${i+1} de ${total}...` : 'Comprimindo foto...');
+    try {
+      const base64 = await fileToCompressedDataURL(files[i]);
+      state.novaVistoria.respostas[itemId].fotos.push(base64);
+      ok++;
+    } catch(e) {
+      console.error(e);
+      erros++;
+    }
+  }
+
+  // limpa o input para permitir escolher os mesmos arquivos de novo, se precisar
+  event.target.value = '';
+
+  render();
+  salvarRascunhoAgora();
+  setTimeout(() => document.getElementById('photos-'+itemId)?.scrollIntoView({behavior: "smooth", block: "center"}), 100);
+
+  if(erros > 0) showToast(`${ok} foto(s) adicionada(s), ${erros} falharam.`);
+  else if(total > 1) showToast(`${ok} fotos adicionadas.`);
 }
 
 window.removeFoto = function(itemId, photoIdx) {
@@ -5824,6 +5935,9 @@ async function iniciarApp() {
   
   // flag do backfill temporário de pendências recorrentes (esconde o botão se já rodou)
   try { window._backfillNcsFeito = await storageGet('flag:backfillNcs') === true; } catch(e) { window._backfillNcsFeito = false; }
+
+  // categorias já conhecidas (para sugestões ao adicionar/editar itens)
+  try { state.categoriasConhecidas = (await storageGet('categorias:conhecidas')) || []; } catch(e) { state.categoriasConhecidas = []; }
 
   state.ready = true;
   render();
