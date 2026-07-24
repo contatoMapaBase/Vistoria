@@ -3608,7 +3608,7 @@ async function loadVistoriasNuvem() {
   
   if(_supabase && navigator.onLine) {
     try {
-      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, total_itens, total_nc, criticidade_max, criticidades_map');
+      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, atualizado_em, total_itens, total_nc, criticidade_max, criticidades_map');
       
       if(data) {
         const cloudMap = {};
