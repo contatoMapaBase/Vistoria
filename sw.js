@@ -23,7 +23,7 @@
    você não mexe em nada aqui.
    ============================================================ */
 
-const CACHE_VERSION = 'mapabase-v2';
+const CACHE_VERSION = 'mapabase-v3';
 
 // Recursos essenciais para o app abrir offline.
 const CORE_ASSETS = [
@@ -31,6 +31,7 @@ const CORE_ASSETS = [
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
+  './LOGO_VERT.png',
   './icon-512.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdn.jsdelivr.net/npm/chart.js'
