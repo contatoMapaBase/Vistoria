@@ -369,13 +369,16 @@
     }
     
     .sector-icon {
-      font-size: 32px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      padding: 8px 12px;
+      background: var(--brand);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
       border-radius: 12px;
       box-shadow: var(--shadow);
     }
+    .sector-icon svg { width: 24px; height: 24px; stroke: #fff; }
     
     .sector-title {
       font-family: var(--font-display);
@@ -405,18 +408,22 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
       position: relative;
+      overflow: hidden;
     }
     
     .visual-card-large .visual-card-cover {
-      height: 140px;
-      font-size: 56px;
+      height: 132px;
     }
     
-    .cover-geral { background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); }
-    .cover-agro { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
-    .cover-mina { background: linear-gradient(135deg, #e6dada 0%, #274046 100%); }
+    .cover-geral, .cover-industria { background: linear-gradient(135deg, #f0f3f8 0%, #dde4ee 100%); }
+    .cover-agro { background: linear-gradient(135deg, #eef6e6 0%, #d7ead0 100%); }
+    .cover-mina { background: linear-gradient(135deg, #eef1f6 0%, #d5dde9 100%); }
+    .cover-logo { background: #ffffff; border-bottom: 1px solid var(--line); }
+
+    .cover-setor-ic svg { width: 46px; height: 46px; stroke: var(--brand); opacity: .85; }
+    .visual-card-large .cover-setor-ic svg { width: 54px; height: 54px; }
+    .emp-logo { max-width: 78%; max-height: 78%; object-fit: contain; }
     
     .visual-card-body {
       padding: 18px 20px;
@@ -1337,14 +1344,23 @@ function criticidadeLabel(val) {
   return map[val] || val;
 }
 
+const SETOR_ICONS = {
+  'Mineração': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>',
+  'Agro': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>',
+  'Indústrias': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M7 18h.01"/><path d="M12 18h.01"/><path d="M17 18h.01"/></svg>',
+  'Geral': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
+};
+function iconeSetor(setor) { return SETOR_ICONS[setor] || SETOR_ICONS['Geral']; }
+
 function getSetorVisual(setor) {
   const map = {
-    'Mineração': { class: 'cover-mina', icon: '⛏️' },
-    'Agro': { class: 'cover-agro', icon: '🌾' },
-    'Indústrias': { class: 'cover-mina', icon: '⚙️' },
-    'Geral': { class: 'cover-geral', icon: '🏭⛏️🌾' }
+    'Mineração': { class: 'cover-mina' },
+    'Agro': { class: 'cover-agro' },
+    'Indústrias': { class: 'cover-industria' },
+    'Geral': { class: 'cover-geral' }
   };
-  return map[setor] || { class: 'cover-geral', icon: '🏭' };
+  const base = map[setor] || { class: 'cover-geral' };
+  return { class: base.class, icon: iconeSetor(setor) };
 }
 
 function showToast(msg) {
@@ -3575,6 +3591,7 @@ async function syncGlobalNuvem() {
         nome: d.nome, 
         tipo: d.tipo, 
         estruturas: d.estruturas, 
+        logo: d.logo || null,
         criadoEm: d.criado_em
       }));
       await storageSet('empreendimentos', state.empreendimentos);
@@ -3857,7 +3874,9 @@ function viewEmpreendimentos() {
       const visual = getSetorVisual(e.tipo);
       return `
       <div class="visual-card visual-card-large">
-        <div class="visual-card-cover ${visual.class}">${visual.icon}</div>
+        <div class="visual-card-cover ${e.logo ? 'cover-logo' : visual.class}">
+          ${e.logo ? `<img class="emp-logo" src="${e.logo}" alt="${esc(e.nome)}">` : `<span class="cover-setor-ic">${visual.icon}</span>`}
+        </div>
         <div class="visual-card-body">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <h3 class="visual-card-title">${esc(e.nome)}</h3>
@@ -3900,12 +3919,40 @@ window.editarEmpreendimento = function(id) {
   }
 }
 
+// Reduz a logo do empreendimento para ~240px sobre fundo branco (leve, embutida).
+function comprimirLogo(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 240;
+        let w = img.width, h = img.height;
+        const escala = Math.min(1, MAX / Math.max(w, h));
+        w = Math.round(w * escala); h = Math.round(h * escala);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function abrirModalEmpreendimento(empExistente = null) {
   const isEdit = !!empExistente;
   const id = isEdit ? empExistente.id : uid();
   const nome = isEdit ? empExistente.nome : '';
   const tipo = isEdit ? (empExistente.tipo || 'Geral') : 'Geral';
   const vinculadas = isEdit ? (empExistente.estruturas || []) : [];
+  let logoAtual = isEdit ? (empExistente.logo || '') : '';
 
   const html = `
   <div class="modal-backdrop">
@@ -3929,6 +3976,19 @@ function abrirModalEmpreendimento(empExistente = null) {
           </select>
         </div>
         <div class="field">
+          <label class="field-label">Logo do empreendimento (opcional)</label>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="emp-logo-preview" style="width:64px;height:64px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden;flex-shrink:0;">
+              ${logoAtual ? `<img src="${logoAtual}" style="max-width:100%;max-height:100%;object-fit:contain;">` : '<span style="font-size:10.5px;color:var(--ink-faint);">sem logo</span>'}
+            </div>
+            <div style="display:flex; gap:8px;">
+              <label class="btn ghost sm" style="cursor:pointer;">Escolher imagem<input type="file" id="emp-logo-file" accept="image/*" style="display:none;"></label>
+              <button type="button" class="btn ghost sm danger" id="emp-logo-remover" style="${logoAtual ? '' : 'display:none;'}">Remover</button>
+            </div>
+          </div>
+          <p style="font-size:11.5px;color:var(--ink-faint);margin:6px 0 0;">A imagem é reduzida e guardada no cadastro; aparece no card do empreendimento.</p>
+        </div>
+        <div class="field">
           <label class="field-label">Vincular Estruturas Existentes na Biblioteca</label>
           <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fafbf9;">
             ${state.estruturas.map(est => `
@@ -3947,6 +4007,22 @@ function abrirModalEmpreendimento(empExistente = null) {
   </div>`;
   
   document.getElementById('modal-root').innerHTML = html;
+
+  document.getElementById('emp-logo-file').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    showToast('Processando logo...');
+    try {
+      logoAtual = await comprimirLogo(file);
+      document.getElementById('emp-logo-preview').innerHTML = `<img src="${logoAtual}" style="max-width:100%;max-height:100%;object-fit:contain;">`;
+      document.getElementById('emp-logo-remover').style.display = '';
+    } catch (e) { showToast('Não consegui processar a imagem.'); }
+  });
+  document.getElementById('emp-logo-remover').addEventListener('click', () => {
+    logoAtual = '';
+    document.getElementById('emp-logo-preview').innerHTML = '<span style="font-size:10.5px;color:var(--ink-faint);">sem logo</span>';
+    document.getElementById('emp-logo-remover').style.display = 'none';
+  });
   
   document.getElementById('btn-save-emp').addEventListener('click', async () => {
     const novoNome = document.getElementById('mod-emp-nome').value.trim();
@@ -3962,6 +4038,7 @@ function abrirModalEmpreendimento(empExistente = null) {
       nome: novoNome, 
       tipo: novoTipo, 
       estruturas: novasVinculadas, 
+      logo: logoAtual || null,
       criado_em: isEdit ? empExistente.criado_em : new Date().toISOString() 
     };
     
@@ -4000,10 +4077,10 @@ function viewEstruturas() {
   if(state.estruturaEditando) return viewEditorEstrutura();
 
   const setoresDef = [
-    { id: 'Geral', icon: '🏭⛏️🌾', title: 'Setor Geral / Misto' },
-    { id: 'Mineração', icon: '⛏️', title: 'Mineração e Processamento' },
-    { id: 'Agro', icon: '🌾', title: 'Agronegócio e Criação' },
-    { id: 'Indústrias', icon: '⚙️', title: 'Indústrias e Manufatura' }
+    { id: 'Geral', title: 'Setor Geral / Misto' },
+    { id: 'Mineração', title: 'Mineração e Processamento' },
+    { id: 'Agro', title: 'Agronegócio e Criação' },
+    { id: 'Indústrias', title: 'Indústrias e Manufatura' }
   ];
 
   let html = `
@@ -4027,7 +4104,7 @@ function viewEstruturas() {
     if(ests.length > 0) {
       html += `
       <div class="sector-header">
-        <div class="sector-icon">${setor.icon}</div>
+        <div class="sector-icon">${iconeSetor(setor.id)}</div>
         <h2 class="sector-title">${setor.title}</h2>
       </div>
       <div class="grid cols-3">
