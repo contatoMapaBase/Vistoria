@@ -23,7 +23,7 @@
    você não mexe em nada aqui.
    ============================================================ */
 
-const CACHE_VERSION = 'mapabase-v3';
+const CACHE_VERSION = 'mapabase-v4';
 
 // Recursos essenciais para o app abrir offline.
 const CORE_ASSETS = [
