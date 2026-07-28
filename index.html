@@ -5345,6 +5345,8 @@ function viewVistorias() {
     </div>
     <div class="rowflex">
       ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
+      <button class="btn ghost" onclick="exportarBackup()">💾 Baixar backup</button>
+      <label class="btn ghost" style="cursor:pointer;">↥ Restaurar backup<input type="file" id="backup-file" accept="application/json,.json" style="display:none;"></label>
     </div>
   </div>
   ${renderFilterBar('hist')}`;
@@ -5422,8 +5424,103 @@ function viewVistorias() {
 }
 
 function bindVistorias() { 
-  bindFilterBar('hist'); 
+  bindFilterBar('hist');
+  const bf = document.getElementById('backup-file');
+  if (bf) bf.addEventListener('change', (ev) => {
+    const file = ev.target.files[0];
+    if (file) restaurarBackup(file);
+    ev.target.value = '';
+  });
 }
+
+// Gera um backup leve (dados) de tudo e baixa como arquivo .json.
+// Não baixa as fotos que estão no Storage — guarda os links; fotos antigas
+// embutidas (base64) entram naturalmente.
+window.exportarBackup = async function() {
+  try {
+    const idx = state.vistoriasIndex || [];
+    const vistorias = [];
+    for (let i = 0; i < idx.length; i++) {
+      showToast(`Preparando backup... ${i + 1}/${idx.length}`);
+      const v = await loadVistoria(idx[i].id);
+      if (v) vistorias.push(v);
+    }
+    const backup = {
+      formato: 'mapabase-backup',
+      versao: 1,
+      geradoEm: new Date().toISOString(),
+      empreendimentos: state.empreendimentos || [],
+      estruturas: state.estruturas || [],
+      vistorias
+    };
+    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mapabase-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Backup gerado: ${vistorias.length} check-lists, ${(state.empreendimentos||[]).length} empreend., ${(state.estruturas||[]).length} estrut.`);
+  } catch (e) {
+    console.error('Erro no backup:', e);
+    showToast('Erro ao gerar o backup.');
+  }
+};
+
+// Restaura um backup no modo JUNTAR (não apaga nada; só recupera o que falta).
+window.restaurarBackup = async function(file) {
+  let dados;
+  try {
+    dados = JSON.parse(await file.text());
+  } catch (e) { showToast('Arquivo inválido.'); return; }
+
+  if (!dados || dados.formato !== 'mapabase-backup' || !Array.isArray(dados.vistorias)) {
+    showToast('Este arquivo não é um backup válido do MapaBase.');
+    return;
+  }
+
+  const qEmp = (dados.empreendimentos || []).length;
+  const qEst = (dados.estruturas || []).length;
+  const qVist = dados.vistorias.length;
+  const quando = dados.geradoEm ? new Date(dados.geradoEm).toLocaleString('pt-BR') : '';
+
+  if (!confirm(`Restaurar backup${quando ? ' de ' + quando : ''}?\n\nConteúdo: ${qEmp} empreendimentos, ${qEst} estruturas, ${qVist} check-lists.\n\nMODO JUNTAR: o que já existe é mantido como está; só o que estiver faltando é recuperado. Nada é apagado.`)) return;
+
+  showToast('Restaurando...');
+  let addEmp = 0, addEst = 0, addVist = 0;
+
+  for (const e of (dados.empreendimentos || [])) {
+    if (!state.empreendimentos.some(x => x.id === e.id)) {
+      state.empreendimentos.push(e);
+      addEmp++;
+      if (_supabase && navigator.onLine) {
+        try { await _supabase.from('empreendimentos').upsert({ id: e.id, nome: e.nome, tipo: e.tipo, estruturas: e.estruturas, logo: e.logo || null, criado_em: e.criadoEm || e.criado_em || new Date().toISOString() }); } catch (err) { console.warn(err); }
+      }
+    }
+  }
+  if (addEmp) await storageSet('empreendimentos', state.empreendimentos);
+
+  for (const s of (dados.estruturas || [])) {
+    if (!state.estruturas.some(x => x.id === s.id)) {
+      state.estruturas.push(s);
+      addEst++;
+      if (_supabase && navigator.onLine) {
+        try { await _supabase.from('estruturas').upsert({ id: s.id, nome: s.nome, setor: s.setor, itens: { setor: s.setor, list: s.itens || [] } }); } catch (err) { console.warn(err); }
+      }
+    }
+  }
+  if (addEst) await storageSet('estruturas', state.estruturas);
+
+  for (const v of dados.vistorias) {
+    if (!state.vistoriasIndex.some(x => x.id === v.id)) {
+      await saveVistoria(v);
+      addVist++;
+    }
+  }
+
+  render();
+  showToast(`Restaurado: +${addEmp} empreend., +${addEst} estrut., +${addVist} check-lists.`);
+};
 
 window.abrirVistoria = async function(id) {
   showToast('Carregando relatório...'); 
