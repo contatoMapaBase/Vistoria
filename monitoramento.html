@@ -1082,6 +1082,8 @@ const state = {
   map: null,
   mapEdit: null,
   kmlAchados: null,
+  resEdit: null,
+  usuario: null,
   contagemPonto: null,
   ultimasLinhas: null,
   cfgFabrica: null,
@@ -1841,6 +1843,10 @@ window.exportarPdf = function () {
       ${naoConf ? `<br><strong>Atenção:</strong> ${naoConf} resultado(s) foram avaliados contra padrão cuja
       origem ainda não foi validada em fonte primária (Diário Oficial ou publicação do órgão).
       Este documento não deve ser usado como comprovação até essa conferência.` : ''}
+      ${rows.filter(r => r.valor_divergente_do_laudo).length ? `<br><strong>Edição manual:</strong>
+      ${rows.filter(r => r.valor_divergente_do_laudo).length} resultado(s) têm valor diferente do que o
+      laboratório reportou, por correção manual registrada. A tabela "Edições manuais" no fim deste
+      documento lista o valor original, o autor e o motivo de cada uma.` : ''}
     </div>
 
     <h2>Base legal aplicada</h2>
@@ -1854,7 +1860,7 @@ window.exportarPdf = function () {
     <h2>Resultados</h2>
     <table><thead><tr>
       <th>Coleta</th><th>Matriz</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
-      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Fonte</th>
+      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Fonte</th><th>Editado</th>
     </tr></thead><tbody>
     ${ord.map(r => `<tr>
       <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
@@ -1868,8 +1874,20 @@ window.exportarPdf = function () {
       <td>${r.percentual_do_limite === null ? '—' : num(r.percentual_do_limite, 1) + '%'}</td>
       <td>${esc(r.situacao === 'sem_padrao' ? 'sem padrão' : r.situacao)}</td>
       <td>${!r.limite_base_legal ? '—' : (r.padrao_conferido ? 'conferida' : 'NÃO conferida')}</td>
+      <td>${r.valor_divergente_do_laudo ? 'SIM — laudo: ' + num(r.valor_original, 2) : (r.editado ? 'metadado' : '—')}</td>
     </tr>`).join('')}
     </tbody></table>
+    ${rows.some(r => r.editado) ? `<h2>Edições manuais</h2>
+      <table><thead><tr><th>Coleta</th><th>Ponto</th><th>Par.</th><th>Valor do laudo</th><th>Valor atual</th><th>Quem / quando</th><th>Motivo</th></tr></thead><tbody>
+      ${ord.filter(r => r.editado).map(r => `<tr>
+        <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
+        <td>${esc(r.ponto_codigo || '')}</td><td>${esc(r.parametro)}</td>
+        <td>${r.valor_original === null ? '—' : num(r.valor_original, 2) + ' ' + esc(r.unidade_original || '')}</td>
+        <td>${num(r.valor, 2)} ${esc(r.unidade || '')}</td>
+        <td>${esc(r.editado_por || '—')}<br>${r.editado_em ? esc(String(r.editado_em).slice(0, 16).replace('T', ' ')) : ''}</td>
+        <td>${esc(r.motivo_edicao || '')}</td></tr>`).join('')}
+      </tbody></table>` : ''}
+
     ${rows.some(r => r.motivo_inconsistencia) ? `<h2>Motivos de inconsistência</h2>
       <table><thead><tr><th>Coleta</th><th>Ponto</th><th>Par.</th><th>Motivo</th></tr></thead><tbody>
       ${ord.filter(r => r.motivo_inconsistencia).map(r => `<tr>
@@ -2139,6 +2157,9 @@ async function bindPainel() {
     <div class="card kpi"><div class="num" style="${naoAvaliados ? 'color:var(--media);' : ''}">${naoAvaliados}</div><div class="lbl">Sem conclusão possível</div></div>
     <div class="card kpi"><div class="num">${maior === null ? '—' : num(maior, 1) + '%'}</div><div class="lbl">Maior razão valor/limite</div></div>`;
 
+  const editados = rows.filter(r => r.editado).length;
+  const divergentes = rows.filter(r => r.valor_divergente_do_laudo).length;
+
   const alertas = [];
   const matsSel = [...new Set(rows.map(r => r.matriz))];
   if (matsSel.length > 1) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
@@ -2151,6 +2172,15 @@ async function bindPainel() {
     <div class="diag-d">${inc} com dado inconsistente e ${sp} sem padrão legal vigente na data.
     Isso é <strong>abstenção, não aprovação</strong>: os ${conf} conformes não cobrem esses casos.
     Não apresente esta seleção como comprovação de conformidade sem resolver as pendências.</div></div>`);
+  if (divergentes) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
+    <div class="diag-t">${divergentes} resultado(s) com valor diferente do laudo</div>
+    <div class="diag-d">Foram editados manualmente e o valor atual não é o que o laboratório
+    reportou. O valor original está preservado e aparece embaixo de cada linha.
+    Todo relatório gerado desta seleção declara isso.</div></div>`);
+  else if (editados) alertas.push(`<div class="diag" style="margin-bottom:12px;">
+    <div class="diag-t">${editados} resultado(s) editado(s) manualmente</div>
+    <div class="diag-d">Sem alteração de valor — as edições mexeram em metadado
+    (data, método, status ou atribuição de ponto/parâmetro).</div></div>`);
   if (naoConferido) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
     <div class="diag-t">${naoConferido} resultados avaliados contra padrão não conferido em fonte primária</div>
     <div class="diag-d">A base legal correspondente está com <span class="mono">conferido = false</span>.
@@ -2285,19 +2315,21 @@ async function bindPainel() {
   document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
     ? '<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.</p></div>'
     : `<div class="table-wrapper"><table>
-        <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th>Fonte</th></tr></thead>
+        <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th>Fonte</th><th></th></tr></thead>
         <tbody>${ord.map(r => {
           const p = state.pontos.find(x => x.id === r.ponto_id);
           return `<tr>
             <td class="mono" style="font-size:11.5px;">${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
             <td><strong>${esc(p ? p.codigo : '—')}</strong></td>
             <td>${esc(r.parametro)}</td>
-            <td class="mono">${num(r.valor, 2)} ${esc(r.unidade || '')}</td>
+            <td class="mono">${r.qualificador ? esc(r.qualificador) + ' ' : ''}${num(r.valor, 2)} ${esc(r.unidade || '')}${badgeEditado(r)}${
+              r.valor_divergente_do_laudo ? `<br><span style="font-size:10px;color:var(--media);">laudo: ${num(r.valor_original, 2)}</span>` : ''}</td>
             <td class="mono">${r.limite === null ? '—' : num(r.limite, 2)}<br>
               <span style="font-size:10.5px;color:var(--ink-faint);">${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</span></td>
             <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
             <td>${badgeSituacao(r.situacao)}</td>
             <td>${r.limite_base_legal ? (r.padrao_conferido ? '<span class="badge conforme">OK</span>' : '<span class="badge pending">Não conf.</span>') : '—'}</td>
+            <td><button class="btn sm ghost" onclick="editarResultado('${esc(r.id)}')">Editar</button></td>
           </tr>`; }).join('')}</tbody></table></div>`;
 }
 
@@ -2578,7 +2610,7 @@ async function bindMapa() {
           ${p.utm_e ? esc(p.utm_zona || '') + ' ' + num(p.utm_e, 0) + ' / ' + num(p.utm_n, 0) : 'sem UTM'}
         </span>
         <hr style="border:0;border-top:1px solid #ddd;margin:7px 0;">
-        ${pior ? `<strong>Pior caso:</strong> ${esc(pior.parametro)}<br>
+        ${pior ? `<strong>Pior caso:</strong> ${esc(pior.parametro)}${pior.editado ? ' <em style="font-size:11px;">(editado)</em>' : ''}<br>
           ${num(pior.valor, 2)} de ${num(pior.limite, 2)} ${esc(pior.unidade || '')}
           — <strong style="color:${cor};">${num(pior.percentual_do_limite, 1)}% do limite</strong><br>
           <span style="font-size:11px;color:#666;">${esc(pior.limite_base_legal || '')}${pior.limite_contexto ? ' · ' + esc(pior.limite_contexto) : ''}<br>
@@ -2936,6 +2968,242 @@ window.fecharModal = function (ev) {
 };
 
 /* ============================================================
+   EDIÇÃO MANUAL DE RESULTADO
+   ------------------------------------------------------------
+   Erro de transcrição existe e precisa de caminho de correção. Mas resultado
+   é dado medido: se o banco divergir do laudo sem rastro, a rastreabilidade
+   morre e o relatório deixa de ser defensável numa auditoria. Por isso toda
+   edição exige motivo, guarda o valor do laudo em valor_original e empilha o
+   histórico em edicoes (append-only). Nada é sobrescrito em silêncio.
+   ============================================================ */
+const CAMPOS_EDITAVEIS = [
+  'valor', 'unidade', 'qualificador', 'lq', 'ld', 'duracao_h',
+  'inicio', 'fim', 'ponto_id', 'parametro_id', 'tipo_amostra',
+  'status_dado', 'motivo_inconsistencia', 'metodo'
+];
+
+function badgeEditado(r) {
+  if (!r.editado) return '';
+  const div = r.valor_divergente_do_laudo;
+  return `<span class="badge ${div ? 'pending' : 'na'}" style="margin-left:5px;"
+    title="Editado manualmente${r.editado_por ? ' por ' + esc(r.editado_por) : ''}${r.editado_em ? ' em ' + fmtData(String(r.editado_em).slice(0,10)) : ''}${r.motivo_edicao ? '. Motivo: ' + esc(r.motivo_edicao) : ''}${div ? '. Valor difere do laudo (laudo: ' + num(r.valor_original,2) + ').' : ''}">editado${r.n_edicoes > 1 ? ' ×' + r.n_edicoes : ''}</span>`;
+}
+
+function dtLocal(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+window.editarResultado = async function (id) {
+  const { data, error } = await _supabase.from('mon_resultados').select('*').eq('id', id).single();
+  if (error || !data) return showToast('Resultado não encontrado.');
+  const r = data;
+  state.resEdit = r;
+
+  const pt = state.pontos.find(x => x.id === r.ponto_id);
+  const par = state.parametros.find(x => x.id === r.parametro_id);
+  const hist = Array.isArray(r.edicoes) ? r.edicoes : [];
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" style="max-width:780px;" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Editar resultado</strong>
+        <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">
+          ${esc(pt ? pt.codigo : '?')} · ${esc(par ? par.sigla : '?')}</span>
+      </div>
+      <div class="modal-body">
+
+        <div class="diag aviso" style="margin-bottom:16px;">
+          <div class="diag-t">Isto altera dado medido</div>
+          <div class="diag-d">O laudo continua sendo a fonte. Ao salvar, o valor original é
+          preservado, a edição entra no histórico com seu usuário e a data, e o resultado passa a
+          exibir selo de "editado" em toda a interface e no PDF. Use para corrigir erro de
+          transcrição — não para ajustar resultado que não fechou.</div>
+        </div>
+
+        ${r.valor_original !== null ? `<div class="diag" style="margin-bottom:16px;">
+          <div class="diag-t">Valor do laudo: ${num(r.valor_original, 4)} ${esc(r.unidade_original || '')}</div>
+          <div class="diag-d">Este resultado já foi editado ${hist.length} vez(es).
+          <button class="btn sm ghost" onclick="reverterResultado('${esc(r.id)}')" style="margin-top:6px;">Reverter ao valor do laudo</button></div>
+        </div>` : ''}
+
+        <div class="grid cols-3">
+          <div class="field"><label class="field-label">Valor</label>
+            <input id="re-valor" type="number" step="any" value="${r.valor ?? ''}"></div>
+          <div class="field"><label class="field-label">Unidade</label>
+            <input id="re-unidade" value="${esc(r.unidade || '')}"></div>
+          <div class="field"><label class="field-label">Qualificador</label>
+            <select id="re-qual">
+              <option value="" ${!r.qualificador ? 'selected' : ''}>— nenhum —</option>
+              <option value="<" ${r.qualificador === '<' ? 'selected' : ''}>&lt; (menor que o LQ)</option>
+              <option value=">" ${r.qualificador === '>' ? 'selected' : ''}>&gt; (maior que)</option>
+            </select></div>
+        </div>
+
+        <div class="grid cols-3">
+          <div class="field"><label class="field-label">LQ</label>
+            <input id="re-lq" type="number" step="any" value="${r.lq ?? ''}"></div>
+          <div class="field"><label class="field-label">LD</label>
+            <input id="re-ld" type="number" step="any" value="${r.ld ?? ''}"></div>
+          <div class="field"><label class="field-label">Duração (h)</label>
+            <input id="re-dur" type="number" step="any" value="${r.duracao_h ?? ''}"></div>
+        </div>
+
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Início da coleta</label>
+            <input id="re-inicio" type="datetime-local" value="${dtLocal(r.inicio)}"></div>
+          <div class="field"><label class="field-label">Fim da coleta</label>
+            <input id="re-fim" type="datetime-local" value="${dtLocal(r.fim)}"></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin:-6px 0 14px;">
+          A data de início define qual norma se aplica. Mudá-la pode trocar a etapa e o limite.</p>
+
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Ponto</label>
+            <select id="re-ponto">${state.pontos.filter(x => x.matriz === (pt ? pt.matriz : x.matriz))
+              .map(x => `<option value="${esc(x.id)}" ${x.id === r.ponto_id ? 'selected' : ''}>${esc(x.codigo)} — ${esc(x.nome || '')}</option>`).join('')}</select></div>
+          <div class="field"><label class="field-label">Parâmetro</label>
+            <select id="re-param">${state.parametros.filter(x => x.matriz === (par ? par.matriz : x.matriz))
+              .map(x => `<option value="${esc(x.id)}" ${x.id === r.parametro_id ? 'selected' : ''}>${esc(x.sigla)} (${esc(x.unidade)})</option>`).join('')}</select></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin:-6px 0 14px;">
+          Trocar ponto ou parâmetro é <strong>reatribuição de amostra</strong>. Só faça com a
+          planilha de campo na mão — é o caso da campanha de 2022, em que MP10 saiu maior que PTS.</p>
+
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Tipo de amostra</label>
+            <select id="re-tipo">${['ambiental','branco_campo','branco_transporte','duplicata']
+              .map(t => `<option value="${t}" ${r.tipo_amostra === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          <div class="field"><label class="field-label">Status do dado</label>
+            <select id="re-status">
+              <option value="ok" ${r.status_dado === 'ok' ? 'selected' : ''}>ok — entra em gráfico e conformidade</option>
+              <option value="inconsistente" ${r.status_dado === 'inconsistente' ? 'selected' : ''}>inconsistente — fica fora</option>
+            </select></div>
+        </div>
+
+        <div class="field"><label class="field-label">Motivo da inconsistência</label>
+          <textarea id="re-motivoinc" rows="2">${esc(r.motivo_inconsistencia || '')}</textarea></div>
+
+        <div class="field"><label class="field-label">Método</label>
+          <input id="re-metodo" value="${esc(r.metodo || '')}"></div>
+
+        <div class="field">
+          <label class="field-label">Motivo desta edição — obrigatório</label>
+          <textarea id="re-motivo" rows="3" placeholder="Ex.: erro de transcrição na importação; a planilha de campo 103/2023 declara volume final 224,639 e o JSON trouxe 248,615."></textarea>
+          <p style="font-size:11.5px;color:var(--ink-faint);margin:4px 0 0;">
+            Mínimo de 15 caracteres. Vai para o histórico e para o rodapé do PDF.</p>
+        </div>
+
+        ${hist.length ? `<details style="margin-top:8px;">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;">Histórico de edições (${hist.length})</summary>
+          <div class="table-wrapper" style="margin-top:8px;"><table>
+            <thead><tr><th>Quando</th><th>Quem</th><th>Motivo</th><th>Mudou</th></tr></thead>
+            <tbody>${hist.slice().reverse().map(h => `<tr>
+              <td class="mono" style="font-size:11px;">${esc(String(h.em || '').slice(0,16).replace('T',' '))}</td>
+              <td style="font-size:11.5px;">${esc(h.por || '—')}</td>
+              <td style="font-size:11.5px;">${esc(h.motivo || '')}</td>
+              <td class="mono" style="font-size:10.5px;">${Object.keys(h.depois || {}).map(k =>
+                `${esc(k)}: ${esc(String((h.antes||{})[k] ?? '—'))} → ${esc(String((h.depois||{})[k] ?? '—'))}`).join('<br>')}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </details>` : ''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" onclick="salvarResultado('${esc(r.id)}')">Salvar edição</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+window.salvarResultado = async function (id) {
+  const r = state.resEdit;
+  if (!r || r.id !== id) return showToast('Estado perdido. Reabra a edição.');
+
+  const motivo = document.getElementById('re-motivo').value.trim();
+  if (motivo.length < 15) return showToast('Descreva o motivo da edição (mínimo 15 caracteres).');
+
+  const g = i => { const el = document.getElementById(i); return el ? el.value.trim() : ''; };
+  const nOuNull = v => v === '' ? null : Number(v);
+  const tsOuNull = v => v === '' ? null : new Date(v).toISOString();
+
+  const novo = {
+    valor: nOuNull(g('re-valor')),
+    unidade: g('re-unidade') || r.unidade,
+    qualificador: g('re-qual') || null,
+    lq: nOuNull(g('re-lq')),
+    ld: nOuNull(g('re-ld')),
+    duracao_h: nOuNull(g('re-dur')),
+    inicio: tsOuNull(g('re-inicio')),
+    fim: tsOuNull(g('re-fim')),
+    ponto_id: g('re-ponto') || r.ponto_id,
+    parametro_id: g('re-param') || r.parametro_id,
+    tipo_amostra: g('re-tipo') || r.tipo_amostra,
+    status_dado: g('re-status') || r.status_dado,
+    motivo_inconsistencia: g('re-motivoinc') || null,
+    metodo: g('re-metodo') || null
+  };
+
+  if (!novo.unidade) return showToast('A unidade é obrigatória.');
+
+  // Só registra o que efetivamente mudou.
+  const antes = {}, depois = {};
+  CAMPOS_EDITAVEIS.forEach(k => {
+    const a = r[k] === undefined ? null : r[k];
+    const b = novo[k];
+    const igual = (a === null && b === null) || String(a) === String(b) ||
+      (!isNaN(Number(a)) && !isNaN(Number(b)) && a !== null && b !== null && Number(a) === Number(b));
+    if (!igual) { antes[k] = a; depois[k] = b; }
+  });
+  if (!Object.keys(depois).length) return showToast('Nada foi alterado.');
+
+  const quem = state.usuario || 'usuário não identificado';
+  const agora = new Date().toISOString();
+  const hist = Array.isArray(r.edicoes) ? r.edicoes.slice() : [];
+  hist.push({ em: agora, por: quem, motivo, antes, depois });
+
+  const patch = Object.assign({}, novo, {
+    editado_em: agora, editado_por: quem, motivo_edicao: motivo, edicoes: hist
+  });
+  // O valor do laudo é fotografado uma única vez, na primeira edição.
+  if (r.valor_original === null || r.valor_original === undefined) {
+    patch.valor_original = r.valor;
+    patch.unidade_original = r.unidade;
+  }
+
+  const { error } = await _supabase.from('mon_resultados').update(patch).eq('id', id);
+  if (error) return showToast('Erro ao salvar: ' + error.message);
+
+  fecharModal();
+  showToast(`Resultado editado. ${Object.keys(depois).length} campo(s) alterado(s).`);
+  render();
+};
+
+window.reverterResultado = async function (id) {
+  const r = state.resEdit;
+  if (!r || r.valor_original === null) return;
+  if (!confirm(`Reverter o valor para ${r.valor_original} ${r.unidade_original || ''}, como está no laudo?`)) return;
+  const agora = new Date().toISOString();
+  const quem = state.usuario || 'usuário não identificado';
+  const hist = (Array.isArray(r.edicoes) ? r.edicoes.slice() : []);
+  hist.push({ em: agora, por: quem, motivo: 'Revertido ao valor do laudo.',
+    antes: { valor: r.valor, unidade: r.unidade },
+    depois: { valor: r.valor_original, unidade: r.unidade_original } });
+  const { error } = await _supabase.from('mon_resultados').update({
+    valor: r.valor_original, unidade: r.unidade_original || r.unidade,
+    editado_em: agora, editado_por: quem,
+    motivo_edicao: 'Revertido ao valor do laudo.', edicoes: hist
+  }).eq('id', id);
+  if (error) return showToast('Erro ao reverter: ' + error.message);
+  fecharModal();
+  showToast('Valor revertido ao do laudo.');
+  render();
+};
+
+/* ============================================================
    EDITAR / EXCLUIR CAMPANHA
    ============================================================ */
 window.editarCampanha = function (id) {
@@ -3181,6 +3449,7 @@ async function checkAuth() {
 
   const { data: { session } } = await _supabase.auth.getSession();
   if (session) {
+    state.usuario = (session.user && session.user.email) || null;
     tela.style.display = 'none';
     carregarTudo();
     return;
@@ -3191,6 +3460,7 @@ async function checkAuth() {
     const pass = document.getElementById('login-pass').value;
     const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
     if (error) return alert('Falha no login. Verifique as credenciais.');
+    state.usuario = email;
     tela.style.display = 'none';
     carregarTudo();
   };
