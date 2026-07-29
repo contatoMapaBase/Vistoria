@@ -23,7 +23,7 @@
    você não mexe em nada aqui.
    ============================================================ */
 
-const CACHE_VERSION = 'mapabase-v4';
+const CACHE_VERSION = 'mapabase-v5';
 
 // Recursos essenciais para o app abrir offline.
 const CORE_ASSETS = [
@@ -62,6 +62,23 @@ function ehSupabase(url) {
   return url.hostname.endsWith('supabase.co') || url.hostname.endsWith('supabase.in');
 }
 
+/* Páginas de escritório (só funcionam com internet e NÃO devem ser guardadas
+   para uso offline). O aparelho do inspetor em campo nunca baixa esses
+   arquivos: eles não estão em CORE_ASSETS e o service worker sai do caminho.
+   Para acrescentar outra página de escritório no futuro, é só incluir aqui. */
+const PAGINAS_ESCRITORIO = ['/monitoramento.html'];
+
+function ehPaginaEscritorio(url) {
+  return PAGINAS_ESCRITORIO.some(p => url.pathname.endsWith(p));
+}
+
+/* O app de campo é a raiz ou o index.html. Só ele pode ocupar a cópia offline
+   guardada em './index.html' — sem essa checagem, abrir qualquer outra página
+   sobrescreveria o app que o inspetor usa sem sinal. */
+function ehAppDeCampo(url) {
+  return url.pathname.endsWith('/index.html') || url.pathname.endsWith('/');
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
 
@@ -75,14 +92,22 @@ self.addEventListener('fetch', event => {
   // Dados ao vivo do Supabase sempre vão para a rede.
   if (ehSupabase(url)) return;
 
+  // Páginas de escritório: rede direta, sem cache. Offline, o navegador mostra
+  // a própria tela de "sem conexão" — o que é honesto, porque essas telas
+  // dependem do Supabase de qualquer forma.
+  if (ehPaginaEscritorio(url)) return;
+
   // Navegação (o próprio HTML): rede primeiro, ignorando o cache do navegador
   // para garantir a versão mais recente; cache local como reserva offline.
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req, { cache: 'reload' })
         .then(resp => {
-          const copia = resp.clone();
-          caches.open(CACHE_VERSION).then(c => c.put('./index.html', copia)).catch(() => {});
+          // Só o app de campo alimenta a cópia offline.
+          if (ehAppDeCampo(url)) {
+            const copia = resp.clone();
+            caches.open(CACHE_VERSION).then(c => c.put('./index.html', copia)).catch(() => {});
+          }
           return resp;
         })
         .catch(() => caches.match('./index.html').then(r => r || caches.match('./')))

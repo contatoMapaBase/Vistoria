@@ -1,0 +1,1968 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MapaBase — Monitoramentos ambientais</title>
+  <meta name="theme-color" content="#1E2C42">
+  <link rel="icon" type="image/png" href="./icon-192.png">
+
+  <!-- Ferramenta de escritório: sem manifest e sem service worker de propósito.
+       Esta página exige internet e não deve ser guardada no aparelho de campo. -->
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #EEF1F5;
+      --surface: #FFFFFF;
+      --surface-2: #E6EBF1;
+      --ink: #22314A;
+      --ink-soft: #4E5C71;
+      --ink-faint: #8892A2;
+      --line: #DCE2EA;
+      --brand: #2E4159;
+      --brand-deep: #1E2C42;
+      --accent: #78B448;
+      --accent-ink: #F0F7E9;
+      --conforme: #2F9E44;
+      --conforme-bg: #E9F7EC;
+      --nc: #C4332C;
+      --nc-bg: #FBEAE8;
+      --na: #8892A2;
+      --na-bg: #EDF0F4;
+      --baixa: #4C86A8;
+      --media: #D69E2E;
+      --alta: #E2571D;
+      --critica: #9B1C2E;
+      --radius: 14px;
+      --shadow: 0 6px 20px rgba(30,44,66,.06), 0 1px 3px rgba(30,44,66,.05);
+      --font-display: 'Barlow Condensed', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'IBM Plex Mono', monospace;
+    }
+
+    * { box-sizing: border-box; }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    button {
+      font-family: inherit;
+      cursor: pointer;
+    }
+    
+    input, select, textarea {
+      font-family: inherit;
+    }
+    
+    ::selection {
+      background: var(--accent);
+      color: #fff;
+    }
+    
+    summary::-webkit-details-marker { display: none; }
+    summary { list-style: none; }
+
+    /* TELA DE LOGIN */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--brand-deep);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .login-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.3);
+      text-align: center;
+    }
+
+    /* SHELL LAYOUT */
+    #shell {
+      display: flex;
+      min-height: 100vh;
+    }
+    
+    #sidebar {
+      width: 230px;
+      flex-shrink: 0;
+      background: var(--brand-deep);
+      color: #EDF1F6;
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    
+    .brand {
+      padding: 24px 20px 18px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .brand-mark img {
+      max-width: 100%;
+      height: auto;
+      max-height: 40px;
+      object-fit: contain;
+    }
+    
+    .brand-sub {
+      font-size: 11px;
+      color: #9FB0A2;
+      margin-top: 8px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    
+    nav.mainnav {
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    
+    .navbtn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border: none;
+      background: transparent;
+      color: #AEB9CB;
+      border-radius: 10px;
+      font-size: 14.5px;
+      font-weight: 500;
+      text-align: left;
+      transition: all .15s;
+    }
+    
+    .navbtn:hover {
+      background: rgba(255,255,255,.07);
+      color: #fff;
+    }
+    
+    .navbtn.active {
+      background: var(--accent);
+      color: #14351A;
+      font-weight: 600;
+    }
+    
+    .navbtn .ic {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .navbtn .ic svg { width: 20px; height: 20px; display: block; }
+    
+    .sidebar-foot {
+      padding: 16px 20px 20px;
+      font-size: 11px;
+      color: #7C8C7E;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    
+    #main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #content {
+      flex: 1;
+      padding: 32px 40px 90px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    
+    .view-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    
+    .view-title {
+      font-family: var(--font-display);
+      font-size: 36px;
+      font-weight: 600;
+      line-height: 1;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    
+    .view-sub {
+      color: var(--ink-soft);
+      font-size: 14.5px;
+      margin-top: 8px;
+    }
+    
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      margin-bottom: 6px;
+    }
+
+    /* PRIMITIVES */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    
+    .btn:hover {
+      border-color: var(--ink-faint);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--ink);
+    }
+    
+    .btn.primary:hover {
+      background: #6da838;
+      border-color: #6da838;
+    }
+    
+    .btn.ghost {
+      border-color: transparent;
+      background: transparent;
+    }
+    
+    .btn.ghost:hover {
+      background: var(--surface-2);
+    }
+    
+    .btn.danger {
+      color: var(--nc);
+      border-color: var(--nc-bg);
+    }
+    
+    .btn.danger:hover {
+      background: var(--nc-bg);
+    }
+    
+    .btn.sm {
+      padding: 6px 12px;
+      font-size: 12.5px;
+    }
+    
+    .btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    
+    .card-pad {
+      padding: 24px;
+    }
+    
+    .grid { display: grid; gap: 20px; }
+    .grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+    .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .kpi { padding: 20px 24px; }
+    .kpi .num {
+      font-family: var(--font-display);
+      font-size: 42px;
+      font-weight: 600;
+      line-height: 1;
+    }
+    .kpi .lbl {
+      font-size: 13px;
+      color: var(--ink-soft);
+      margin-top: 8px;
+      font-weight: 500;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    
+    .badge.conforme { background: var(--conforme-bg); color: var(--conforme); }
+    .badge.nc { background: var(--nc-bg); color: var(--nc); }
+    .badge.na { background: var(--na-bg); color: var(--na); }
+    .badge.baixa { background: #E7F3EC; color: var(--baixa); }
+    .badge.media { background: #FBF1DC; color: #9A7415; }
+    .badge.alta { background: #FCE7DD; color: var(--alta); }
+    .badge.critica { background: #F7DEE1; color: var(--critica); }
+    .badge.pending { background: #FFF3CD; color: #975A16; border: 1px solid #F6E05E; }
+
+    /* CARDS VISUAIS E SETORES */
+    .sector-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 40px 0 20px 0;
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 12px;
+    }
+    
+    .sector-icon {
+      background: var(--brand);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+    .sector-icon svg { width: 24px; height: 24px; stroke: #fff; }
+    
+    .sector-title {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .visual-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    
+    .visual-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(22,36,28,.08);
+    }
+    
+    .visual-card-cover {
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .visual-card-large .visual-card-cover {
+      height: 132px;
+    }
+    
+    .cover-geral, .cover-industria { background: linear-gradient(135deg, #f0f3f8 0%, #dde4ee 100%); }
+    .cover-agro { background: linear-gradient(135deg, #eef6e6 0%, #d7ead0 100%); }
+    .cover-mina { background: linear-gradient(135deg, #eef1f6 0%, #d5dde9 100%); }
+    .cover-logo { background: #ffffff; border-bottom: 1px solid var(--line); }
+
+    .cover-setor-ic svg { width: 46px; height: 46px; stroke: var(--brand); opacity: .85; }
+    .visual-card-large .cover-setor-ic svg { width: 54px; height: 54px; }
+    .emp-logo { max-width: 78%; max-height: 78%; object-fit: contain; }
+    
+    .visual-card-body {
+      padding: 18px 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .visual-card-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0 0 6px;
+      color: var(--ink);
+      line-height: 1.1;
+    }
+    
+    .visual-card-desc {
+      font-size: 13.5px;
+      color: var(--ink-soft);
+      margin-bottom: 16px;
+      flex: 1;
+      line-height: 1.5;
+    }
+    
+    .visual-card-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--line);
+      background: var(--surface-2);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .est-list-chip {
+      display: inline-block;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 11.5px;
+      margin: 2px 4px 2px 0;
+      color: var(--ink-soft);
+    }
+
+    /* FILTROS MULTI-SELEÇÃO */
+    .filter-bar {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      box-shadow: var(--shadow);
+      flex-wrap: wrap;
+    }
+    
+    .filter-bar .field {
+      margin-bottom: 0;
+      flex: 1;
+      min-width: 200px;
+      position: relative;
+    }
+    
+    .multi-select-details { position: relative; }
+    
+    .multi-select-summary {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 14.5px;
+      color: var(--ink);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    
+    .multi-select-summary::after {
+      content: '▼';
+      font-size: 10px;
+      color: var(--ink-faint);
+    }
+    
+    .multi-select-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 4px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 100;
+      padding: 8px;
+    }
+    
+    .multi-select-dropdown label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    
+    .multi-select-dropdown label:hover {
+      background: var(--surface-2);
+    }
+    
+    .multi-select-dropdown input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+
+    /* ACORDEÃO HISTÓRICO */
+    .folder-details {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    
+    .folder-summary {
+      padding: 18px 24px;
+      background: var(--surface);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background 0.2s;
+    }
+    
+    .folder-details[open] .folder-summary {
+      border-bottom-color: var(--line);
+      background: #f9faf8;
+    }
+    
+    .folder-summary:hover {
+      background: var(--surface-2);
+    }
+    
+    .folder-title {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .month-group {
+      margin-top: 20px;
+      padding: 0 24px 20px;
+    }
+    
+    .month-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--surface-2);
+    }
+
+    /* TABELAS */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: var(--radius);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      min-width: 600px;
+      background: var(--surface);
+    }
+    
+    th {
+      text-align: left;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--ink-faint);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+    
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    tr.clickable:hover {
+      background: #f9faf8;
+      cursor: pointer;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--ink-soft);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .empty .ic {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    input[type=text], input[type=email], input[type=password], input[type=datetime-local], input[type=number], select, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 14.5px;
+      color: var(--ink);
+      transition: border-color 0.2s;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    input:disabled, select:disabled {
+      background: var(--surface-2);
+      color: var(--ink-faint);
+      cursor: not-allowed;
+    }
+    
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    
+    label.field-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      margin-bottom: 6px;
+      display: block;
+    }
+    
+    .field { margin-bottom: 18px; }
+    
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: all .3s;
+    }
+    
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    /* MODAIS */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(22,36,28,.6);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    
+    .modal {
+      background: var(--surface);
+      border-radius: 16px;
+      max-width: 540px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 64px rgba(0,0,0,.3);
+    }
+    
+    .modal-head {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-head h3 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+    }
+    
+    .modal-body { padding: 24px; }
+    
+    .modal-foot {
+      padding: 16px 24px 24px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--line);
+    }
+
+    /* CHECKLIST ITENS E EDITOR */
+    .item-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      margin-bottom: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    
+    .item-top {
+      padding: 16px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    
+    .item-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-faint);
+      margin-bottom: 6px;
+      display: block;
+    }
+    
+    .item-txt {
+      font-size: 15px;
+      line-height: 1.5;
+      font-weight: 500;
+    }
+    
+    .seg {
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    
+    .seg button {
+      border: none;
+      background: var(--surface);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      border-right: 1px solid var(--line);
+      transition: all 0.1s;
+    }
+    
+    .seg button:last-child { border-right: none; }
+    .seg button.c.active { background: var(--conforme); color: #fff; }
+    .seg button.n.active { background: var(--nc); color: #fff; }
+    .seg button.a.active { background: var(--na); color: #fff; }
+    
+    .item-extra {
+      padding: 0 20px 20px;
+      border-top: 1px dashed var(--line);
+      margin-top: 0;
+      padding-top: 16px;
+      background: #fafbf9;
+    }
+    
+    .item-extra.hidden, .nc-fields.hidden { display: none; }
+    
+    .photo-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    
+    .photo-thumb {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--line);
+      position: relative;
+      box-shadow: var(--shadow);
+    }
+    
+    .photo-add {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      border: 2px dashed var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: var(--ink-faint);
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .photo-add:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* EDITOR DE ESTRUTURA ROW */
+    .ed-item-row { padding: 16px; display: flex; gap: 12px; align-items: center; }
+    .ed-arrows {
+      display: flex;
+      flex-direction: column;
+      line-height: 0.8;
+      font-size: 22px;
+      color: var(--ink-faint);
+      cursor: ns-resize;
+    }
+    .ed-inputs { display: flex; gap: 12px; flex: 1; }
+    .ed-item-txt { flex: 1; }
+    .ed-item-cat { width: 200px; }
+
+    .rowflex {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    @media(max-width: 860px) {
+      #sidebar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        z-index: 50;
+        box-shadow: 0 -4px 20px rgba(0,0,0,.15);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .brand, .sidebar-foot { display: none; }
+      nav.mainnav {
+        flex-direction: row;
+        padding: 8px;
+        overflow-x: auto;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+      }
+      .navbtn {
+        flex-direction: column;
+        font-size: 10.5px;
+        padding: 8px;
+        gap: 4px;
+        min-width: 72px;
+        scroll-snap-align: start;
+        justify-content: center;
+      }
+      .navbtn .ic { font-size: 20px; }
+      #content { padding: 20px 16px 100px; }
+      .grid.cols-5, .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+      .item-top { flex-direction: column; gap: 12px; }
+      .seg { width: 100%; display: flex; }
+      .seg button { flex: 1; text-align: center; padding: 12px 0; font-size: 12.5px; }
+      
+      /* EDITOR RESPONSIVO */
+      .ed-item-row { flex-wrap: wrap; }
+      .ed-arrows { flex-direction: row; gap: 16px; order: 1; }
+      .ed-item-row > .danger { order: 2; margin-left: auto; }
+      .ed-inputs { flex-direction: column; width: 100%; order: 3; margin-top: 8px; }
+      .ed-item-cat { width: 100%; }
+    }
+
+    @media screen { .relatorio-gerencial { display: none; } }
+    @media print {
+      .print-only-title { display: block !important; margin-bottom: 20px; }
+      #sidebar, .no-print, nav.mainnav, .view-head, .filter-bar, #modal-root { display: none !important; }
+      #content { padding: 0; max-width: 100%; width: 100%; margin: 0; }
+      body { background: #fff; margin: 0; }
+      .card, .folder-details { border: 1px solid #ddd; box-shadow: none; break-inside: avoid; }
+      .table-wrapper { overflow: visible !important; }
+      table { min-width: 100%; }
+      * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
+      canvas { max-width: 100% !important; height: auto !important; }
+      .relatorio-gerencial { display: block; background: white; padding: 2cm; }
+      .multi-select-details[open] .multi-select-dropdown { display: none !important; }
+    }
+
+    /* --- acréscimos exclusivos desta página --- */
+    .mono { font-family: var(--font-mono); font-size: 12.5px; }
+    .json-area {
+      width: 100%; min-height: 220px; font-family: var(--font-mono);
+      font-size: 12.5px; line-height: 1.5;
+    }
+    .diag { border-left: 3px solid var(--line); padding: 10px 14px; margin-bottom: 8px; border-radius: 0 8px 8px 0; background: var(--surface-2); }
+    .diag.erro  { border-left-color: var(--nc); background: var(--nc-bg); }
+    .diag.aviso { border-left-color: var(--media); background: #FBF1DC; }
+    .diag.ok    { border-left-color: var(--conforme); background: var(--conforme-bg); }
+    .diag-t { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+    .diag-d { font-size: 12.5px; color: var(--ink-soft); }
+    .bar-wrap { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; min-width: 70px; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+    .link-app { display:block; font-size:12px; color:var(--ink-faint); text-decoration:none; padding:8px 0; }
+    .link-app:hover { color: var(--accent); }
+    .chart-box { position: relative; height: 340px; }
+  </style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div style="margin-bottom: 22px;">
+      <img src="./LOGO_VERT.png" alt="MapaBase" style="max-width:210px; width:70%; height:auto; margin:0 auto; display:block;">
+    </div>
+    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:22px;">Monitoramentos ambientais · uso interno</p>
+    <div class="field" style="text-align:left;">
+      <label class="field-label">E-mail Corporativo</label>
+      <input type="email" id="login-email" placeholder="nome@mapabase.com.br">
+    </div>
+    <div class="field" style="text-align:left;">
+      <label class="field-label">Senha de Acesso</label>
+      <input type="password" id="login-pass" placeholder="Digite a senha">
+    </div>
+    <button class="btn primary" id="btn-entrar" style="width:100%;justify-content:center;margin-top:8px;padding:12px;">Entrar</button>
+    <p style="font-size:11.5px;color:var(--ink-faint);margin-top:16px;">Requer conexão com a internet.</p>
+  </div>
+</div>
+
+<div id="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <span style="font-family:var(--font-display); font-size:30px; font-weight:700; letter-spacing:.02em; color:#fff;">MAPA<span style="color:var(--accent);">BASE</span></span>
+      </div>
+      <div class="brand-sub">Monitoramentos</div>
+    </div>
+    <nav class="mainnav" id="mainnav"></nav>
+    <div class="sidebar-foot">
+      <a class="link-app" href="./index.html">‹ Voltar às inspeções</a>
+      <div id="status-sync" style="margin-top:4px;">Verificando...</div>
+      <button class="btn ghost sm" id="btn-logout" style="margin-top:12px;width:100%;color:var(--ink-soft);border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
+    </div>
+  </aside>
+  <div id="main"><div id="content"></div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modal-root"></div>
+
+<script>
+/* ============================================================
+   MapaBase — Monitoramentos ambientais
+   Página de escritório. Online-first, sem offline, sem PWA.
+   Compartilha login, projeto Supabase e empreendimentos com o
+   app de campo (index.html), por estarem na mesma origem.
+   ============================================================ */
+
+const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
+const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+const SCHEMA_ACEITO = 'mapabase.monitoramento.v1';
+
+const state = {
+  view: 'campanhas',
+  ready: false,
+  empreendimentos: [],
+  parametros: [],
+  padroes: [],
+  campanhas: [],
+  pontos: [],
+  pacote: null,       // JSON validado, aguardando salvar
+  diagnostico: null,  // erros/avisos da validação
+  detalhe: null,      // campanha aberta
+  filtroEmp: '',
+  serie: { emp: '', ponto: '', parametro: '' },
+  chart: null
+};
+
+/* ---------- utilitários ---------- */
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 3200);
+}
+function fmtData(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.length <= 10 ? iso + 'T12:00:00' : iso);
+  if (isNaN(d)) return esc(iso);
+  return d.toLocaleDateString('pt-BR');
+}
+function num(v, dec = 2) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (isNaN(n)) return esc(v);
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function mesesDesde(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + 'T12:00:00');
+  if (isNaN(d)) return null;
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+}
+function nomeEmp(id) {
+  const e = state.empreendimentos.find(x => x.id === id);
+  return e ? e.nome : '(empreendimento removido)';
+}
+function paramPorSigla(sigla, matriz) {
+  const s = String(sigla || '').trim().toUpperCase().replace('.', ',');
+  return state.parametros.find(p =>
+    p.sigla.toUpperCase() === s && (!matriz || p.matriz === matriz)
+  ) || state.parametros.find(p => p.sigla.toUpperCase() === s) || null;
+}
+
+/* ============================================================
+   CARGA INICIAL
+   ============================================================ */
+async function carregarTudo() {
+  const [emp, par, pad, camp, pts] = await Promise.all([
+    _supabase.from('empreendimentos').select('id,nome,tipo').order('nome'),
+    _supabase.from('mon_parametros').select('*').eq('ativo', true).order('ordem'),
+    _supabase.from('mon_padroes_legais').select('*'),
+    _supabase.from('mon_campanhas').select('*').order('data_inicio', { ascending: false }),
+    _supabase.from('mon_pontos').select('*').order('codigo')
+  ]);
+
+  const erro = [emp, par, pad, camp, pts].find(r => r.error);
+  if (erro) {
+    showToast('Erro ao carregar: ' + erro.error.message);
+    console.error(erro.error);
+  }
+
+  state.empreendimentos = emp.data || [];
+  state.parametros = par.data || [];
+  state.padroes = pad.data || [];
+  state.campanhas = camp.data || [];
+  state.pontos = pts.data || [];
+
+  if (!state.parametros.length) {
+    showToast('Biblioteca vazia: aplique o 02_seed_conama506.sql no Supabase.');
+  }
+
+  state.ready = true;
+  render();
+}
+
+/* ============================================================
+   VALIDAÇÃO DO PACOTE JSON
+   Regras: o que quebra o modelo de dados é ERRO e bloqueia;
+   o que enfraquece a rastreabilidade é AVISO e não bloqueia;
+   incoerência técnica marca a LINHA como inconsistente, sem
+   impedir a carga do histórico.
+   ============================================================ */
+function validarPacote(txt) {
+  const d = { erros: [], avisos: [], resumo: null };
+  let j;
+  try { j = JSON.parse(txt); }
+  catch (e) { d.erros.push(['JSON inválido', e.message]); return { d, j: null }; }
+
+  if (j.schema !== SCHEMA_ACEITO) {
+    d.erros.push(['Schema não reconhecido', `Esperado "${SCHEMA_ACEITO}", recebido "${j.schema || '(vazio)'}".`]);
+    return { d, j: null };
+  }
+
+  const c = j.campanha || {};
+  const emp = state.empreendimentos.find(e =>
+    (e.nome || '').trim().toLowerCase() === String(c.empreendimento || '').trim().toLowerCase()
+  );
+  if (!emp) {
+    d.erros.push([
+      'Empreendimento não cadastrado',
+      `"${esc(c.empreendimento || '(vazio)')}" não existe. Cadastrados: ` +
+      (state.empreendimentos.map(e => e.nome).join(' · ') || 'nenhum') +
+      '. Cadastre no app de inspeções ou corrija o nome no JSON.'
+    ]);
+  }
+  if (!c.data_inicio) d.erros.push(['Data de início ausente', 'campanha.data_inicio é obrigatória.']);
+  if (!c.laboratorio) d.erros.push(['Laboratório ausente', 'Sem o laboratório o resultado não é rastreável até o laudo.']);
+  if (!c.responsavel_tecnico) d.erros.push(['Responsável técnico ausente', 'Sem o RT o resultado não é rastreável até o laudo.']);
+
+  const rel = c.relatorio || {};
+  [['art', 'número da ART'], ['crea', 'CREA do responsável']].forEach(([k, lbl]) => {
+    if (!c[k]) d.avisos.push([`Sem ${lbl}`, 'Recomendado: é parte da amarração entre o número e o documento assinado.']);
+  });
+  if (!rel.numero)  d.avisos.push(['Sem número de relatório', 'Recomendado para localizar o laudo depois.']);
+  if (!rel.emissao) d.avisos.push(['Sem data de emissão do relatório', 'Recomendado.']);
+  if (!c.link_externo) d.avisos.push(['Sem link do laudo', 'Como o PDF não é armazenado, vale colar o link do Drive no campo link_externo.']);
+
+  const pontos = Array.isArray(j.pontos) ? j.pontos : [];
+  const res = Array.isArray(j.resultados) ? j.resultados : [];
+  if (!pontos.length) d.erros.push(['Nenhum ponto', 'O JSON precisa de ao menos um ponto.']);
+  if (!res.length)    d.erros.push(['Nenhum resultado', 'O JSON precisa de ao menos um resultado.']);
+
+  const codigos = new Set(pontos.map(p => String(p.codigo || '').trim()));
+  pontos.forEach(p => {
+    if (!p.codigo) d.erros.push(['Ponto sem código', 'Todo ponto precisa de "codigo".']);
+    if (!p.matriz) d.erros.push([`Ponto ${esc(p.codigo)} sem matriz`, 'Informe a matriz (ex.: ar_imissao).']);
+  });
+
+  // Vincula cada resultado ao parâmetro do catálogo e valida unidade.
+  res.forEach((r, i) => {
+    const rot = `Resultado ${i + 1} (${esc(r.ponto)} · ${esc(r.parametro)})`;
+    if (!codigos.has(String(r.ponto || '').trim())) {
+      d.erros.push([rot + ': ponto desconhecido', `"${esc(r.ponto)}" não está no array "pontos".`]);
+      return;
+    }
+    const pt = pontos.find(p => String(p.codigo).trim() === String(r.ponto).trim());
+    const par = paramPorSigla(r.parametro, pt && pt.matriz);
+    if (!par) {
+      d.erros.push([rot + ': parâmetro fora do catálogo',
+        `"${esc(r.parametro)}" não existe em mon_parametros. Me mande os parâmetros dessa matriz para eu incluir na biblioteca.`]);
+      return;
+    }
+    r._parametro_id = par.id;
+    r._param = par;
+    if (r.unidade && String(r.unidade).trim() !== par.unidade) {
+      d.erros.push([rot + ': unidade divergente',
+        `Catálogo usa "${par.unidade}", o JSON trouxe "${esc(r.unidade)}". O sistema não converte unidade em dado de compliance.`]);
+    }
+    if (r.valor === null || r.valor === undefined || isNaN(Number(r.valor))) {
+      d.avisos.push([rot + ': sem valor numérico', 'Entra no histórico, mas fica fora de gráficos e conformidade.']);
+    }
+  });
+
+  // Avisos que vieram do próprio extrator.
+  (Array.isArray(j.avisos) ? j.avisos : []).forEach(a =>
+    d.avisos.push(['Observação da extração', typeof a === 'string' ? a : JSON.stringify(a)])
+  );
+
+  aplicarControleQualidade(res, d);
+
+  if (emp) j._empreendimento_id = emp.id;
+  d.resumo = {
+    empreendimento: emp ? emp.nome : null,
+    pontos: pontos.length,
+    resultados: res.length,
+    inconsistentes: res.filter(r => r._status === 'inconsistente').length,
+    meteorologia: (Array.isArray(j.meteorologia) ? j.meteorologia : []).length
+  };
+  return { d, j: d.erros.length ? null : j };
+}
+
+/* Controle de qualidade: marca a linha, nunca bloqueia a carga. */
+function aplicarControleQualidade(res, d) {
+  res.forEach(r => { r._status = 'ok'; r._motivo = null; });
+
+  const marcar = (r, motivo) => {
+    r._status = 'inconsistente';
+    r._motivo = r._motivo ? r._motivo + ' | ' + motivo : motivo;
+    d.avisos.push([`${esc(r.ponto)} · ${esc(r.parametro)}: dado inconsistente`, motivo + ' — entra no histórico, fica fora dos gráficos e da conformidade.']);
+  };
+
+  // 1) Hierarquia granulométrica: MP2,5 ≤ MP10 ≤ PTS no mesmo ponto e janela.
+  const grupos = {};
+  res.forEach(r => {
+    const k = [r.ponto, r.inicio || '', r.fim || ''].join('|');
+    (grupos[k] = grupos[k] || {})[String(r.parametro || '').toUpperCase().replace('.', ',')] = r;
+  });
+  Object.values(grupos).forEach(g => {
+    const v = s => (g[s] && g[s].valor !== null && !isNaN(Number(g[s].valor))) ? Number(g[s].valor) : null;
+    const pts = v('PTS'), mp10 = v('MP10'), mp25 = v('MP2,5');
+    if (mp25 !== null && mp10 !== null && mp25 > mp10) {
+      marcar(g['MP2,5'], `MP2,5 (${mp25}) maior que MP10 (${mp10}), o que é fisicamente impossível`);
+      marcar(g['MP10'],  `MP10 (${mp10}) menor que MP2,5 (${mp25}), o que é fisicamente impossível`);
+    }
+    if (mp10 !== null && pts !== null && mp10 > pts) {
+      marcar(g['MP10'], `MP10 (${mp10}) maior que PTS (${pts}), o que é fisicamente impossível`);
+    }
+  });
+
+  // 2) Vazão dentro da faixa do método e volume coerente com vazão × duração.
+  res.forEach(r => {
+    const det = r.detalhes || {};
+    const qc = (r._param && r._param.qc) || {};
+    const vaz = det.vazao_m3min !== null && det.vazao_m3min !== undefined ? Number(det.vazao_m3min) : null;
+
+    if (vaz !== null && qc.vazao_min && qc.vazao_max && (vaz < qc.vazao_min || vaz > qc.vazao_max)) {
+      marcar(r, `vazão ${vaz} m³/min fora da faixa do método (${qc.vazao_min}–${qc.vazao_max})`);
+    }
+    if (vaz !== null && det.volume_padrao_m3 && r.duracao_h) {
+      const esperado = vaz * Number(r.duracao_h) * 60;
+      const decl = Number(det.volume_padrao_m3);
+      if (esperado > 0 && Math.abs(decl - esperado) / esperado > 0.15) {
+        marcar(r, `volume declarado (${decl} m³) não confere com vazão × duração (≈ ${Math.round(esperado)} m³)`);
+      }
+    }
+    if (r._param && r._param.matriz === 'ar_imissao' && r.duracao_h && (r.duracao_h < 23 || r.duracao_h > 25)) {
+      d.avisos.push([`${esc(r.ponto)} · ${esc(r.parametro)}: duração atípica`,
+        `${r.duracao_h} h — o padrão de 24 h pressupõe amostragem de 24 h.`]);
+    }
+  });
+}
+
+/* ============================================================
+   GRAVAÇÃO
+   ============================================================ */
+async function salvarPacote() {
+  const j = state.pacote;
+  if (!j) return;
+  const btn = document.getElementById('btn-salvar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+  try {
+    const empId = j._empreendimento_id;
+    const c = j.campanha;
+
+    // 1) Pontos: reaproveita os já cadastrados (empreendimento + matriz + código).
+    const mapaPonto = {};
+    const novosPontos = [];
+    (j.pontos || []).forEach(p => {
+      const cod = String(p.codigo).trim();
+      const existente = state.pontos.find(x =>
+        x.empreendimento_id === empId && x.matriz === p.matriz && x.codigo === cod
+      );
+      if (existente) { mapaPonto[cod] = existente.id; return; }
+      const id = 'pt' + uid();
+      mapaPonto[cod] = id;
+      novosPontos.push({
+        id, empreendimento_id: empId, codigo: cod, nome: p.nome || null,
+        matriz: p.matriz, tipo: p.tipo || null,
+        utm_zona: (p.utm && p.utm.zona) || null,
+        utm_e: (p.utm && p.utm.e) || null,
+        utm_n: (p.utm && p.utm.n) || null,
+        latitude: p.latitude ?? null, longitude: p.longitude ?? null,
+        detalhes: p.detalhes || {}
+      });
+    });
+    if (novosPontos.length) {
+      const { error } = await _supabase.from('mon_pontos').insert(novosPontos);
+      if (error) throw error;
+    }
+
+    // 2) Campanha.
+    const campId = 'cp' + uid();
+    const rel = c.relatorio || {};
+    const temInconsistente = (j.resultados || []).some(r => r._status === 'inconsistente');
+    const campanha = {
+      id: campId, empreendimento_id: empId,
+      data_inicio: c.data_inicio, data_fim: c.data_fim || null,
+      laboratorio: c.laboratorio || null,
+      responsavel_tecnico: c.responsavel_tecnico || null,
+      crea: c.crea || null, art: c.art || null,
+      relatorio_numero: rel.numero || null,
+      relatorio_revisao: rel.revisao || null,
+      relatorio_emissao: rel.emissao || null,
+      link_externo: c.link_externo || null,
+      observacoes: c.observacoes || null,
+      status: temInconsistente ? 'com_pendencia_laboratorio' : 'importado',
+      origem_json: j
+    };
+    {
+      const { error } = await _supabase.from('mon_campanhas').insert(campanha);
+      if (error) throw error;
+    }
+
+    // 3) Resultados.
+    const linhas = (j.resultados || []).map(r => ({
+      id: 'rs' + uid(),
+      campanha_id: campId,
+      ponto_id: mapaPonto[String(r.ponto).trim()],
+      parametro_id: r._parametro_id,
+      tipo_amostra: r.tipo_amostra || 'ambiental',
+      inicio: r.inicio || null, fim: r.fim || null,
+      duracao_h: r.duracao_h ?? null,
+      valor: (r.valor === null || r.valor === undefined || isNaN(Number(r.valor))) ? null : Number(r.valor),
+      qualificador: r.qualificador || null,
+      unidade: (r._param && r._param.unidade) || r.unidade || '',
+      lq: r.lq ?? null, ld: r.ld ?? null,
+      metodo: r.metodo || null,
+      detalhes: r.detalhes || {},
+      status_dado: r._status || 'ok',
+      motivo_inconsistencia: r._motivo || null
+    }));
+    if (linhas.length) {
+      const { error } = await _supabase.from('mon_resultados').insert(linhas);
+      if (error) throw error;
+    }
+
+    // 4) Meteorologia.
+    const met = (Array.isArray(j.meteorologia) ? j.meteorologia : [])
+      .filter(m => m && m.data)
+      .map(m => ({
+        id: 'mt' + uid(), campanha_id: campId, data: m.data,
+        temp_max: m.temp_max ?? null, temp_min: m.temp_min ?? null,
+        chuva_mm: m.chuva_mm ?? null, umidade: m.umidade || null,
+        vento: m.vento || null, pressao_hpa: m.pressao_hpa ?? null
+      }));
+    if (met.length) {
+      const { error } = await _supabase.from('mon_meteorologia').insert(met);
+      if (error) throw error;
+    }
+
+    showToast(`Campanha importada: ${linhas.length} resultados` + (temInconsistente ? ' (com pendências)' : ''));
+    state.pacote = null; state.diagnostico = null;
+    await carregarTudo();
+    state.detalhe = campId;
+    setView('detalhe');
+  } catch (e) {
+    console.error(e);
+    showToast('Erro ao salvar: ' + (e.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar no Supabase'; }
+  }
+}
+
+/* ============================================================
+   AVALIAÇÃO (lida da view mon_resultados_avaliados)
+   ============================================================ */
+async function buscarAvaliados(filtro) {
+  let q = _supabase.from('mon_resultados_avaliados').select('*');
+  if (filtro.campanha_id) q = q.eq('campanha_id', filtro.campanha_id);
+  if (filtro.empreendimento_id) q = q.eq('empreendimento_id', filtro.empreendimento_id);
+  if (filtro.ponto_id) q = q.eq('ponto_id', filtro.ponto_id);
+  if (filtro.parametro_id) q = q.eq('parametro_id', filtro.parametro_id);
+  const { data, error } = await q;
+  if (error) { showToast('Erro na avaliação: ' + error.message); return []; }
+  return data || [];
+}
+
+function badgeSituacao(s) {
+  const m = {
+    conforme:      ['conforme', 'Conforme'],
+    excedente:     ['nc', 'Excedente'],
+    inconsistente: ['pending', 'Inconsistente'],
+    sem_padrao:    ['na', 'Sem padrão'],
+    controle:      ['na', 'Controle']
+  };
+  const [cls, txt] = m[s] || ['na', s || '—'];
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+
+function barraPercentual(pct, situacao) {
+  if (pct === null || pct === undefined) return '—';
+  const largura = Math.min(100, Number(pct));
+  const cor = situacao === 'excedente' ? 'var(--nc)' : (largura > 70 ? 'var(--media)' : 'var(--conforme)');
+  return `<div style="display:flex;align-items:center;gap:8px;">
+    <div class="bar-wrap"><div class="bar-fill" style="width:${largura}%;background:${cor};"></div></div>
+    <span class="mono">${num(pct, 1)}%</span></div>`;
+}
+
+/* ============================================================
+   TELAS
+   ============================================================ */
+function viewImportar() {
+  const d = state.diagnostico;
+  const pronto = !!state.pacote;
+
+  let painel = '';
+  if (d) {
+    const linhas = []
+      .concat(d.erros.map(([t, s]) => ({ cls: 'erro', t, s })))
+      .concat(d.avisos.map(([t, s]) => ({ cls: 'aviso', t, s })));
+    if (!linhas.length) linhas.push({ cls: 'ok', t: 'Nenhuma pendência', s: 'O pacote passou em todas as verificações.' });
+    painel = `
+      <div class="card card-pad" style="margin-bottom:20px;">
+        <div class="eyebrow">Verificação</div>
+        ${d.resumo ? `<p style="font-size:13.5px;color:var(--ink-soft);margin:6px 0 14px;">
+          ${esc(d.resumo.empreendimento || '—')} · ${d.resumo.pontos} ponto(s) · ${d.resumo.resultados} resultado(s)
+          ${d.resumo.inconsistentes ? ` · <strong style="color:var(--nc);">${d.resumo.inconsistentes} inconsistente(s)</strong>` : ''}
+          ${d.resumo.meteorologia ? ` · ${d.resumo.meteorologia} dia(s) de meteorologia` : ''}
+        </p>` : ''}
+        ${linhas.map(l => `<div class="diag ${l.cls}"><div class="diag-t">${l.t}</div><div class="diag-d">${l.s}</div></div>`).join('')}
+        ${pronto ? `<button class="btn primary" id="btn-salvar" style="margin-top:14px;">Salvar no Supabase</button>`
+                 : `<p style="font-size:12.5px;color:var(--nc);margin-top:14px;">Corrija os erros acima e valide de novo. Avisos não impedem o salvamento.</p>`}
+      </div>`;
+  }
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Importar campanha</h1>
+      <p class="view-sub">Cole o JSON gerado a partir do laudo. O sistema confere estrutura, catálogo e coerência técnica antes de gravar.</p>
+    </div>
+  </div>
+
+  ${painel}
+
+  <div class="card card-pad">
+    <div class="field">
+      <label class="field-label">JSON da campanha</label>
+      <textarea class="json-area" id="json-in" placeholder='{ "schema": "mapabase.monitoramento.v1", ... }'>${esc(state._txt || '')}</textarea>
+    </div>
+    <div class="rowflex" style="gap:10px;">
+      <button class="btn primary" id="btn-validar">Validar JSON</button>
+      <button class="btn ghost" id="btn-limpar">Limpar</button>
+    </div>
+    <p style="font-size:12px;color:var(--ink-faint);margin:14px 0 0;">
+      O JSON sai de um chat com o laudo anexado, usando o prompt guardado em
+      <span class="mono">PROMPT_EXTRACAO.md</span> no repositório. O laudo em PDF não é armazenado aqui:
+      a rastreabilidade vem de laboratório, RT, CREA, ART e número do relatório.
+    </p>
+  </div>`;
+}
+
+function bindImportar() {
+  const ta = document.getElementById('json-in');
+  ta.addEventListener('input', () => { state._txt = ta.value; });
+
+  document.getElementById('btn-validar').onclick = () => {
+    const txt = ta.value.trim();
+    if (!txt) return showToast('Cole o JSON primeiro.');
+    const { d, j } = validarPacote(txt);
+    state.diagnostico = d;
+    state.pacote = j;
+    render();
+    if (j) showToast('Pacote válido. Revise as pendências e salve.');
+    else showToast('Há erros que impedem o salvamento.');
+  };
+  document.getElementById('btn-limpar').onclick = () => {
+    state._txt = ''; state.pacote = null; state.diagnostico = null; render();
+  };
+  const bs = document.getElementById('btn-salvar');
+  if (bs) bs.onclick = salvarPacote;
+}
+
+function viewCampanhas() {
+  const lista = state.filtroEmp
+    ? state.campanhas.filter(c => c.empreendimento_id === state.filtroEmp)
+    : state.campanhas;
+
+  const ultima = lista[0] ? mesesDesde(lista[0].data_inicio) : null;
+  const pend = lista.filter(c => c.status === 'com_pendencia_laboratorio').length;
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Campanhas</h1>
+      <p class="view-sub">Cada campanha corresponde a um laudo entregue pelo laboratório.</p>
+    </div>
+    <button class="btn primary" onclick="setView('importar')">+ Importar campanha</button>
+  </div>
+
+  <div class="filter-bar">
+    <div class="field" style="margin:0;">
+      <label class="field-label">Empreendimento</label>
+      <select id="f-emp">
+        <option value="">Todos</option>
+        ${state.empreendimentos.map(e => `<option value="${esc(e.id)}" ${state.filtroEmp === e.id ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="grid cols-3" style="margin-bottom:22px;">
+    <div class="card kpi"><div class="num">${lista.length}</div><div class="lbl">Campanhas registradas</div></div>
+    <div class="card kpi"><div class="num">${ultima === null ? '—' : ultima}</div><div class="lbl">Meses desde a última campanha</div></div>
+    <div class="card kpi"><div class="num" style="${pend ? 'color:var(--nc);' : ''}">${pend}</div><div class="lbl">Com pendência no laboratório</div></div>
+  </div>
+
+  ${!lista.length ? `
+    <div class="empty">
+      <div class="ic">📈</div>
+      <p>Nenhuma campanha importada ainda.</p>
+      <button class="btn primary" onclick="setView('importar')" style="margin-top:12px;">Importar a primeira</button>
+    </div>` : `
+    <div class="card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Período</th><th>Empreendimento</th><th>Laboratório</th>
+            <th>Relatório</th><th>Situação</th>
+          </tr></thead>
+          <tbody>
+            ${lista.map(c => `
+              <tr>
+                <td class="clickable" onclick="abrirCampanha('${esc(c.id)}')" style="cursor:pointer;">
+                  <strong>${fmtData(c.data_inicio)}</strong>${c.data_fim ? ` a ${fmtData(c.data_fim)}` : ''}
+                </td>
+                <td>${esc(nomeEmp(c.empreendimento_id))}</td>
+                <td>${esc(c.laboratorio || '—')}<br><span style="font-size:11.5px;color:var(--ink-faint);">${esc(c.responsavel_tecnico || '')}</span></td>
+                <td class="mono">${esc(c.relatorio_numero || '—')}${c.relatorio_revisao ? ' rev.' + esc(c.relatorio_revisao) : ''}</td>
+                <td>${c.status === 'com_pendencia_laboratorio'
+                      ? '<span class="badge pending">Pendência</span>'
+                      : '<span class="badge conforme">Importada</span>'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`}
+
+  <p style="font-size:12px;color:var(--ink-faint);margin-top:18px;">
+    O sistema mostra há quantos meses foi a última campanha, mas não avalia prazo: a periodicidade
+    exigida vem da condicionante de cada licença, que ainda não está cadastrada aqui.
+  </p>`;
+}
+
+function bindCampanhas() {
+  const f = document.getElementById('f-emp');
+  if (f) f.onchange = () => { state.filtroEmp = f.value; render(); };
+}
+
+window.abrirCampanha = function (id) { state.detalhe = id; setView('detalhe'); };
+
+function viewDetalhe() {
+  const c = state.campanhas.find(x => x.id === state.detalhe);
+  if (!c) return `<div class="empty"><p>Campanha não encontrada.</p></div>`;
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">${esc(nomeEmp(c.empreendimento_id))}</div>
+      <h1 class="view-title">Campanha de ${fmtData(c.data_inicio)}</h1>
+      <p class="view-sub">${esc(c.laboratorio || '—')} · RT ${esc(c.responsavel_tecnico || '—')} · CREA ${esc(c.crea || '—')} · ART ${esc(c.art || '—')}</p>
+    </div>
+    <button class="btn ghost" onclick="setView('campanhas')">‹ Voltar</button>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:20px;">
+    <div class="grid cols-4">
+      <div><div class="eyebrow">Relatório</div><div class="mono">${esc(c.relatorio_numero || '—')}${c.relatorio_revisao ? ' rev.' + esc(c.relatorio_revisao) : ''}</div></div>
+      <div><div class="eyebrow">Emissão</div><div class="mono">${fmtData(c.relatorio_emissao)}</div></div>
+      <div><div class="eyebrow">Período</div><div class="mono">${fmtData(c.data_inicio)}${c.data_fim ? ' a ' + fmtData(c.data_fim) : ''}</div></div>
+      <div><div class="eyebrow">Laudo</div>${c.link_externo
+          ? `<a href="${esc(c.link_externo)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--accent);">abrir documento</a>`
+          : '<span style="font-size:13px;color:var(--ink-faint);">sem link</span>'}</div>
+    </div>
+    ${c.observacoes ? `<p style="font-size:13px;color:var(--ink-soft);margin:16px 0 0;border-top:1px solid var(--line);padding-top:14px;">${esc(c.observacoes)}</p>` : ''}
+  </div>
+
+  <div id="det-resultados"><div class="card card-pad"><p style="color:var(--ink-faint);font-size:13px;">Carregando resultados...</p></div></div>
+  <div id="det-meteo"></div>`;
+}
+
+async function bindDetalhe() {
+  const c = state.campanhas.find(x => x.id === state.detalhe);
+  if (!c) return;
+
+  const rows = await buscarAvaliados({ campanha_id: c.id });
+  rows.sort((a, b) => (a.ponto_codigo || '').localeCompare(b.ponto_codigo || '') || (a.parametro || '').localeCompare(b.parametro || ''));
+
+  const naoConferido = rows.some(r => r.limite !== null && r.padrao_conferido === false);
+
+  const alvo = document.getElementById('det-resultados');
+  alvo.innerHTML = !rows.length
+    ? `<div class="card card-pad"><p style="color:var(--ink-faint);font-size:13px;">Nenhum resultado nesta campanha.</p></div>`
+    : `
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-pad" style="padding-bottom:0;">
+        <div class="eyebrow">Resultados e conformidade</div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>Ponto</th><th>Parâmetro</th><th>Janela</th><th>Resultado</th>
+            <th>Limite aplicável</th><th>% do limite</th><th>Situação</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><strong>${esc(r.ponto_codigo)}</strong><br><span style="font-size:11.5px;color:var(--ink-faint);">${esc(r.ponto_nome || '')}</span></td>
+                <td>${esc(r.parametro)}</td>
+                <td class="mono" style="font-size:11.5px;">${r.inicio ? fmtData(String(r.inicio).slice(0,10)) : '—'}${r.duracao_h ? `<br>${num(r.duracao_h,0)} h` : ''}</td>
+                <td class="mono"><strong>${esc(r.qualificador || '')}${num(r.valor)}</strong> ${esc(r.unidade)}</td>
+                <td class="mono">${r.limite === null ? '—' : num(r.limite, 2) + ' ' + esc(r.unidade)}
+                  ${r.limite_contexto ? `<br><span style="font-size:11px;color:var(--ink-faint);">${esc(r.limite_contexto)}</span>` : ''}</td>
+                <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
+                <td>${badgeSituacao(r.situacao)}
+                  ${r.motivo_inconsistencia ? `<br><span style="font-size:11px;color:var(--nc);">${esc(r.motivo_inconsistencia)}</span>` : ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-pad" style="padding-top:14px;">
+        <p style="font-size:11.5px;color:var(--ink-faint);margin:0;">
+          Limite escolhido pelo padrão vigente na data da coleta. Média anual não é avaliada:
+          campanha pontual não tem representatividade amostral para padrão anual.
+          ${naoConferido ? '<br><strong style="color:var(--media);">Atenção: os padrões usados ainda estão marcados como não conferidos contra o texto da resolução.</strong>' : ''}
+        </p>
+      </div>
+    </div>`;
+
+  const { data: met } = await _supabase.from('mon_meteorologia').select('*').eq('campanha_id', c.id).order('data');
+  const chuvaTotal = (met || []).reduce((s, m) => s + (Number(m.chuva_mm) || 0), 0);
+  const alvoM = document.getElementById('det-meteo');
+  alvoM.innerHTML = !(met && met.length) ? '' : `
+    <div class="card">
+      <div class="card-pad" style="padding-bottom:0;"><div class="eyebrow">Condições meteorológicas da janela</div></div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Data</th><th>Temp. máx/mín</th><th>Chuva</th><th>Umidade</th><th>Vento</th><th>Pressão</th></tr></thead>
+          <tbody>
+            ${met.map(m => `<tr>
+              <td class="mono">${fmtData(m.data)}</td>
+              <td class="mono">${num(m.temp_max,0)} / ${num(m.temp_min,0)} °C</td>
+              <td class="mono">${num(m.chuva_mm,1)} mm</td>
+              <td class="mono">${esc(m.umidade || '—')}</td>
+              <td class="mono">${esc(m.vento || '—')}</td>
+              <td class="mono">${num(m.pressao_hpa,0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${chuvaTotal > 0 ? `<div class="card-pad" style="padding-top:14px;">
+        <p style="font-size:12px;color:var(--ink-soft);margin:0;">
+          Precipitação acumulada de ${num(chuvaTotal,1)} mm na janela de amostragem. Chuva abate material
+          particulado: o resultado é válido, mas a campanha não representa o pior caso operacional.
+        </p></div>` : ''}
+    </div>`;
+}
+
+function viewSerie() {
+  const emps = state.empreendimentos;
+  const pontosEmp = state.pontos.filter(p => !state.serie.emp || p.empreendimento_id === state.serie.emp);
+  const params = state.parametros;
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Série histórica</h1>
+      <p class="view-sub">Evolução de um parâmetro em um ponto, campanha a campanha, contra o limite legal vigente.</p>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="field" style="margin:0;">
+      <label class="field-label">Empreendimento</label>
+      <select id="s-emp">
+        <option value="">Selecione</option>
+        ${emps.map(e => `<option value="${esc(e.id)}" ${state.serie.emp === e.id ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" style="margin:0;">
+      <label class="field-label">Ponto</label>
+      <select id="s-ponto">
+        <option value="">Selecione</option>
+        ${pontosEmp.map(p => `<option value="${esc(p.id)}" ${state.serie.ponto === p.id ? 'selected' : ''}>${esc(p.codigo)} — ${esc(p.nome || p.matriz)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" style="margin:0;">
+      <label class="field-label">Parâmetro</label>
+      <select id="s-par">
+        <option value="">Selecione</option>
+        ${params.map(p => `<option value="${esc(p.id)}" ${state.serie.parametro === p.id ? 'selected' : ''}>${esc(p.sigla)} (${esc(p.unidade)})</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="chart-box"><canvas id="cv-serie"></canvas></div>
+    <div id="serie-nota" style="margin-top:14px;"></div>
+  </div>`;
+}
+
+async function bindSerie() {
+  const se = document.getElementById('s-emp');
+  const sp = document.getElementById('s-ponto');
+  const sr = document.getElementById('s-par');
+
+  se.onchange = () => { state.serie.emp = se.value; state.serie.ponto = ''; render(); };
+  sp.onchange = () => { state.serie.ponto = sp.value; render(); };
+  sr.onchange = () => { state.serie.parametro = sr.value; render(); };
+
+  const nota = document.getElementById('serie-nota');
+  if (!state.serie.ponto || !state.serie.parametro) {
+    nota.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Escolha ponto e parâmetro para montar a série.</p>';
+    return;
+  }
+
+  const ponto = state.pontos.find(p => p.id === state.serie.ponto);
+  const par = state.parametros.find(p => p.id === state.serie.parametro);
+  if (!ponto || !par) return;
+
+  // Só entra na série: amostra ambiental, dado sem inconsistência e valor numérico.
+  const rows = (await buscarAvaliados({ ponto_id: ponto.id, parametro_id: par.id }))
+    .filter(r => r.tipo_amostra === 'ambiental' && r.status_dado === 'ok' && r.valor !== null)
+    .sort((a, b) => new Date(a.inicio || a.campanha_inicio) - new Date(b.inicio || b.campanha_inicio));
+
+  if (state.chart) { state.chart.destroy(); state.chart = null; }
+
+  if (!rows.length) {
+    nota.innerHTML = `<p style="font-size:13px;color:var(--ink-faint);margin:0;">
+      Nenhum dado válido para ${esc(par.sigla)} no ponto ${esc(ponto.codigo)}.
+      Dado marcado como inconsistente fica fora da série de propósito.</p>`;
+    return;
+  }
+
+  const labels = rows.map(r => fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10)));
+  const valores = rows.map(r => Number(r.valor));
+  const limite = rows[rows.length - 1].limite;
+
+  const ds = [{
+    label: `${par.sigla} (${par.unidade})`,
+    data: valores,
+    borderColor: '#2E4159',
+    backgroundColor: 'rgba(46,65,89,.08)',
+    borderWidth: 2, tension: .25, pointRadius: 4, fill: true
+  }];
+  if (limite !== null && limite !== undefined) {
+    ds.push({
+      label: `Limite legal (${num(limite, 0)} ${par.unidade})`,
+      data: valores.map(() => Number(limite)),
+      borderColor: '#C4332C', borderWidth: 2, borderDash: [6, 4],
+      pointRadius: 0, fill: false
+    });
+  }
+
+  state.chart = new Chart(document.getElementById('cv-serie'), {
+    type: 'line',
+    data: { labels, datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, title: { display: true, text: par.unidade } } },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  const maior = Math.max(...valores);
+  nota.innerHTML = `<p style="font-size:12.5px;color:var(--ink-soft);margin:0;">
+    ${rows.length} campanha(s) · maior valor ${num(maior)} ${esc(par.unidade)}
+    ${limite ? ` · ${num((maior / limite) * 100, 1)}% do limite vigente` : ''}.
+    ${rows.length < 2 ? '<br><strong>Uma campanha só não forma tendência</strong> — a série ganha leitura a partir da segunda.' : ''}
+    ${par.sigla === 'PTS' ? '<br>PTS é parâmetro auxiliar na 506/2024 e não tem cálculo de IQAr previsto na norma.' : ''}
+  </p>`;
+}
+
+function viewPontos() {
+  const grupos = {};
+  state.pontos.forEach(p => { (grupos[p.empreendimento_id] = grupos[p.empreendimento_id] || []).push(p); });
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Pontos de monitoramento</h1>
+      <p class="view-sub">Cadastrados automaticamente na primeira importação de cada empreendimento.</p>
+    </div>
+  </div>
+  ${!state.pontos.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto ainda. Eles nascem junto com a primeira campanha importada.</p></div>`
+  : Object.entries(grupos).map(([empId, pts]) => `
+      <div class="card" style="margin-bottom:18px;">
+        <div class="card-pad" style="padding-bottom:0;"><div class="eyebrow">${esc(nomeEmp(empId))}</div></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Código</th><th>Nome</th><th>Matriz</th><th>Tipo</th><th>Coordenadas</th></tr></thead>
+            <tbody>
+              ${pts.map(p => `<tr>
+                <td><strong>${esc(p.codigo)}</strong></td>
+                <td>${esc(p.nome || '—')}</td>
+                <td>${esc(p.matriz)}</td>
+                <td>${esc(p.tipo || '—')}</td>
+                <td class="mono" style="font-size:11.5px;">${p.utm_e ? `${esc(p.utm_zona || '')} ${num(p.utm_e,0)} / ${num(p.utm_n,0)}` : '—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`).join('')}`;
+}
+
+function viewBiblioteca() {
+  const porParam = {};
+  state.padroes.forEach(p => { (porParam[p.parametro_id] = porParam[p.parametro_id] || []).push(p); });
+  const pendentes = state.padroes.filter(p => !p.conferido).length;
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Biblioteca da MapaBase</div>
+      <h1 class="view-title">Padrões legais</h1>
+      <p class="view-sub">Curada por vocês, compartilhada por todos os clientes. É o que permite avaliar laudo antigo pelo padrão da época.</p>
+    </div>
+  </div>
+
+  ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
+    <div class="diag-t">${pendentes} padrão(ões) ainda não conferido(s)</div>
+    <div class="diag-d">Os valores foram transcritos do laudo da BIOAR, não do texto oficial da resolução.
+    Depois de conferir, rode no SQL Editor: <span class="mono">update mon_padroes_legais set conferido = true where id like 'c506.%';</span></div>
+  </div>` : ''}
+
+  ${state.parametros.filter(p => porParam[p.id]).map(par => `
+    <div class="card" style="margin-bottom:18px;">
+      <div class="card-pad" style="padding-bottom:0;">
+        <div class="eyebrow">${esc(par.sigla)} — ${esc(par.nome)} · ${esc(par.unidade)}</div>
+      </div>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Contexto</th><th>Período</th><th>Tipo</th><th>Valor</th><th>Vigência</th><th>Avaliável</th><th>Conferido</th></tr></thead>
+          <tbody>
+            ${porParam[par.id].sort((a,b) => (a.periodo_referencia+a.contexto).localeCompare(b.periodo_referencia+b.contexto)).map(p => `
+              <tr>
+                <td><strong>${esc(p.contexto)}</strong><br><span style="font-size:11px;color:var(--ink-faint);">${esc(p.base_legal)}</span></td>
+                <td class="mono">${esc(p.periodo_referencia)}</td>
+                <td class="mono">${esc(p.tipo_limite)}</td>
+                <td class="mono"><strong>${p.valor === null ? '—' : num(p.valor, 2)}</strong></td>
+                <td class="mono" style="font-size:11.5px;">${p.vigencia_inicio ? fmtData(p.vigencia_inicio) : 'sem data'}${p.vigencia_fim ? ' a ' + fmtData(p.vigencia_fim) : ''}</td>
+                <td>${p.avaliavel ? '<span class="badge conforme">Sim</span>' : `<span class="badge na" title="${esc(p.observacao || '')}">Não</span>`}</td>
+                <td>${p.conferido ? '<span class="badge conforme">Sim</span>' : '<span class="badge pending">Não</span>'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`).join('')}
+
+  <p style="font-size:12px;color:var(--ink-faint);">
+    Para acrescentar solo (CONAMA 420), água subterrânea (396), superficial (357), efluente (430),
+    ruído ou sismografia, me mande os parâmetros da matriz. A estrutura já aceita: o contexto guarda
+    cenário de uso, classe do corpo hídrico ou zoneamento, e o tipo de limite distingue VRQ, VP, VI e VMP.
+  </p>`;
+}
+
+/* ============================================================
+   ROTEADOR
+   ============================================================ */
+const VIEWS = {
+  campanhas:  { label: 'Campanhas',      html: viewCampanhas,  bind: bindCampanhas },
+  importar:   { label: 'Importar',       html: viewImportar,   bind: bindImportar },
+  serie:      { label: 'Série histórica',html: viewSerie,      bind: bindSerie },
+  pontos:     { label: 'Pontos',         html: viewPontos,     bind: null },
+  biblioteca: { label: 'Padrões legais', html: viewBiblioteca, bind: null },
+  detalhe:    { label: null,             html: viewDetalhe,    bind: bindDetalhe }
+};
+
+function setView(v) {
+  state.view = v;
+  document.getElementById('modal-root').innerHTML = '';
+  render();
+  window.scrollTo(0, 0);
+}
+window.setView = setView;
+
+function render() {
+  if (!state.ready) return;
+
+  const ic = {
+    campanhas:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16"/></svg>',
+    importar:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>',
+    serie:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>',
+    pontos:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    biblioteca: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6Z"/></svg>'
+  };
+
+  document.getElementById('mainnav').innerHTML = Object.entries(VIEWS)
+    .filter(([, v]) => v.label)
+    .map(([k, v]) => `<button class="navbtn ${state.view === k ? 'active' : ''}" onclick="setView('${k}')">
+        <span class="ic">${ic[k] || ''}</span> ${v.label}</button>`).join('');
+
+  document.getElementById('status-sync').textContent = navigator.onLine ? '🟢 Online' : '🔴 Sem conexão';
+
+  const v = VIEWS[state.view] || VIEWS.campanhas;
+  document.getElementById('content').innerHTML = v.html();
+  if (v.bind) v.bind();
+}
+
+/* ============================================================
+   AUTENTICAÇÃO (sessão compartilhada com o app de campo)
+   ============================================================ */
+async function checkAuth() {
+  const tela = document.getElementById('login-screen');
+
+  if (!_supabase) {
+    alert('Supabase não configurado nesta página.');
+    return;
+  }
+  if (!navigator.onLine) {
+    tela.querySelector('.login-box').innerHTML =
+      '<p style="font-size:14px;color:var(--ink-soft);">Monitoramentos precisa de internet. Reconecte e recarregue a página.</p>';
+    return;
+  }
+
+  const { data: { session } } = await _supabase.auth.getSession();
+  if (session) {
+    tela.style.display = 'none';
+    carregarTudo();
+    return;
+  }
+
+  document.getElementById('btn-entrar').onclick = async () => {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-pass').value;
+    const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) return alert('Falha no login. Verifique as credenciais.');
+    tela.style.display = 'none';
+    carregarTudo();
+  };
+  document.getElementById('login-pass').addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') document.getElementById('btn-entrar').click();
+  });
+}
+
+document.getElementById('btn-logout').onclick = async () => {
+  if (_supabase) { await _supabase.auth.signOut(); window.location.href = './index.html'; }
+};
+
+window.addEventListener('online',  () => render());
+window.addEventListener('offline', () => render());
+
+checkAuth();
+</script>
+</body>
+</html>
