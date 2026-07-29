@@ -67,9 +67,83 @@
       cursor: pointer;
     }
     
-    input, select, textarea {
+    /* Controles de formulário: sem isto o navegador desenha os nativos, que ficam
+   crus contra os cards. Altura, foco e estados unificados. */
+    input, select, textarea, .multi-select-summary {
       font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 12px;
+      height: 40px;
+      width: 100%;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+      appearance: none;
+      -webkit-appearance: none;
     }
+    textarea { height: auto; padding: 10px 12px; line-height: 1.6; resize: vertical; min-height: 62px; }
+    input[type="file"] { height: auto; padding: 9px 12px; font-size: 13px; }
+    input[type="checkbox"], input[type="radio"] {
+      width: 16px; height: 16px; padding: 0; border-radius: 4px; accent-color: var(--brand); flex: none;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%238892A2' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
+    }
+    input:hover, select:hover, textarea:hover, .multi-select-summary:hover { border-color: #BFC9D6; }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(46,65,89,.10); background: var(--surface);
+    }
+    input::placeholder, textarea::placeholder { color: var(--ink-faint); }
+    input:disabled, select:disabled { background: var(--surface-2); color: var(--ink-faint); }
+
+    /* Bloco de campos agrupados dentro dos modais */
+    .fset { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; background: var(--surface); }
+    .fset > .fset-t {
+      font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+      color: var(--ink-faint); margin: -4px 0 14px;
+    }
+    .fset .field:last-child { margin-bottom: 0; }
+    .hint { font-size: 11.5px; color: var(--ink-faint); line-height: 1.55; margin: 5px 0 0; }
+
+    /* Tabelas com respiro e linha de foco */
+    .table-wrapper table { font-size: 13px; border-collapse: collapse; }
+    .table-wrapper thead th {
+      font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+      color: var(--ink-faint); text-align: left; padding: 10px 12px;
+      border-bottom: 1px solid var(--line); background: var(--surface-2); white-space: nowrap;
+    }
+    .table-wrapper tbody td { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .table-wrapper tbody tr:last-child td { border-bottom: none; }
+    .table-wrapper tbody tr { transition: background .12s; }
+    .table-wrapper tbody tr:hover { background: var(--surface-2); }
+
+    /* Alternador de matriz na lateral */
+    .mtz { margin: 0 0 18px; }
+    .mtz-lbl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #7C8AA0; margin-bottom: 7px; }
+    .mtz select {
+      background-color: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); color: #fff;
+      font-weight: 600; font-size: 13.5px; height: 42px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%23AEB9CB' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    .mtz select:hover { background-color: rgba(255,255,255,.11); border-color: rgba(255,255,255,.22); }
+    .mtz select:focus { box-shadow: 0 0 0 3px rgba(120,180,72,.22); border-color: var(--accent); }
+    .mtz select option { color: var(--ink); }
+    .mtz-sub { font-size: 11px; color: #7C8AA0; margin-top: 7px; line-height: 1.5; }
+
+    .kpi .num { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.01em; }
+    .kpi .lbl { font-size: 12px; color: var(--ink-faint); margin-top: 8px; line-height: 1.4; }
+    .badge { font-weight: 600; letter-spacing: .03em; }
+    .btn.sm { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+    .modal { max-width: 620px; }
+    .modal-head { position: sticky; top: 0; background: var(--surface); z-index: 2; border-radius: 16px 16px 0 0; }
+    .modal-foot { position: sticky; bottom: 0; border-radius: 0 0 16px 16px; }
+    .empty { text-align: center; padding: 56px 24px; color: var(--ink-faint); }
+    .empty .ic { font-size: 34px; opacity: .55; margin-bottom: 10px; }
+    .filter-bar { gap: 12px; }
     
     ::selection {
       background: var(--accent);
@@ -1036,6 +1110,10 @@
       </div>
       <div class="brand-sub">Monitoramentos</div>
     </div>
+    <div class="mtz"><div class="mtz-lbl">Monitoramento</div>
+      <select id="sel-matriz"></select>
+      <div class="mtz-sub" id="mtz-sub"></div>
+    </div>
     <nav class="mainnav" id="mainnav"></nav>
     <div class="sidebar-foot">
       <a class="link-app" href="./index.html">‹ Voltar às inspeções</a>
@@ -1084,6 +1162,7 @@ const state = {
   kmlAchados: null,
   resEdit: null,
   usuario: null,
+  matriz: null,   // null = ainda nao resolvido; '' = todas as matrizes
   contagemPonto: null,
   ultimasLinhas: null,
   cfgFabrica: null,
@@ -1534,9 +1613,13 @@ function bindImportar() {
 }
 
 function viewCampanhas() {
-  const lista = state.filtroEmp
-    ? state.campanhas.filter(c => c.empreendimento_id === state.filtroEmp)
-    : state.campanhas;
+  // Campanha não guarda matriz; ela é inferida dos pontos medidos.
+  const idsMatriz = state.matriz
+    ? new Set(state.pontos.filter(p => p.matriz === state.matriz).map(p => p.empreendimento_id))
+    : null;
+  let lista = state.campanhas;
+  if (idsMatriz) lista = lista.filter(c => idsMatriz.has(c.empreendimento_id));
+  if (state.filtroEmp) lista = lista.filter(c => c.empreendimento_id === state.filtroEmp);
 
   const ultima = lista[0] ? mesesDesde(lista[0].data_inicio) : null;
   const pend = lista.filter(c => c.status === 'com_pendencia_laboratorio').length;
@@ -1979,11 +2062,16 @@ function rotuloCampanha(c) {
   return ini + fim;
 }
 
+function matrizesExistentes() {
+  return [...new Set(state.pontos.map(p => p.matriz))].sort();
+}
+
 function cascata(f) {
-  f.mats = f.mats || [];
-  // Matrizes efetivamente presentes no cadastro de pontos, não o catálogo inteiro.
-  const mats = [...new Set(state.pontos.map(p => p.matriz))].sort();
-  const matIds = f.mats.length ? f.mats.filter(m => mats.includes(m)) : mats;
+  // A matriz ativa é contexto de trabalho, não filtro de tela: ela define
+  // unidade, lógica de avaliação e norma aplicável. Cada matriz é um
+  // monitoramento diferente, e misturá-los num painel só gera confusão.
+  const mats = matrizesExistentes();
+  const matIds = state.matriz ? [state.matriz] : mats;
 
   const emps = state.empreendimentos.filter(e =>
     state.pontos.some(p => p.empreendimento_id === e.id && matIds.includes(p.matriz)));
@@ -2089,7 +2177,6 @@ function viewPainel() {
   <div id="painel-alerta"></div>
 
   <div class="filter-bar">
-    ${multiSel('p-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
     ${multiSel('p-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
     ${multiSel('p-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('p-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
@@ -2129,7 +2216,6 @@ function viewPainel() {
 }
 
 async function bindPainel() {
-  bindMultiSel('p-mat', v => { state.painel.mats = v; state.painel.emps = []; state.painel.camps = []; state.painel.pontos = []; state.painel.params = []; render(); });
   bindMultiSel('p-emp', v => { state.painel.emps = v; state.painel.camps = []; state.painel.pontos = []; state.painel.params = []; render(); });
   bindMultiSel('p-camp', v => { state.painel.camps = v; render(); });
   bindMultiSel('p-ponto', v => { state.painel.pontos = v; render(); });
@@ -2355,7 +2441,6 @@ function viewSerie() {
   </div>
 
   <div class="filter-bar">
-    ${multiSel('s-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
     ${multiSel('s-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
     ${multiSel('s-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('s-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
@@ -2373,7 +2458,6 @@ function viewSerie() {
 window.setModoSerie = function (m) { state.serie.modo = m; render(); };
 
 async function bindSerie() {
-  bindMultiSel('s-mat', v => { state.serie.mats = v; state.serie.emps = []; state.serie.camps = []; state.serie.pontos = []; state.serie.params = []; render(); });
   bindMultiSel('s-emp', v => { state.serie.emps = v; state.serie.camps = []; state.serie.pontos = []; state.serie.params = []; render(); });
   bindMultiSel('s-camp', v => { state.serie.camps = v; render(); });
   bindMultiSel('s-ponto', v => { state.serie.pontos = v; render(); });
@@ -2544,7 +2628,6 @@ function viewMapa() {
   </div>
 
   <div class="filter-bar">
-    ${multiSel('m-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
     ${multiSel('m-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
     ${multiSel('m-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('m-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
@@ -2568,7 +2651,6 @@ function viewMapa() {
 }
 
 async function bindMapa() {
-  bindMultiSel('m-mat', v => { state.mapa.mats = v; state.mapa.emps = []; state.mapa.camps = []; state.mapa.pontos = []; state.mapa.params = []; render(); });
   bindMultiSel('m-emp', v => { state.mapa.emps = v; state.mapa.camps = []; state.mapa.params = []; render(); });
   bindMultiSel('m-camp', v => { state.mapa.camps = v; render(); });
   bindMultiSel('m-par', v => { state.mapa.params = v; render(); });
@@ -2781,9 +2863,10 @@ function utmParaLatLon(zona, e, n) {
 }
 
 function viewPontos() {
+  const lista = state.pontos.filter(p => !state.matriz || p.matriz === state.matriz);
   const grupos = {};
-  state.pontos.forEach(p => { (grupos[p.empreendimento_id] = grupos[p.empreendimento_id] || []).push(p); });
-  const semCoord = state.pontos.filter(p => p.latitude === null || p.longitude === null).length;
+  lista.forEach(p => { (grupos[p.empreendimento_id] = grupos[p.empreendimento_id] || []).push(p); });
+  const semCoord = lista.filter(p => p.latitude === null || p.longitude === null).length;
 
   return `
   <div class="view-head">
@@ -2806,7 +2889,7 @@ function viewPontos() {
     Mantenha o código estável entre campanhas.</div>
   </div>
 
-  ${!state.pontos.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto ainda.</p></div>`
+  ${!lista.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto cadastrado nesta matriz.</p></div>`
   : Object.entries(grupos).map(([empId, pts]) => `
       <div class="card" style="margin-bottom:18px;">
         <div class="card-pad" style="padding-bottom:0;"><div class="eyebrow">${esc(nomeEmp(empId))}</div></div>
@@ -2837,35 +2920,53 @@ window.editarPonto = function (id) {
   if (!p) return;
   document.getElementById('modal-root').innerHTML = `
   <div class="modal-backdrop" onclick="fecharModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-head"><strong>Editar ponto ${esc(p.codigo)}</strong></div>
+    <div class="modal" style="max-width:720px;" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Editar ponto ${esc(p.codigo)}</strong>
+        <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">${esc(rotuloMatriz(p.matriz, true))}</span></div>
       <div class="modal-body">
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Código</label><input id="pe-cod" value="${esc(p.codigo)}"></div>
-          <div class="field"><label class="field-label">Nome</label><input id="pe-nome" value="${esc(p.nome || '')}"></div>
+        <div class="fset">
+          <div class="fset-t">Identificação</div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Código</label>
+              <input id="pe-cod" value="${esc(p.codigo)}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Nome</label>
+              <input id="pe-nome" value="${esc(p.nome || '')}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Tipo</label>
+              <select id="pe-tipo">${['interno', 'limite_propriedade', 'receptor', 'montante', 'jusante'].map(t =>
+                `<option value="${t}" ${p.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          </div>
+          <p class="hint">O código é a identidade do ponto: a importação casa por ele. Mudá-lo depois de
+          importar campanhas parte a série histórica em duas.</p>
         </div>
-        <div class="field"><label class="field-label">Tipo</label>
-          <select id="pe-tipo">
-            ${['interno', 'limite_propriedade', 'receptor', 'montante', 'jusante'].map(t =>
-              `<option value="${t}" ${p.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
-          </select>
+
+        <div class="fset">
+          <div class="fset-t">Coordenada declarada no laudo (UTM)</div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Zona</label>
+              <input id="pe-zona" value="${esc(p.utm_zona || '')}" placeholder="22K"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Este (E)</label>
+              <input id="pe-e" type="number" step="1" value="${p.utm_e ?? ''}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Norte (N)</label>
+              <input id="pe-n" type="number" step="1" value="${p.utm_n ?? ''}"></div>
+          </div>
+          <button class="btn sm ghost" onclick="converterUtm()" style="margin-top:12px;">Converter para lat/long</button>
+          <p class="hint">Esta é a coordenada que o laudo declarou — vale como rastreabilidade e não é
+          sobrescrita quando você move o marcador no mapa.</p>
         </div>
-        <div class="grid cols-3">
-          <div class="field"><label class="field-label">Zona UTM</label><input id="pe-zona" value="${esc(p.utm_zona || '')}" placeholder="22K"></div>
-          <div class="field"><label class="field-label">UTM E</label><input id="pe-e" type="number" step="1" value="${p.utm_e ?? ''}"></div>
-          <div class="field"><label class="field-label">UTM N</label><input id="pe-n" type="number" step="1" value="${p.utm_n ?? ''}"></div>
+
+        <div class="fset">
+          <div class="fset-t">Posição — clique no mapa ou arraste o marcador</div>
+          <div id="pe-mapa" class="mapbox" style="height:300px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px;"></div>
+          <div class="grid cols-2">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Latitude</label>
+              <input id="pe-lat" type="number" step="0.000001" value="${p.latitude ?? ''}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Longitude</label>
+              <input id="pe-lon" type="number" step="0.000001" value="${p.longitude ?? ''}"></div>
+          </div>
+          <button class="btn sm ghost" onclick="utmDoMapa()" style="margin-top:12px;">Recalcular UTM a partir daqui</button>
+          <p class="hint" id="pe-msg">Os outros pontos do empreendimento aparecem em cinza para orientar
+          o posicionamento.</p>
         </div>
-        <button class="btn sm ghost" onclick="converterUtm()" style="margin-bottom:14px;">Converter UTM para lat/long</button>
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Latitude</label><input id="pe-lat" type="number" step="0.000001" value="${p.latitude ?? ''}"></div>
-          <div class="field"><label class="field-label">Longitude</label><input id="pe-lon" type="number" step="0.000001" value="${p.longitude ?? ''}"></div>
-        </div>
-        <div class="field">
-          <label class="field-label">Posição no mapa — clique ou arraste o marcador</label>
-          <div id="pe-mapa" class="mapbox" style="height:280px;border-radius:var(--radius);border:1px solid var(--line);"></div>
-        </div>
-        <button class="btn sm ghost" onclick="utmDoMapa()" style="margin-bottom:10px;">Recalcular UTM a partir do lat/long</button>
-        <p id="pe-msg" style="font-size:12px;color:var(--ink-faint);margin:0;"></p>
       </div>
       <div class="modal-foot">
         <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
@@ -3030,71 +3131,81 @@ window.editarResultado = async function (id) {
           <button class="btn sm ghost" onclick="reverterResultado('${esc(r.id)}')" style="margin-top:6px;">Reverter ao valor do laudo</button></div>
         </div>` : ''}
 
-        <div class="grid cols-3">
-          <div class="field"><label class="field-label">Valor</label>
-            <input id="re-valor" type="number" step="any" value="${r.valor ?? ''}"></div>
-          <div class="field"><label class="field-label">Unidade</label>
-            <input id="re-unidade" value="${esc(r.unidade || '')}"></div>
-          <div class="field"><label class="field-label">Qualificador</label>
-            <select id="re-qual">
-              <option value="" ${!r.qualificador ? 'selected' : ''}>— nenhum —</option>
-              <option value="<" ${r.qualificador === '<' ? 'selected' : ''}>&lt; (menor que o LQ)</option>
-              <option value=">" ${r.qualificador === '>' ? 'selected' : ''}>&gt; (maior que)</option>
-            </select></div>
+        <div class="fset">
+          <div class="fset-t">Medição</div>
+          <div class="grid cols-3">
+            <div class="field"><label class="field-label">Valor</label>
+              <input id="re-valor" type="number" step="any" value="${r.valor ?? ''}"></div>
+            <div class="field"><label class="field-label">Unidade</label>
+              <input id="re-unidade" value="${esc(r.unidade || '')}"></div>
+            <div class="field"><label class="field-label">Qualificador</label>
+              <select id="re-qual">
+                <option value="" ${!r.qualificador ? 'selected' : ''}>— nenhum —</option>
+                <option value="<" ${r.qualificador === '<' ? 'selected' : ''}>&lt; menor que o LQ</option>
+                <option value=">" ${r.qualificador === '>' ? 'selected' : ''}>&gt; maior que</option>
+              </select></div>
+          </div>
+          <div class="grid cols-2">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Limite de quantificação (LQ)</label>
+              <input id="re-lq" type="number" step="any" value="${r.lq ?? ''}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Limite de detecção (LD)</label>
+              <input id="re-ld" type="number" step="any" value="${r.ld ?? ''}"></div>
+          </div>
+          <p class="hint">Unidade divergente do catálogo é erro de importação, não algo a converter aqui:
+          o sistema nunca converte unidade em silêncio.</p>
         </div>
 
-        <div class="grid cols-3">
-          <div class="field"><label class="field-label">LQ</label>
-            <input id="re-lq" type="number" step="any" value="${r.lq ?? ''}"></div>
-          <div class="field"><label class="field-label">LD</label>
-            <input id="re-ld" type="number" step="any" value="${r.ld ?? ''}"></div>
-          <div class="field"><label class="field-label">Duração (h)</label>
-            <input id="re-dur" type="number" step="any" value="${r.duracao_h ?? ''}"></div>
+        <div class="fset">
+          <div class="fset-t">Janela de amostragem</div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Início da coleta</label>
+              <input id="re-inicio" type="datetime-local" value="${dtLocal(r.inicio)}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Fim da coleta</label>
+              <input id="re-fim" type="datetime-local" value="${dtLocal(r.fim)}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Duração (h)</label>
+              <input id="re-dur" type="number" step="any" value="${r.duracao_h ?? ''}"></div>
+          </div>
+          <p class="hint">A data de início define qual norma se aplica: mudá-la pode trocar a etapa e o
+          limite. A duração alimenta a trava de coerência de volume (vazão × duração).</p>
         </div>
 
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Início da coleta</label>
-            <input id="re-inicio" type="datetime-local" value="${dtLocal(r.inicio)}"></div>
-          <div class="field"><label class="field-label">Fim da coleta</label>
-            <input id="re-fim" type="datetime-local" value="${dtLocal(r.fim)}"></div>
+        <div class="fset" style="border-color:var(--media);">
+          <div class="fset-t" style="color:var(--media);">Atribuição da amostra — mexa com cuidado</div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Ponto</label>
+              <select id="re-ponto">${state.pontos.filter(x => x.matriz === (pt ? pt.matriz : x.matriz))
+                .map(x => `<option value="${esc(x.id)}" ${x.id === r.ponto_id ? 'selected' : ''}>${esc(x.codigo)} — ${esc(x.nome || '')}</option>`).join('')}</select></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Parâmetro</label>
+              <select id="re-param">${state.parametros.filter(x => x.matriz === (par ? par.matriz : x.matriz))
+                .map(x => `<option value="${esc(x.id)}" ${x.id === r.parametro_id ? 'selected' : ''}>${esc(x.sigla)} (${esc(x.unidade)})</option>`).join('')}</select></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Tipo de amostra</label>
+              <select id="re-tipo">${['ambiental','branco_campo','branco_transporte','duplicata']
+                .map(t => `<option value="${t}" ${r.tipo_amostra === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          </div>
+          <p class="hint">Trocar ponto ou parâmetro é <strong>reatribuição de amostra</strong>. Só com a
+          planilha de campo na mão — é o caso de 2022, em que o MP10 saiu maior que o PTS.</p>
         </div>
-        <p style="font-size:11.5px;color:var(--ink-faint);margin:-6px 0 14px;">
-          A data de início define qual norma se aplica. Mudá-la pode trocar a etapa e o limite.</p>
 
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Ponto</label>
-            <select id="re-ponto">${state.pontos.filter(x => x.matriz === (pt ? pt.matriz : x.matriz))
-              .map(x => `<option value="${esc(x.id)}" ${x.id === r.ponto_id ? 'selected' : ''}>${esc(x.codigo)} — ${esc(x.nome || '')}</option>`).join('')}</select></div>
-          <div class="field"><label class="field-label">Parâmetro</label>
-            <select id="re-param">${state.parametros.filter(x => x.matriz === (par ? par.matriz : x.matriz))
-              .map(x => `<option value="${esc(x.id)}" ${x.id === r.parametro_id ? 'selected' : ''}>${esc(x.sigla)} (${esc(x.unidade)})</option>`).join('')}</select></div>
-        </div>
-        <p style="font-size:11.5px;color:var(--ink-faint);margin:-6px 0 14px;">
-          Trocar ponto ou parâmetro é <strong>reatribuição de amostra</strong>. Só faça com a
-          planilha de campo na mão — é o caso da campanha de 2022, em que MP10 saiu maior que PTS.</p>
-
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Tipo de amostra</label>
-            <select id="re-tipo">${['ambiental','branco_campo','branco_transporte','duplicata']
-              .map(t => `<option value="${t}" ${r.tipo_amostra === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-          <div class="field"><label class="field-label">Status do dado</label>
+        <div class="fset">
+          <div class="fset-t">Qualidade do dado</div>
+          <div class="field"><label class="field-label">Status</label>
             <select id="re-status">
-              <option value="ok" ${r.status_dado === 'ok' ? 'selected' : ''}>ok — entra em gráfico e conformidade</option>
-              <option value="inconsistente" ${r.status_dado === 'inconsistente' ? 'selected' : ''}>inconsistente — fica fora</option>
+              <option value="ok" ${r.status_dado === 'ok' ? 'selected' : ''}>ok — entra em gráfico e em conformidade</option>
+              <option value="inconsistente" ${r.status_dado === 'inconsistente' ? 'selected' : ''}>inconsistente — fica fora de ambos</option>
             </select></div>
+          <div class="field"><label class="field-label">Motivo da inconsistência</label>
+            <textarea id="re-motivoinc" rows="2">${esc(r.motivo_inconsistencia || '')}</textarea></div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Método analítico</label>
+            <input id="re-metodo" value="${esc(r.metodo || '')}"></div>
         </div>
 
-        <div class="field"><label class="field-label">Motivo da inconsistência</label>
-          <textarea id="re-motivoinc" rows="2">${esc(r.motivo_inconsistencia || '')}</textarea></div>
-
-        <div class="field"><label class="field-label">Método</label>
-          <input id="re-metodo" value="${esc(r.metodo || '')}"></div>
-
-        <div class="field">
-          <label class="field-label">Motivo desta edição — obrigatório</label>
-          <textarea id="re-motivo" rows="3" placeholder="Ex.: erro de transcrição na importação; a planilha de campo 103/2023 declara volume final 224,639 e o JSON trouxe 248,615."></textarea>
-          <p style="font-size:11.5px;color:var(--ink-faint);margin:4px 0 0;">
-            Mínimo de 15 caracteres. Vai para o histórico e para o rodapé do PDF.</p>
+        <div class="fset" style="border-color:var(--brand);background:var(--surface-2);">
+          <div class="fset-t" style="color:var(--brand);">Justificativa — obrigatória</div>
+          <div class="field" style="margin-bottom:0;">
+            <textarea id="re-motivo" rows="3" placeholder="Ex.: erro de transcrição na importação. A planilha de campo 103/2023 declara volume final 224,639 e o JSON trouxe 248,615."></textarea>
+            <p class="hint">Mínimo de 15 caracteres. Vai para o histórico permanente e para a seção
+            "Edições manuais" do PDF.</p>
+          </div>
         </div>
 
         ${hist.length ? `<details style="margin-top:8px;">
@@ -3211,28 +3322,49 @@ window.editarCampanha = function (id) {
   if (!c) return;
   document.getElementById('modal-root').innerHTML = `
   <div class="modal-backdrop" onclick="fecharModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal" style="max-width:700px;" onclick="event.stopPropagation()">
       <div class="modal-head"><strong>Editar campanha</strong></div>
       <div class="modal-body">
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Data início</label><input id="ce-ini" type="date" value="${esc(c.data_inicio || '')}"></div>
-          <div class="field"><label class="field-label">Data fim</label><input id="ce-fim" type="date" value="${esc(c.data_fim || '')}"></div>
+        <div class="fset">
+          <div class="fset-t">Período da coleta</div>
+          <div class="grid cols-2">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Início</label>
+              <input id="ce-ini" type="date" value="${esc(c.data_inicio || '')}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Fim</label>
+              <input id="ce-fim" type="date" value="${esc(c.data_fim || '')}"></div>
+          </div>
         </div>
-        <div class="field"><label class="field-label">Laboratório</label><input id="ce-lab" value="${esc(c.laboratorio || '')}"></div>
-        <div class="grid cols-2">
-          <div class="field"><label class="field-label">Responsável técnico</label><input id="ce-rt" value="${esc(c.responsavel_tecnico || '')}"></div>
-          <div class="field"><label class="field-label">CREA</label><input id="ce-crea" value="${esc(c.crea || '')}"></div>
+
+        <div class="fset">
+          <div class="fset-t">Responsabilidade técnica</div>
+          <div class="field"><label class="field-label">Laboratório</label><input id="ce-lab" value="${esc(c.laboratorio || '')}"></div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Responsável técnico</label>
+              <input id="ce-rt" value="${esc(c.responsavel_tecnico || '')}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">CREA</label>
+              <input id="ce-crea" value="${esc(c.crea || '')}"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">ART</label>
+              <input id="ce-art" value="${esc(c.art || '')}"></div>
+          </div>
+          <p class="hint">ART em branco é lacuna de rastreabilidade: é o que sustenta a campanha numa auditoria.</p>
         </div>
-        <div class="grid cols-3">
-          <div class="field"><label class="field-label">ART</label><input id="ce-art" value="${esc(c.art || '')}"></div>
-          <div class="field"><label class="field-label">Relatório nº</label><input id="ce-rel" value="${esc(c.relatorio_numero || '')}"></div>
-          <div class="field"><label class="field-label">Revisão</label><input id="ce-rev" value="${esc(c.relatorio_revisao || '')}"></div>
+
+        <div class="fset">
+          <div class="fset-t">Relatório</div>
+          <div class="grid cols-2">
+            <div class="field"><label class="field-label">Número</label><input id="ce-rel" value="${esc(c.relatorio_numero || '')}"></div>
+            <div class="field"><label class="field-label">Revisão</label><input id="ce-rev" value="${esc(c.relatorio_revisao || '')}"></div>
+          </div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Link do laudo no Drive</label>
+            <input id="ce-link" value="${esc(c.link_externo || '')}" placeholder="https://"></div>
         </div>
-        <div class="field"><label class="field-label">Link do laudo (Drive)</label><input id="ce-link" value="${esc(c.link_externo || '')}" placeholder="https://"></div>
-        <div class="field"><label class="field-label">Observações</label><textarea id="ce-obs" rows="3">${esc(c.observacoes || '')}</textarea></div>
-        <p style="font-size:12px;color:var(--ink-faint);margin:0;">
-          O JSON de origem não é alterado aqui — ele fica preservado como registro do que o laudo trouxe.
-          Editar metadado não recalcula conformidade: isso a view faz sozinha a cada leitura.</p>
+
+        <div class="fset">
+          <div class="fset-t">Observações</div>
+          <div class="field" style="margin-bottom:0;"><textarea id="ce-obs" rows="3">${esc(c.observacoes || '')}</textarea></div>
+          <p class="hint">O JSON de origem não é alterado aqui — fica preservado como registro do que o
+          laudo trouxe. Editar metadado não recalcula conformidade: a view faz isso a cada leitura.</p>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
@@ -3336,7 +3468,8 @@ function viewBiblioteca() {
     <span class="mono">update mon_padroes_legais set conferido = true where id like 'c491.%';</span></div>
   </div>` : ''}
 
-  ${[...new Set(state.parametros.filter(p => porParam[p.id]).map(p => p.matriz))].sort().map(mz => `
+  ${[...new Set(state.parametros.filter(p => porParam[p.id]).map(p => p.matriz))].sort()
+      .filter(mz => !state.matriz || mz === state.matriz).map(mz => `
     <h2 style="font-size:15px;font-weight:600;margin:26px 0 10px;display:flex;align-items:center;gap:8px;">
       ${badgeMatriz(mz)} <span style="color:var(--ink-soft);font-weight:500;">${esc(rotuloMatriz(mz, true))}</span>
       <span style="font-size:12px;color:var(--ink-faint);font-weight:400;">${MATRIZES[mz] ? '· ' + esc(MATRIZES[mz].norma) : ''}</span>
@@ -3423,6 +3556,24 @@ function render() {
     .filter(([, v]) => v.label)
     .map(([k, v]) => `<button class="navbtn ${state.view === k ? 'active' : ''}" onclick="setView('${k}')">
         <span class="ic">${ic[k] || ''}</span> ${v.label}</button>`).join('');
+
+  const mats = matrizesExistentes();
+  if (state.matriz === null) state.matriz = mats.length === 1 ? mats[0] : '';
+  const sel = document.getElementById('sel-matriz');
+  sel.innerHTML = `${mats.length > 1 ? `<option value="" ${state.matriz === '' ? 'selected' : ''}>Todos os monitoramentos</option>` : ''}
+    ${mats.map(m => `<option value="${esc(m)}" ${state.matriz === m ? 'selected' : ''}>${esc(rotuloMatriz(m, true))}</option>`).join('')}
+    ${Object.keys(MATRIZES).filter(m => !mats.includes(m)).map(m => `<option value="${esc(m)}" disabled>${esc(rotuloMatriz(m, true))} — sem dados</option>`).join('')}`;
+  sel.onchange = () => {
+    state.matriz = sel.value;
+    ['painel', 'serie', 'mapa'].forEach(k => { state[k].emps = []; state[k].camps = []; state[k].pontos = []; state[k].params = []; });
+    state.detalhe = null;
+    if (state.view === 'detalhe') state.view = 'campanhas';
+    render();
+  };
+  const nP = state.pontos.filter(p => !state.matriz || p.matriz === state.matriz).length;
+  document.getElementById('mtz-sub').textContent = state.matriz
+    ? `${nP} ponto(s) · ${MATRIZES[state.matriz] ? MATRIZES[state.matriz].norma : ''}`
+    : `${mats.length} matriz(es) · ${nP} ponto(s)`;
 
   document.getElementById('status-sync').textContent = navigator.onLine ? '🟢 Online' : '🔴 Sem conexão';
 
