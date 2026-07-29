@@ -1066,8 +1066,8 @@ const state = {
   diagnostico: null,  // erros/avisos da validação
   detalhe: null,      // campanha aberta
   filtroEmp: '',
-  serie: { emps: [], pontos: [], params: [], de: '', ate: '', modo: 'pct' },
-  painel: { emps: [], pontos: [], params: [], de: '', ate: '' },
+  serie: { emps: [], camps: [], pontos: [], params: [], modo: 'pct' },
+  painel: { emps: [], camps: [], pontos: [], params: [] },
   contagemPonto: null,
   ultimasLinhas: null,
   cfgFabrica: null,
@@ -1782,9 +1782,10 @@ window.exportarPdf = function () {
   const emps = [...new Set(rows.map(r => nomeEmp(r.empreendimento_id)))];
   const datas = rows.map(r => String(r.inicio || r.campanha_inicio).slice(0, 10)).sort();
   const f = state.view === 'serie' ? state.serie : state.painel;
-  const escopo = (f.de || f.ate)
-    ? `Período filtrado: ${f.de ? fmtData(f.de) : 'início'} a ${f.ate ? fmtData(f.ate) : 'hoje'}`
-    : 'Período: todas as campanhas disponíveis';
+  const nCamp = new Set(rows.map(r => r.campanha_id)).size;
+  const escopo = f.camps.length
+    ? `${nCamp} campanha(s) selecionada(s)`
+    : `Todas as campanhas disponíveis (${nCamp})`;
   const img = state.chart ? state.chart.toBase64Image() : null;
 
   const ord = rows.slice().sort((a, b) =>
@@ -1893,55 +1894,26 @@ function bindMultiSel(id, onChange) {
   });
 }
 
-// Menor e maior data de coleta existentes, para servir de limite dos campos.
-function janelaDisponivel() {
-  const ds = state.campanhas.map(c => c.data_inicio).filter(Boolean).sort();
-  return { min: ds[0] || '', max: (state.campanhas.map(c => c.data_fim || c.data_inicio)
-    .filter(Boolean).sort().slice(-1)[0]) || '' };
-}
-
-function campoDatas(id, f) {
-  const j = janelaDisponivel();
-  const ativo = f.de || f.ate;
-  return `
-  <div class="field" style="margin:0;">
-    <label class="field-label">Período da coleta</label>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <input type="date" id="${id}-de" value="${esc(f.de)}" min="${esc(j.min)}" max="${esc(j.max)}"
-             title="Data inicial da coleta" style="flex:1;min-width:0;">
-      <span style="font-size:12px;color:var(--ink-faint);">a</span>
-      <input type="date" id="${id}-ate" value="${esc(f.ate)}" min="${esc(j.min)}" max="${esc(j.max)}"
-             title="Data final da coleta" style="flex:1;min-width:0;">
-      <button class="btn sm ghost" id="${id}-limpar" title="Limpar período"
-              style="${ativo ? '' : 'visibility:hidden;'}">&times;</button>
-    </div>
-    <div style="font-size:11px;color:var(--ink-faint);margin-top:4px;">
-      ${ativo ? 'Filtrando por data de coleta.' : `Tudo: ${j.min ? fmtData(j.min) : '—'} a ${j.max ? fmtData(j.max) : '—'}`}
-    </div>
-  </div>`;
-}
-
-function bindDatas(id, f, onChange) {
-  const de = document.getElementById(id + '-de');
-  const ate = document.getElementById(id + '-ate');
-  const lim = document.getElementById(id + '-limpar');
-  if (de) de.onchange = () => {
-    if (ate && ate.value && de.value && de.value > ate.value) { showToast('A data inicial é depois da final.'); return; }
-    onChange(de.value, f.ate);
-  };
-  if (ate) ate.onchange = () => {
-    if (de && de.value && ate.value && ate.value < de.value) { showToast('A data final é antes da inicial.'); return; }
-    onChange(f.de, ate.value);
-  };
-  if (lim) lim.onclick = () => onChange('', '');
-}
-
 /* ============================================================
    FILTRO EM CASCATA — resolve empreendimento -> ponto -> parâmetro
    ============================================================ */
+function rotuloCampanha(c) {
+  const ini = fmtData(c.data_inicio);
+  const fim = c.data_fim && c.data_fim !== c.data_inicio ? ' a ' + fmtData(c.data_fim) : '';
+  return ini + fim;
+}
+
 function cascata(f) {
   const emps = state.empreendimentos;
   const empIds = f.emps.length ? f.emps : emps.map(e => e.id);
+
+  // Campanha = um laudo = uma data de coleta. É o filtro temporal natural aqui:
+  // a data da coleta já identifica a campanha, então não faz sentido pedir
+  // intervalo para o usuário digitar.
+  const camps = state.campanhas
+    .filter(c => empIds.includes(c.empreendimento_id))
+    .slice().sort((a, b) => String(b.data_inicio).localeCompare(String(a.data_inicio)));
+  const campIds = f.camps.length ? f.camps.filter(id => camps.some(c => c.id === id)) : camps.map(c => c.id);
 
   const pontos = state.pontos.filter(p => empIds.includes(p.empreendimento_id));
   const pontoIds = f.pontos.length ? f.pontos.filter(id => pontos.some(p => p.id === id)) : pontos.map(p => p.id);
@@ -1950,27 +1922,19 @@ function cascata(f) {
   const params = state.parametros.filter(p => !matrizes.length || matrizes.includes(p.matriz));
   const paramIds = f.params.length ? f.params.filter(id => params.some(p => p.id === id)) : params.map(p => p.id);
 
-  return { emps, empIds, pontos, pontoIds, params, paramIds };
+  return { emps, empIds, camps, campIds, pontos, pontoIds, params, paramIds };
 }
 
 async function linhasFiltradas(f) {
   const c = cascata(f);
   const { data, error } = await _supabase.from('mon_resultados_avaliados').select('*');
   if (error) { showToast('Erro ao ler avaliação: ' + error.message); return { rows: [], c }; }
-  // Data de referência = data da coleta, a mesma que a view usa para escolher o
-  // padrão vigente. Filtrar por data de campanha daria resultado diferente quando
-  // a campanha atravessa a virada de uma norma.
-  const dataDe = (f.de || '').slice(0, 10);
-  const dataAte = (f.ate || '').slice(0, 10);
-  const rows = (data || []).filter(r => {
-    if (!c.pontoIds.includes(r.ponto_id)) return false;
-    if (!c.paramIds.includes(r.parametro_id)) return false;
-    if (r.tipo_amostra !== 'ambiental') return false;
-    const d = String(r.inicio || r.campanha_inicio).slice(0, 10);
-    if (dataDe && d < dataDe) return false;
-    if (dataAte && d > dataAte) return false;
-    return true;
-  });
+  const rows = (data || []).filter(r =>
+    c.campIds.includes(r.campanha_id) &&
+    c.pontoIds.includes(r.ponto_id) &&
+    c.paramIds.includes(r.parametro_id) &&
+    r.tipo_amostra === 'ambiental'
+  );
   return { rows, c };
 }
 
@@ -2043,9 +2007,9 @@ function viewPainel() {
 
   <div class="filter-bar">
     ${multiSel('p-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
+    ${multiSel('p-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('p-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
     ${multiSel('p-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
-    ${campoDatas('pd', f)}
   </div>
 
   <div class="grid cols-4" id="painel-kpis" style="margin-bottom:22px;"></div>
@@ -2079,10 +2043,10 @@ function viewPainel() {
 }
 
 async function bindPainel() {
-  bindMultiSel('p-emp', v => { state.painel.emps = v; state.painel.pontos = []; state.painel.params = []; render(); });
+  bindMultiSel('p-emp', v => { state.painel.emps = v; state.painel.camps = []; state.painel.pontos = []; state.painel.params = []; render(); });
+  bindMultiSel('p-camp', v => { state.painel.camps = v; render(); });
   bindMultiSel('p-ponto', v => { state.painel.pontos = v; render(); });
   bindMultiSel('p-par', v => { state.painel.params = v; render(); });
-  bindDatas('pd', state.painel, (de, ate) => { state.painel.de = de; state.painel.ate = ate; render(); });
 
   const { rows } = await linhasFiltradas(state.painel);
   state.ultimasLinhas = rows;
@@ -2241,8 +2205,7 @@ async function bindPainel() {
 
   const ord = rows.slice().sort((a, b) => (Number(b.percentual_do_limite) || -1) - (Number(a.percentual_do_limite) || -1));
   document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
-    ? `<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.${
-        (state.painel.de || state.painel.ate) ? ' O período filtrado pode estar fora das campanhas existentes.' : ''}</p></div>`
+    ? '<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.</p></div>'
     : `<div class="table-wrapper"><table>
         <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th>Fonte</th></tr></thead>
         <tbody>${ord.map(r => {
@@ -2282,9 +2245,9 @@ function viewSerie() {
 
   <div class="filter-bar">
     ${multiSel('s-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
+    ${multiSel('s-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('s-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
     ${multiSel('s-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
-    ${campoDatas('sd', f)}
   </div>
 
   <div class="card card-pad">
@@ -2298,10 +2261,10 @@ function viewSerie() {
 window.setModoSerie = function (m) { state.serie.modo = m; render(); };
 
 async function bindSerie() {
-  bindMultiSel('s-emp', v => { state.serie.emps = v; state.serie.pontos = []; state.serie.params = []; render(); });
+  bindMultiSel('s-emp', v => { state.serie.emps = v; state.serie.camps = []; state.serie.pontos = []; state.serie.params = []; render(); });
+  bindMultiSel('s-camp', v => { state.serie.camps = v; render(); });
   bindMultiSel('s-ponto', v => { state.serie.pontos = v; render(); });
   bindMultiSel('s-par', v => { state.serie.params = v; render(); });
-  bindDatas('sd', state.serie, (de, ate) => { state.serie.de = de; state.serie.ate = ate; render(); });
 
   const { rows } = await linhasFiltradas(state.serie);
   state.ultimasLinhas = rows;
