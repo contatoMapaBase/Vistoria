@@ -148,6 +148,26 @@
       overflow-y: auto;
     }
     
+    .chart-tools { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
+    .chart-tools button { font-size:11.5px; padding:3px 9px; }
+    .zoom-wrap { width:100%; height:70vh; }
+    #print-root { display:none; }
+    .prov-box { border-left:3px solid var(--media); background:var(--surface); padding:12px 14px; border-radius:0 var(--radius) var(--radius) 0; margin-bottom:16px; }
+    .prov-box summary { cursor:pointer; font-weight:600; font-size:13.5px; }
+    .prov-box .body { font-size:12.5px; line-height:1.65; color:var(--ink-soft); margin-top:10px; }
+    .prov-box table { width:100%; font-size:12px; margin-top:8px; }
+    .prov-box td { padding:3px 6px 3px 0; vertical-align:top; }
+    @media print {
+      body > *:not(#print-root) { display:none !important; }
+      #print-root { display:block !important; }
+      #print-root table { width:100%; border-collapse:collapse; font-size:9.5pt; }
+      #print-root th, #print-root td { border:0.5pt solid #999; padding:3pt 5pt; text-align:left; }
+      #print-root h1 { font-size:15pt; margin:0 0 2pt; }
+      #print-root h2 { font-size:11pt; margin:14pt 0 4pt; }
+      #print-root .meta, #print-root .cav { font-size:8.5pt; color:#333; }
+      #print-root .cav { border:0.5pt solid #333; padding:6pt; margin:8pt 0; }
+      @page { size: A4 landscape; margin: 12mm; }
+    }
     .navbtn {
       display: flex;
       align-items: center;
@@ -1018,6 +1038,7 @@
 
 <div id="toast" class="toast"></div>
 <div id="modal-root"></div>
+<div id="print-root"></div>
 
 <script>
 /* ============================================================
@@ -1048,6 +1069,9 @@ const state = {
   serie: { emps: [], pontos: [], params: [], modo: 'pct' },
   painel: { emps: [], pontos: [], params: [] },
   contagemPonto: null,
+  ultimasLinhas: null,
+  cfgFabrica: null,
+  chartZoom: null,
   chart: null
 };
 
@@ -1683,6 +1707,142 @@ async function bindDetalhe() {
 }
 
 /* ============================================================
+   GRÁFICO — ampliar, baixar PNG, exportar PDF
+   ============================================================ */
+function chartTools(nome) {
+  return `<div class="chart-tools">
+    <button class="btn sm ghost" onclick="ampliarGrafico()">Ampliar</button>
+    <button class="btn sm ghost" onclick="baixarPng('${esc(nome)}')">Baixar PNG</button>
+    <button class="btn sm ghost" onclick="exportarPdf()">Exportar PDF</button>
+  </div>`;
+}
+
+// Guarda uma FÁBRICA de config, não a config: Chart.js muta o objeto que recebe,
+// então reaproveitar a mesma config em dois canvas quebra o primeiro gráfico.
+function renderChart(canvasId, fabrica) {
+  if (state.chart) { state.chart.destroy(); state.chart = null; }
+  state.cfgFabrica = fabrica;
+  const cv = document.getElementById(canvasId);
+  if (cv && fabrica) state.chart = new Chart(cv, fabrica());
+}
+
+window.ampliarGrafico = function () {
+  if (!state.cfgFabrica) return showToast('Nenhum gráfico para ampliar.');
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharZoom(event)">
+    <div class="modal" style="max-width:96vw;width:96vw;" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Gráfico ampliado</strong></div>
+      <div class="modal-body"><div class="zoom-wrap"><canvas id="cv-zoom"></canvas></div></div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="baixarPng('grafico-ampliado', 'cv-zoom')">Baixar PNG</button>
+        <button class="btn primary" onclick="fecharZoom()">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+  state.chartZoom = new Chart(document.getElementById('cv-zoom'), state.cfgFabrica());
+};
+
+window.fecharZoom = function (ev) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  if (state.chartZoom) { state.chartZoom.destroy(); state.chartZoom = null; }
+  document.getElementById('modal-root').innerHTML = '';
+};
+
+window.baixarPng = function (nome, canvasId) {
+  const cv = document.getElementById(canvasId || (state.view === 'serie' ? 'cv-serie' : 'cv-painel'));
+  if (!cv) return showToast('Gráfico não encontrado.');
+  // Fundo branco: canvas transparente vira PNG ilegível em documento impresso.
+  const tmp = document.createElement('canvas');
+  tmp.width = cv.width; tmp.height = cv.height;
+  const g = tmp.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, tmp.width, tmp.height);
+  g.drawImage(cv, 0, 0);
+  const a = document.createElement('a');
+  a.download = `${nome}-${new Date().toISOString().slice(0, 10)}.png`;
+  a.href = tmp.toDataURL('image/png');
+  a.click();
+  showToast('PNG baixado.');
+};
+
+window.exportarPdf = function () {
+  const rows = state.ultimasLinhas || [];
+  if (!rows.length) return showToast('Nada para exportar nesta seleção.');
+
+  const naoConf = rows.filter(r => r.limite_base_legal && r.padrao_conferido === false).length;
+  const semConc = rows.filter(r => r.situacao === 'inconsistente' || r.situacao === 'sem_padrao').length;
+  const exc = rows.filter(r => r.situacao === 'excedente').length;
+
+  const normas = {};
+  rows.forEach(r => {
+    if (!r.limite_base_legal) return;
+    const k = r.limite_base_legal + (r.limite_contexto ? ' · etapa ' + r.limite_contexto : '');
+    normas[k] = (normas[k] || 0) + 1;
+  });
+
+  const emps = [...new Set(rows.map(r => nomeEmp(r.empreendimento_id)))];
+  const img = state.chart ? state.chart.toBase64Image() : null;
+
+  const ord = rows.slice().sort((a, b) =>
+    String(a.inicio || a.campanha_inicio).localeCompare(String(b.inicio || b.campanha_inicio))
+    || String(a.ponto_codigo).localeCompare(String(b.ponto_codigo)));
+
+  document.getElementById('print-root').innerHTML = `
+    <h1>Resultados de monitoramento ambiental</h1>
+    <p class="meta">
+      ${esc(emps.join(' · '))}<br>
+      ${rows.length} resultado(s) · ${exc} excedência(s) · ${semConc} sem conclusão possível<br>
+      Emitido em ${new Date().toLocaleString('pt-BR')} pelo MapaBase.
+    </p>
+
+    <div class="cav">
+      <strong>Como ler este documento.</strong>
+      A conformidade não é transcrita do laudo: é recalculada contra o padrão legal vigente
+      na data de cada coleta. Resultado marcado como inconsistente ou sem padrão
+      <strong>não é resultado aprovado</strong> — é resultado sobre o qual não se pode concluir.
+      ${semConc ? `Nesta seleção há ${semConc} caso(s) nessa condição.` : ''}
+      ${naoConf ? `<br><strong>Atenção:</strong> ${naoConf} resultado(s) foram avaliados contra padrão cuja
+      origem ainda não foi validada em fonte primária (Diário Oficial ou publicação do órgão).
+      Este documento não deve ser usado como comprovação até essa conferência.` : ''}
+    </div>
+
+    <h2>Base legal aplicada</h2>
+    <table><thead><tr><th>Norma</th><th>Resultados</th></tr></thead><tbody>
+      ${Object.entries(normas).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('')
+        || '<tr><td colspan="2">Nenhum padrão aplicável.</td></tr>'}
+    </tbody></table>
+
+    ${img ? `<h2>Percentual do limite legal</h2><img src="${img}" style="width:100%;max-height:9cm;object-fit:contain;">` : ''}
+
+    <h2>Resultados</h2>
+    <table><thead><tr>
+      <th>Coleta</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
+      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Fonte</th>
+    </tr></thead><tbody>
+    ${ord.map(r => `<tr>
+      <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
+      <td>${esc(r.ponto_codigo || '')}</td>
+      <td>${esc(r.parametro)}</td>
+      <td>${r.qualificador ? esc(r.qualificador) + ' ' : ''}${num(r.valor, 2)}</td>
+      <td>${esc(r.unidade || '')}</td>
+      <td>${r.limite === null ? '—' : num(r.limite, 2)}</td>
+      <td>${esc(r.limite_base_legal || '—')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</td>
+      <td>${r.percentual_do_limite === null ? '—' : num(r.percentual_do_limite, 1) + '%'}</td>
+      <td>${esc(r.situacao === 'sem_padrao' ? 'sem padrão' : r.situacao)}</td>
+      <td>${!r.limite_base_legal ? '—' : (r.padrao_conferido ? 'conferida' : 'NÃO conferida')}</td>
+    </tr>`).join('')}
+    </tbody></table>
+    ${rows.some(r => r.motivo_inconsistencia) ? `<h2>Motivos de inconsistência</h2>
+      <table><thead><tr><th>Coleta</th><th>Ponto</th><th>Par.</th><th>Motivo</th></tr></thead><tbody>
+      ${ord.filter(r => r.motivo_inconsistencia).map(r => `<tr>
+        <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
+        <td>${esc(r.ponto_codigo || '')}</td><td>${esc(r.parametro)}</td>
+        <td>${esc(r.motivo_inconsistencia)}</td></tr>`).join('')}
+      </tbody></table>` : ''}`;
+
+  window.print();
+};
+
+/* ============================================================
    MULTI-SELEÇÃO EM CASCATA — componente
    ============================================================ */
 function multiSel(id, label, opcoes, selecionados, contagemTotal) {
@@ -1756,6 +1916,55 @@ async function linhasFiltradas(f) {
   return { rows, c };
 }
 
+function caixaProcedencia(padroes) {
+  const porFonte = {};
+  padroes.forEach(x => { const k = x.fonte_tipo || 'nao_registrada'; porFonte[k] = (porFonte[k] || 0) + 1; });
+  const rot = {
+    dou: 'Diário Oficial da União — fonte primária',
+    orgao: 'Publicação do órgão ambiental competente — fonte primária',
+    reproducao: 'Reprodução em documento secundário — não serve de base legal',
+    nao_registrada: 'Origem não registrada'
+  };
+  return `
+  <details class="prov-box">
+    <summary>O que significa "não conferido" — e por que a resolução estar cadastrada não basta</summary>
+    <div class="body">
+      <p><strong>"Conferido" não quer dizer que o valor está no banco.</strong> Todos os 
+      ${padroes.length} padrões estão cadastrados e todos são usados na avaliação. O campo
+      responde outra pergunta: <em>alguém com responsabilidade técnica comparou este número
+      com o texto oficial da norma?</em></p>
+
+      <p>A distinção existe porque a biblioteca é <strong>compartilhada por todos os clientes</strong>.
+      Um número errado aqui não erra um laudo — erra todas as avaliações de todos os
+      empreendimentos, para trás e para frente no tempo. Já aconteceu duas vezes neste projeto:
+      valores semeados a partir do Anexo I reproduzido em laudo da Bioar. Os valores até
+      coincidiam, mas a base da conferência não valia, e um deles não coincidia — a primeira
+      faixa do IQAr, que o laudo dava como MP10 0–50 e MP2,5 0–25 quando o Anexo II oficial
+      manda usar o padrão final como teto (45 e 15).</p>
+
+      <p>Laudo, memorial e repositório de terceiro reproduzem a norma; não <em>são</em> a norma.
+      Reprodução tem erro de digitação, versão desatualizada e recorte parcial — e quem assina o
+      relatório com CREA responde pelo valor, não o laboratório que o copiou.</p>
+
+      <p><strong>Procedência registrada hoje:</strong></p>
+      <table>
+        ${Object.entries(porFonte).map(([k, v]) => `<tr>
+          <td style="white-space:nowrap;"><strong>${v}</strong></td>
+          <td>${esc(rot[k] || k)}</td></tr>`).join('')}
+      </table>
+
+      <p style="margin-top:10px;">Para marcar como conferido, é preciso registrar fonte, quem
+      conferiu e quando — não só virar o booleano:</p>
+      <p class="mono" style="font-size:11.5px;background:var(--bg);padding:8px;border-radius:4px;">
+        update mon_padroes_legais set conferido = true, fonte_tipo = 'dou',<br>
+        &nbsp;&nbsp;fonte_ref = 'DOU de 21/11/2018, secao 1, pag. X',<br>
+        &nbsp;&nbsp;conferido_por = 'seu nome, CREA', conferido_em = current_date<br>
+        &nbsp;where id like 'c491.%';
+      </p>
+    </div>
+  </details>`;
+}
+
 /* ============================================================
    PAINEL GERAL
    ============================================================ */
@@ -1782,6 +1991,8 @@ function viewPainel() {
 
   <div class="grid cols-4" id="painel-kpis" style="margin-bottom:22px;"></div>
 
+  <div id="painel-piores" style="margin-bottom:18px;"></div>
+
   <div class="card card-pad" style="margin-bottom:18px;">
     <div class="eyebrow" style="margin-bottom:10px;">Percentual do limite legal, por campanha</div>
     <p style="font-size:12px;color:var(--ink-faint);margin:0 0 12px;">
@@ -1789,13 +2000,21 @@ function viewPainel() {
       diferentes no mesmo gráfico e enxergar quando o limite muda de valor no meio da série.
       A linha em 100% é o limite legal.
     </p>
+    ${chartTools('painel-percentual-limite')}
     <div class="chart-box"><canvas id="cv-painel"></canvas></div>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <div class="eyebrow" style="margin-bottom:10px;">Resumo por campanha</div>
+    <div id="painel-campanhas"></div>
   </div>
 
   <div class="card card-pad" style="margin-bottom:18px;">
     <div class="eyebrow" style="margin-bottom:10px;">Base legal aplicada nesta seleção</div>
     <div id="painel-normas"></div>
   </div>
+
+  ${caixaProcedencia(state.padroes)}
 
   <div class="card" id="painel-tabela-wrap"></div>`;
 }
@@ -1806,6 +2025,7 @@ async function bindPainel() {
   bindMultiSel('p-par', v => { state.painel.params = v; render(); });
 
   const { rows } = await linhasFiltradas(state.painel);
+  state.ultimasLinhas = rows;
 
   const conf = rows.filter(r => r.situacao === 'conforme').length;
   const exc = rows.filter(r => r.situacao === 'excedente').length;
@@ -1874,10 +2094,7 @@ async function bindPainel() {
     tension: 0.25, spanGaps: true, pointRadius: 4
   }));
 
-  if (state.chart) { state.chart.destroy(); state.chart = null; }
-  const cv = document.getElementById('cv-painel');
-  if (cv && dsets.length) {
-    state.chart = new Chart(cv, {
+  renderChart('cv-painel', !dsets.length ? null : () => ({
       type: 'line',
       data: { labels: anos, datasets: dsets },
       options: {
@@ -1902,8 +2119,65 @@ async function bindPainel() {
           x.restore();
         }
       }]
-    });
-  }
+  }));
+
+  // Pior caso por parâmetro — critério determinístico (maior razão valor/limite),
+  // nunca escolhido por IA.
+  const porPar = {};
+  validos.forEach(r => {
+    const k = r.parametro;
+    if (!porPar[k] || Number(r.percentual_do_limite) > Number(porPar[k].percentual_do_limite)) porPar[k] = r;
+  });
+  document.getElementById('painel-piores').innerHTML = !Object.keys(porPar).length ? '' : `
+    <div class="grid cols-3">
+      ${Object.entries(porPar).map(([par, r]) => {
+        const pct = Number(r.percentual_do_limite);
+        const cor = r.situacao === 'excedente' ? 'var(--nc)' : (pct > 80 ? 'var(--media)' : 'var(--conforme)');
+        return `<div class="card card-pad">
+          <div class="eyebrow" style="margin-bottom:6px;">${esc(par)} — pior caso</div>
+          <div style="font-size:26px;font-weight:600;color:${cor};line-height:1.1;">${num(pct, 1)}%</div>
+          <div style="font-size:12px;color:var(--ink-faint);margin-top:4px;">
+            ${num(r.valor, 2)} de ${num(r.limite, 2)} ${esc(r.unidade || '')}<br>
+            ${esc(r.ponto_codigo || '')} · ${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}<br>
+            ${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  // Resumo por campanha
+  const porCamp = {};
+  rows.forEach(r => {
+    const k = String(r.campanha_inicio);
+    porCamp[k] = porCamp[k] || { conf: 0, exc: 0, inc: 0, sp: 0, naoConf: 0, n: 0, pior: null };
+    const g = porCamp[k];
+    g.n++;
+    if (r.situacao === 'conforme') g.conf++;
+    else if (r.situacao === 'excedente') g.exc++;
+    else if (r.situacao === 'inconsistente') g.inc++;
+    else if (r.situacao === 'sem_padrao') g.sp++;
+    if (r.limite_base_legal && r.padrao_conferido === false) g.naoConf++;
+    if (r.status_dado === 'ok' && r.percentual_do_limite !== null &&
+        (!g.pior || Number(r.percentual_do_limite) > Number(g.pior.percentual_do_limite))) g.pior = r;
+  });
+  document.getElementById('painel-campanhas').innerHTML = !Object.keys(porCamp).length
+    ? '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhuma campanha nesta seleção.</p>'
+    : `<div class="table-wrapper"><table>
+        <thead><tr><th>Campanha</th><th>Result.</th><th>Conf.</th><th>Exced.</th>
+        <th>Sem conclusão</th><th>Pior razão</th><th>Fonte legal</th></tr></thead>
+        <tbody>${Object.keys(porCamp).sort().map(k => {
+          const g = porCamp[k];
+          const semConc = g.inc + g.sp;
+          return `<tr>
+            <td><strong>${fmtData(k)}</strong></td>
+            <td class="mono">${g.n}</td>
+            <td class="mono">${g.conf}</td>
+            <td class="mono" style="${g.exc ? 'color:var(--nc);font-weight:600;' : ''}">${g.exc}</td>
+            <td class="mono" style="${semConc ? 'color:var(--media);font-weight:600;' : ''}">${semConc}</td>
+            <td>${g.pior ? barraPercentual(g.pior.percentual_do_limite, g.pior.situacao) : '—'}</td>
+            <td>${g.naoConf ? '<span class="badge pending">Não conferida</span>' : (g.n - g.inc - g.sp > 0 ? '<span class="badge conforme">Conferida</span>' : '—')}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div>`;
 
   const ord = rows.slice().sort((a, b) => (Number(b.percentual_do_limite) || -1) - (Number(a.percentual_do_limite) || -1));
   document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
@@ -1953,6 +2227,7 @@ function viewSerie() {
 
   <div class="card card-pad">
     <div id="serie-aviso"></div>
+    ${chartTools('serie-historica')}
     <div class="chart-box"><canvas id="cv-serie"></canvas></div>
     <div id="serie-nota" style="margin-top:14px;"></div>
   </div>`;
@@ -1966,6 +2241,7 @@ async function bindSerie() {
   bindMultiSel('s-par', v => { state.serie.params = v; render(); });
 
   const { rows } = await linhasFiltradas(state.serie);
+  state.ultimasLinhas = rows;
   const validos = rows.filter(r => r.status_dado === 'ok' && r.valor !== null);
   const fora = rows.length - validos.length;
   const modo = state.serie.modo;
@@ -1977,7 +2253,7 @@ async function bindSerie() {
         Ele continua no histórico e na tela da campanha.</div></div>`
     : '';
 
-  if (state.chart) { state.chart.destroy(); state.chart = null; }
+  renderChart('cv-serie', null);
 
   const nota = document.getElementById('serie-nota');
   if (!validos.length) {
@@ -2020,7 +2296,7 @@ async function bindSerie() {
   }));
 
   const un = modo === 'pct' ? '% do limite legal' : ([...new Set(validos.map(r => r.unidade))][0] || '');
-  state.chart = new Chart(document.getElementById('cv-serie'), {
+  renderChart('cv-serie', () => ({
     type: 'line',
     data: { labels: anos, datasets: dsets },
     options: {
@@ -2043,7 +2319,7 @@ async function bindSerie() {
         x.restore();
       }
     }] : []
-  });
+  }));
 
   nota.innerHTML = modo === 'pct'
     ? `<p style="font-size:12px;color:var(--ink-faint);margin:0;">
@@ -2334,8 +2610,10 @@ function viewBiblioteca() {
     </div>
   </div>
 
+  ${caixaProcedencia(state.padroes)}
+
   ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
-    <div class="diag-t">${pendentes} padrão(ões) ainda não conferido(s)</div>
+    <div class="diag-t">${pendentes} de ${state.padroes.length} padrões ainda não conferidos em fonte primária</div>
     <div class="diag-d">Padrão não conferido é padrão cuja origem ainda não foi validada em fonte primária
     (Diário Oficial da União ou publicação do órgão). Documento de cliente — laudo, memorial, relatório —
     <strong>não serve de base legal</strong>, mesmo quando reproduz o anexo da resolução corretamente.
@@ -2351,7 +2629,7 @@ function viewBiblioteca() {
       </div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Contexto</th><th>Período</th><th>Tipo</th><th>Valor</th><th>Vigência</th><th>Avaliável</th><th>Conferido</th></tr></thead>
+          <thead><tr><th>Contexto</th><th>Período</th><th>Tipo</th><th>Valor</th><th>Vigência</th><th>Avaliável</th><th>Procedência</th></tr></thead>
           <tbody>
             ${porParam[par.id].sort((a,b) => (a.periodo_referencia+a.contexto).localeCompare(b.periodo_referencia+b.contexto)).map(p => `
               <tr>
@@ -2361,7 +2639,17 @@ function viewBiblioteca() {
                 <td class="mono"><strong>${p.valor === null ? '—' : num(p.valor, 2)}</strong></td>
                 <td class="mono" style="font-size:11.5px;">${p.vigencia_inicio ? fmtData(p.vigencia_inicio) : 'sem data'}${p.vigencia_fim ? ' a ' + fmtData(p.vigencia_fim) : ''}</td>
                 <td>${p.avaliavel ? '<span class="badge conforme">Sim</span>' : `<span class="badge na" title="${esc(p.observacao || '')}">Não</span>`}</td>
-                <td>${p.conferido ? '<span class="badge conforme">Sim</span>' : '<span class="badge pending">Não</span>'}</td>
+                <td>${(() => {
+                  const rot = { dou: 'DOU', orgao: 'Órgão', reproducao: 'Reprodução', nao_registrada: 'Não registrada' };
+                  const f = p.fonte_tipo || 'nao_registrada';
+                  const ok = p.conferido && (f === 'dou' || f === 'orgao');
+                  const badge = ok ? `<span class="badge conforme">${rot[f]}</span>`
+                    : (p.conferido ? `<span class="badge nc" title="Marcado como conferido, mas a procedência registrada não é fonte primária.">${rot[f]} ⚠</span>`
+                                   : `<span class="badge pending">${rot[f]}</span>`);
+                  const det = [p.conferido_por, p.conferido_em ? fmtData(p.conferido_em) : null].filter(Boolean).join(' · ');
+                  return badge + (det ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">${esc(det)}</span>` : '')
+                    + (p.fonte_ref ? `<br><span style="font-size:10px;color:var(--ink-faint);" title="${esc(p.fonte_ref)}">fonte registrada</span>` : '');
+                })()}</td>
               </tr>`).join('')}
           </tbody>
         </table>
