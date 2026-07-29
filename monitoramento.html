@@ -15,6 +15,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
   <style>
     :root {
@@ -148,6 +150,14 @@
       overflow-y: auto;
     }
     
+    .mapbox { width:100%; background:var(--bg); }
+    .leaflet-container { font: inherit; z-index:1; }
+    .leaflet-popup-content { margin:10px 12px; }
+    .filter-bar { position:sticky; top:0; z-index:5; background:var(--surface);
+      padding:12px 0; border-bottom:1px solid var(--line); }
+    .skel { height:10px; border-radius:5px; background:var(--line); animation:pulse 1.3s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:.45} 50%{opacity:.9} }
+    .loading-row { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-faint); padding:10px 0; }
     .chart-tools { display:flex; gap:6px; justify-content:flex-end; margin-bottom:6px; }
     .chart-tools button { font-size:11.5px; padding:3px 9px; }
     .zoom-wrap { width:100%; height:70vh; }
@@ -1066,8 +1076,12 @@ const state = {
   diagnostico: null,  // erros/avisos da validação
   detalhe: null,      // campanha aberta
   filtroEmp: '',
-  serie: { emps: [], camps: [], pontos: [], params: [], modo: 'pct' },
-  painel: { emps: [], camps: [], pontos: [], params: [] },
+  serie: { mats: [], emps: [], camps: [], pontos: [], params: [], modo: 'pct' },
+  painel: { mats: [], emps: [], camps: [], pontos: [], params: [] },
+  mapa: { mats: [], emps: [], camps: [], pontos: [], params: [] },
+  map: null,
+  mapEdit: null,
+  kmlAchados: null,
   contagemPonto: null,
   ultimasLinhas: null,
   cfgFabrica: null,
@@ -1561,7 +1575,7 @@ function viewCampanhas() {
       <div class="table-wrapper">
         <table>
           <thead><tr>
-            <th>Período</th><th>Empreendimento</th><th>Laboratório</th>
+            <th>Período</th><th>Empreendimento</th><th>Matriz</th><th>Laboratório</th>
             <th>Relatório</th><th>Situação</th><th></th>
           </tr></thead>
           <tbody>
@@ -1571,6 +1585,7 @@ function viewCampanhas() {
                   <strong>${fmtData(c.data_inicio)}</strong>${c.data_fim ? ` a ${fmtData(c.data_fim)}` : ''}
                 </td>
                 <td>${esc(nomeEmp(c.empreendimento_id))}</td>
+                <td id="mz-${esc(c.id)}"><span style="font-size:11px;color:var(--ink-faint);">—</span></td>
                 <td>${esc(c.laboratorio || '—')}<br><span style="font-size:11.5px;color:var(--ink-faint);">${esc(c.responsavel_tecnico || '')}</span></td>
                 <td class="mono">${esc(c.relatorio_numero || '—')}${c.relatorio_revisao ? ' rev.' + esc(c.relatorio_revisao) : ''}</td>
                 <td>${c.status === 'com_pendencia_laboratorio'
@@ -1592,9 +1607,24 @@ function viewCampanhas() {
   </p>`;
 }
 
-function bindCampanhas() {
+async function bindCampanhas() {
   const f = document.getElementById('f-emp');
   if (f) f.onchange = () => { state.filtroEmp = f.value; render(); };
+
+  // Matriz da campanha vem dos pontos que ela mediu: mon_campanhas nao guarda
+  // matriz, porque em teoria um laudo poderia cobrir mais de uma.
+  const { data } = await _supabase.from('mon_resultados').select('campanha_id,ponto_id');
+  if (!data) return;
+  const porCamp = {};
+  data.forEach(r => {
+    const pt = state.pontos.find(x => x.id === r.ponto_id);
+    if (!pt) return;
+    (porCamp[r.campanha_id] = porCamp[r.campanha_id] || new Set()).add(pt.matriz);
+  });
+  Object.entries(porCamp).forEach(([id, set]) => {
+    const el = document.getElementById('mz-' + id);
+    if (el) el.innerHTML = [...set].map(m => badgeMatriz(m)).join(' ');
+  });
 }
 
 window.abrirCampanha = function (id) { state.detalhe = id; setView('detalhe'); };
@@ -1783,6 +1813,7 @@ window.exportarPdf = function () {
   const datas = rows.map(r => String(r.inicio || r.campanha_inicio).slice(0, 10)).sort();
   const f = state.view === 'serie' ? state.serie : state.painel;
   const nCamp = new Set(rows.map(r => r.campanha_id)).size;
+  const mats = [...new Set(rows.map(r => r.matriz))];
   const escopo = f.camps.length
     ? `${nCamp} campanha(s) selecionada(s)`
     : `Todas as campanhas disponíveis (${nCamp})`;
@@ -1793,7 +1824,7 @@ window.exportarPdf = function () {
     || String(a.ponto_codigo).localeCompare(String(b.ponto_codigo)));
 
   document.getElementById('print-root').innerHTML = `
-    <h1>Resultados de monitoramento ambiental</h1>
+    <h1>Resultados de monitoramento — ${esc(mats.map(m => rotuloMatriz(m, true)).join(' · '))}</h1>
     <p class="meta">
       ${esc(emps.join(' · '))}<br>
       ${esc(escopo)}${datas.length ? ` · coletas de ${fmtData(datas[0])} a ${fmtData(datas[datas.length - 1])}` : ''}<br>
@@ -1822,11 +1853,12 @@ window.exportarPdf = function () {
 
     <h2>Resultados</h2>
     <table><thead><tr>
-      <th>Coleta</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
+      <th>Coleta</th><th>Matriz</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
       <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Fonte</th>
     </tr></thead><tbody>
     ${ord.map(r => `<tr>
       <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
+      <td>${esc(rotuloMatriz(r.matriz))}</td>
       <td>${esc(r.ponto_codigo || '')}</td>
       <td>${esc(r.parametro)}</td>
       <td>${r.qualificador ? esc(r.qualificador) + ' ' : ''}${num(r.valor, 2)}</td>
@@ -1879,6 +1911,11 @@ function multiSel(id, label, opcoes, selecionados, contagemTotal) {
 }
 
 function bindMultiSel(id, onChange) {
+  const det = document.getElementById('ms-' + id);
+  if (det) det.addEventListener('toggle', () => {
+    if (!det.open) return;
+    document.querySelectorAll('details.multi-select-details').forEach(o => { if (o !== det) o.open = false; });
+  });
   document.querySelectorAll(`input[data-ms="${id}"]`).forEach(cb => {
     cb.onchange = () => {
       const marcados = Array.from(document.querySelectorAll(`input[data-ms="${id}"]`));
@@ -1897,6 +1934,27 @@ function bindMultiSel(id, onChange) {
 /* ============================================================
    FILTRO EM CASCATA — resolve empreendimento -> ponto -> parâmetro
    ============================================================ */
+// A matriz é o discriminador de topo: define unidade, lógica de avaliação
+// (binária no ar, em faixas no solo) e qual norma se aplica. Misturar matrizes
+// num mesmo gráfico ou tabela só faz sentido em percentual do limite.
+const MATRIZES = {
+  ar_imissao:       { curto: 'Ar — imissão',        longo: 'Qualidade do ar (imissão)',            norma: 'CONAMA 491/2018 e 506/2024' },
+  ar_fonte_fixa:    { curto: 'Ar — fonte fixa',     longo: 'Emissões atmosféricas de fonte fixa',  norma: 'CONAMA 382/2006 e 436/2011' },
+  agua_superficial: { curto: 'Água superficial',    longo: 'Água superficial',                      norma: 'CONAMA 357/2005' },
+  agua_subterranea: { curto: 'Água subterrânea',    longo: 'Água subterrânea',                      norma: 'CONAMA 396/2008' },
+  efluente:         { curto: 'Efluente',            longo: 'Efluente líquido',                      norma: 'CONAMA 430/2011' },
+  solo:             { curto: 'Solo',                longo: 'Solo',                                  norma: 'CONAMA 420/2009 e VRQ estadual' },
+  ruido:            { curto: 'Ruído',               longo: 'Ruído ambiental',                       norma: 'NBR 10151' },
+  sismografia:      { curto: 'Sismografia',         longo: 'Vibração e sobrepressão acústica',      norma: 'NBR 9653' }
+};
+function rotuloMatriz(m, longo) {
+  const x = MATRIZES[m];
+  return x ? (longo ? x.longo : x.curto) : (m || '—');
+}
+function badgeMatriz(m) {
+  return `<span class="badge na" style="white-space:nowrap;" title="${esc(rotuloMatriz(m, true))}${MATRIZES[m] ? ' · base legal típica: ' + esc(MATRIZES[m].norma) : ''}">${esc(rotuloMatriz(m))}</span>`;
+}
+
 function rotuloCampanha(c) {
   const ini = fmtData(c.data_inicio);
   const fim = c.data_fim && c.data_fim !== c.data_inicio ? ' a ' + fmtData(c.data_fim) : '';
@@ -1904,8 +1962,14 @@ function rotuloCampanha(c) {
 }
 
 function cascata(f) {
-  const emps = state.empreendimentos;
-  const empIds = f.emps.length ? f.emps : emps.map(e => e.id);
+  f.mats = f.mats || [];
+  // Matrizes efetivamente presentes no cadastro de pontos, não o catálogo inteiro.
+  const mats = [...new Set(state.pontos.map(p => p.matriz))].sort();
+  const matIds = f.mats.length ? f.mats.filter(m => mats.includes(m)) : mats;
+
+  const emps = state.empreendimentos.filter(e =>
+    state.pontos.some(p => p.empreendimento_id === e.id && matIds.includes(p.matriz)));
+  const empIds = f.emps.length ? f.emps.filter(id => emps.some(e => e.id === id)) : emps.map(e => e.id);
 
   // Campanha = um laudo = uma data de coleta. É o filtro temporal natural aqui:
   // a data da coleta já identifica a campanha, então não faz sentido pedir
@@ -1915,14 +1979,14 @@ function cascata(f) {
     .slice().sort((a, b) => String(b.data_inicio).localeCompare(String(a.data_inicio)));
   const campIds = f.camps.length ? f.camps.filter(id => camps.some(c => c.id === id)) : camps.map(c => c.id);
 
-  const pontos = state.pontos.filter(p => empIds.includes(p.empreendimento_id));
+  const pontos = state.pontos.filter(p => empIds.includes(p.empreendimento_id) && matIds.includes(p.matriz));
   const pontoIds = f.pontos.length ? f.pontos.filter(id => pontos.some(p => p.id === id)) : pontos.map(p => p.id);
 
   const matrizes = [...new Set(pontos.filter(p => pontoIds.includes(p.id)).map(p => p.matriz))];
   const params = state.parametros.filter(p => !matrizes.length || matrizes.includes(p.matriz));
   const paramIds = f.params.length ? f.params.filter(id => params.some(p => p.id === id)) : params.map(p => p.id);
 
-  return { emps, empIds, camps, campIds, pontos, pontoIds, params, paramIds };
+  return { mats, matIds, emps, empIds, camps, campIds, pontos, pontoIds, params, paramIds };
 }
 
 async function linhasFiltradas(f) {
@@ -2000,19 +2064,23 @@ function viewPainel() {
       <div class="eyebrow">Monitoramentos</div>
       <h1 class="view-title">Painel geral</h1>
       <p class="view-sub">Conformidade calculada contra a norma vigente na data de cada coleta. Nada aqui é gravado — é releitura.</p>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${c.matIds.map(m => badgeMatriz(m)).join('')}</div>
     </div>
   </div>
 
   <div id="painel-alerta"></div>
 
   <div class="filter-bar">
+    ${multiSel('p-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
     ${multiSel('p-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
     ${multiSel('p-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('p-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
     ${multiSel('p-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
   </div>
 
-  <div class="grid cols-4" id="painel-kpis" style="margin-bottom:22px;"></div>
+  <div class="grid cols-4" id="painel-kpis" style="margin-bottom:22px;">
+    ${[1,2,3,4].map(() => `<div class="card kpi"><div class="skel" style="width:40%;margin:6px 0 12px;"></div><div class="skel" style="width:80%;"></div></div>`).join('')}
+  </div>
 
   <div id="painel-piores" style="margin-bottom:18px;"></div>
 
@@ -2043,10 +2111,14 @@ function viewPainel() {
 }
 
 async function bindPainel() {
+  bindMultiSel('p-mat', v => { state.painel.mats = v; state.painel.emps = []; state.painel.camps = []; state.painel.pontos = []; state.painel.params = []; render(); });
   bindMultiSel('p-emp', v => { state.painel.emps = v; state.painel.camps = []; state.painel.pontos = []; state.painel.params = []; render(); });
   bindMultiSel('p-camp', v => { state.painel.camps = v; render(); });
   bindMultiSel('p-ponto', v => { state.painel.pontos = v; render(); });
   bindMultiSel('p-par', v => { state.painel.params = v; render(); });
+
+  const tw = document.getElementById('painel-tabela-wrap');
+  if (tw) tw.innerHTML = '<div class="card-pad"><div class="loading-row">Lendo a avaliação de conformidade…</div></div>';
 
   const { rows } = await linhasFiltradas(state.painel);
   state.ultimasLinhas = rows;
@@ -2068,6 +2140,12 @@ async function bindPainel() {
     <div class="card kpi"><div class="num">${maior === null ? '—' : num(maior, 1) + '%'}</div><div class="lbl">Maior razão valor/limite</div></div>`;
 
   const alertas = [];
+  const matsSel = [...new Set(rows.map(r => r.matriz))];
+  if (matsSel.length > 1) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
+    <div class="diag-t">A seleção mistura ${matsSel.length} matrizes: ${matsSel.map(m => esc(rotuloMatriz(m))).join(', ')}</div>
+    <div class="diag-d">Só o percentual do limite é comparável entre matrizes — concentração não é,
+    porque as unidades e a lógica de avaliação diferem (binária no ar, em faixas no solo e na água
+    subterrânea). Para relatório de cliente, prefira uma matriz por documento.</div></div>`);
   if (naoAvaliados) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
     <div class="diag-t">${naoAvaliados} de ${rows.length} resultados sem conclusão possível</div>
     <div class="diag-d">${inc} com dado inconsistente e ${sp} sem padrão legal vigente na data.
@@ -2236,6 +2314,7 @@ function viewSerie() {
       <div class="eyebrow">Monitoramentos</div>
       <h1 class="view-title">Série histórica</h1>
       <p class="view-sub">Evolução campanha a campanha. Um ponto comparado consigo mesmo ao longo do tempo.</p>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${c.matIds.map(m => badgeMatriz(m)).join('')}</div>
     </div>
     <div class="seg">
       <button class="btn sm ${f.modo === 'pct' ? 'primary' : 'ghost'}" onclick="setModoSerie('pct')">% do limite</button>
@@ -2244,6 +2323,7 @@ function viewSerie() {
   </div>
 
   <div class="filter-bar">
+    ${multiSel('s-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
     ${multiSel('s-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
     ${multiSel('s-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
     ${multiSel('s-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
@@ -2261,6 +2341,7 @@ function viewSerie() {
 window.setModoSerie = function (m) { state.serie.modo = m; render(); };
 
 async function bindSerie() {
+  bindMultiSel('s-mat', v => { state.serie.mats = v; state.serie.emps = []; state.serie.camps = []; state.serie.pontos = []; state.serie.params = []; render(); });
   bindMultiSel('s-emp', v => { state.serie.emps = v; state.serie.camps = []; state.serie.pontos = []; state.serie.params = []; render(); });
   bindMultiSel('s-camp', v => { state.serie.camps = v; render(); });
   bindMultiSel('s-ponto', v => { state.serie.pontos = v; render(); });
@@ -2356,6 +2437,285 @@ async function bindSerie() {
 }
 
 /* ============================================================
+   COORDENADAS — conversão nos dois sentidos
+   ============================================================ */
+function latLonParaUtm(lat, lon) {
+  if (lat === null || lon === null || lat === '' || lon === '') return null;
+  lat = Number(lat); lon = Number(lon);
+  if (isNaN(lat) || isNaN(lon)) return null;
+  const a = 6378137.0, f = 1 / 298.257223563, e2 = 2 * f - f * f, k0 = 0.9996;
+  const fuso = Math.floor((lon + 180) / 6) + 1, lon0 = (fuso - 1) * 6 - 180 + 3;
+  const phi = lat * Math.PI / 180, lam = lon * Math.PI / 180, lam0 = lon0 * Math.PI / 180;
+  const ep2 = e2 / (1 - e2);
+  const N = a / Math.sqrt(1 - e2 * Math.pow(Math.sin(phi), 2));
+  const T = Math.pow(Math.tan(phi), 2), C = ep2 * Math.pow(Math.cos(phi), 2);
+  const A = (lam - lam0) * Math.cos(phi);
+  const M = a * ((1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * Math.pow(e2, 3) / 256) * phi
+    - (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * Math.pow(e2, 3) / 1024) * Math.sin(2 * phi)
+    + (15 * e2 * e2 / 256 + 45 * Math.pow(e2, 3) / 1024) * Math.sin(4 * phi)
+    - (35 * Math.pow(e2, 3) / 3072) * Math.sin(6 * phi));
+  const E = k0 * N * (A + (1 - T + C) * Math.pow(A, 3) / 6
+    + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 500000;
+  let Nn = k0 * (M + N * Math.tan(phi) * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24
+    + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720));
+  if (lat < 0) Nn += 10000000;
+  const bandas = 'CDEFGHJKLMNPQRSTUVWX';
+  return { zona: fuso + (bandas[Math.floor((lat + 80) / 8)] || ''), e: Math.round(E), n: Math.round(Nn) };
+}
+
+/* ============================================================
+   MAPA — camadas de satélite e ruas
+   ============================================================ */
+// Não uso tiles do Google Satellite: a licença exige chave de API e a
+// raspagem direta viola os termos. Esri World Imagery é gratuita com
+// atribuição e tem resolução equivalente em área rural.
+function criarMapa(elId, centro, zoom) {
+  const sat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Imagens: Esri, Maxar, Earthstar Geographics' });
+  const ruas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+  const m = L.map(elId, { layers: [sat], scrollWheelZoom: true })
+    .setView(centro || [-15.78, -47.93], zoom || 15);
+  L.control.layers({ 'Satélite': sat, 'Ruas': ruas }, {}, { position: 'topright' }).addTo(m);
+  L.control.scale({ imperial: false }).addTo(m);
+  setTimeout(() => m.invalidateSize(), 60);
+  return m;
+}
+
+function corSituacao(sit) {
+  return sit === 'excedente' ? '#d03b3b'
+    : sit === 'conforme' ? '#1baf7a'
+    : sit === 'inconsistente' ? '#eda100' : '#888780';
+}
+
+/* ============================================================
+   TELA MAPA
+   ============================================================ */
+function viewMapa() {
+  const f = state.mapa;
+  const c = cascata(f);
+  const comCoord = c.pontos.filter(p => p.latitude !== null && p.longitude !== null).length;
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Mapa dos pontos</h1>
+      <p class="view-sub">Localização dos pontos de amostragem sobre imagem de satélite. Clique num marcador para ver o pior resultado do ponto.</p>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${c.matIds.map(m => badgeMatriz(m)).join('')}</div>
+    </div>
+    <div class="seg">
+      <button class="btn sm ghost" onclick="exportarKml()">Exportar KML</button>
+      <button class="btn sm ghost" onclick="abrirImportKml()">Importar KML</button>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    ${multiSel('m-mat', 'Matriz', c.mats.map(m => ({ v: m, t: rotuloMatriz(m, true) })), f.mats, c.mats.length)}
+    ${multiSel('m-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
+    ${multiSel('m-camp', 'Campanhas (data da coleta)', c.camps.map(x => ({ v: x.id, t: rotuloCampanha(x) })), f.camps, c.camps.length)}
+    ${multiSel('m-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
+  </div>
+
+  ${comCoord < c.pontos.length ? `<div class="diag aviso" style="margin-bottom:14px;">
+    <div class="diag-t">${c.pontos.length - comCoord} de ${c.pontos.length} pontos sem coordenada</div>
+    <div class="diag-d">Pontos sem lat/long não aparecem no mapa. Informe a UTM do laudo na tela Pontos,
+    ou marque a posição clicando no mapa do editor.</div>
+  </div>` : ''}
+
+  <div class="card" style="overflow:hidden;margin-bottom:14px;">
+    <div id="mapa-box" class="mapbox" style="height:62vh;min-height:380px;"></div>
+  </div>
+
+  <p style="font-size:12px;color:var(--ink-faint);">
+    A cor do marcador vem do pior resultado do ponto na seleção: vermelho é excedente,
+    verde conforme, âmbar inconsistente, cinza sem conclusão. É critério determinístico
+    (maior razão valor/limite), não julgamento.
+  </p>`;
+}
+
+async function bindMapa() {
+  bindMultiSel('m-mat', v => { state.mapa.mats = v; state.mapa.emps = []; state.mapa.camps = []; state.mapa.pontos = []; state.mapa.params = []; render(); });
+  bindMultiSel('m-emp', v => { state.mapa.emps = v; state.mapa.camps = []; state.mapa.params = []; render(); });
+  bindMultiSel('m-camp', v => { state.mapa.camps = v; render(); });
+  bindMultiSel('m-par', v => { state.mapa.params = v; render(); });
+
+  if (state.map) { state.map.remove(); state.map = null; }
+  const { rows, c } = await linhasFiltradas(state.mapa);
+  state.ultimasLinhas = rows;
+
+  const pts = c.pontos.filter(p => p.latitude !== null && p.longitude !== null);
+  if (!pts.length) {
+    document.getElementById('mapa-box').innerHTML =
+      '<div class="empty" style="padding:60px 20px;"><div class="ic">📍</div><p>Nenhum ponto com coordenada nesta seleção.</p></div>';
+    return;
+  }
+
+  const centro = [
+    pts.reduce((s, p) => s + Number(p.latitude), 0) / pts.length,
+    pts.reduce((s, p) => s + Number(p.longitude), 0) / pts.length
+  ];
+  const m = criarMapa('mapa-box', centro, 16);
+  state.map = m;
+
+  const grupo = L.featureGroup().addTo(m);
+  pts.forEach(p => {
+    const meus = rows.filter(r => r.ponto_id === p.id);
+    const validos = meus.filter(r => r.status_dado === 'ok' && r.percentual_do_limite !== null);
+    const pior = validos.sort((a, b) => Number(b.percentual_do_limite) - Number(a.percentual_do_limite))[0];
+    const sit = pior ? pior.situacao : (meus.length ? 'inconsistente' : null);
+    const cor = corSituacao(sit);
+
+    L.circleMarker([Number(p.latitude), Number(p.longitude)], {
+      radius: 10, color: '#fff', weight: 2, fillColor: cor, fillOpacity: 0.9
+    }).addTo(grupo).bindPopup(`
+      <div style="font-size:13px;line-height:1.6;min-width:210px;">
+        <strong>${esc(p.codigo)}</strong> — ${esc(p.nome || '')}<br>
+        <span style="color:#666;">${esc(rotuloMatriz(p.matriz, true))}${p.tipo ? ' · ' + esc(p.tipo) : ''}</span><br>
+        <span style="font-family:monospace;font-size:11px;color:#666;">
+          ${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}<br>
+          ${p.utm_e ? esc(p.utm_zona || '') + ' ' + num(p.utm_e, 0) + ' / ' + num(p.utm_n, 0) : 'sem UTM'}
+        </span>
+        <hr style="border:0;border-top:1px solid #ddd;margin:7px 0;">
+        ${pior ? `<strong>Pior caso:</strong> ${esc(pior.parametro)}<br>
+          ${num(pior.valor, 2)} de ${num(pior.limite, 2)} ${esc(pior.unidade || '')}
+          — <strong style="color:${cor};">${num(pior.percentual_do_limite, 1)}% do limite</strong><br>
+          <span style="font-size:11px;color:#666;">${esc(pior.limite_base_legal || '')}${pior.limite_contexto ? ' · ' + esc(pior.limite_contexto) : ''}<br>
+          coleta ${fmtData(String(pior.inicio || pior.campanha_inicio).slice(0, 10))}</span>
+          ${pior.padrao_conferido === false ? '<br><span style="font-size:11px;color:#a35;">fonte legal não conferida</span>' : ''}`
+        : `<span style="color:#a35;">Sem resultado avaliável nesta seleção.</span>`}
+        <hr style="border:0;border-top:1px solid #ddd;margin:7px 0;">
+        <a href="#" onclick="event.preventDefault();editarPonto('${esc(p.id)}')">Editar ponto</a>
+      </div>`);
+  });
+  if (pts.length > 1) m.fitBounds(grupo.getBounds().pad(0.25));
+}
+
+/* ============================================================
+   KML — ida e volta com o Google Earth
+   ============================================================ */
+window.exportarKml = function () {
+  const c = cascata(state.mapa);
+  const pts = c.pontos.filter(p => p.latitude !== null && p.longitude !== null);
+  if (!pts.length) return showToast('Nenhum ponto com coordenada para exportar.');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+<name>MapaBase — pontos de monitoramento</name>
+${pts.map(p => `<Placemark>
+  <name>${esc(p.codigo)}${p.nome ? ' - ' + esc(p.nome) : ''}</name>
+  <description>${esc(nomeEmp(p.empreendimento_id))} | matriz ${esc(p.matriz)}${p.tipo ? ' | ' + esc(p.tipo) : ''}${p.utm_e ? ' | UTM ' + esc(p.utm_zona || '') + ' ' + p.utm_e + '/' + p.utm_n : ''}</description>
+  <Point><coordinates>${Number(p.longitude)},${Number(p.latitude)},0</coordinates></Point>
+</Placemark>`).join('\n')}
+</Document></kml>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }));
+  a.download = `mapabase-pontos-${new Date().toISOString().slice(0, 10)}.kml`;
+  a.click();
+  showToast('KML exportado. Abra no Google Earth.');
+};
+
+window.abrirImportKml = function () {
+  const c = cascata(state.mapa);
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Importar KML do Google Earth</strong></div>
+      <div class="modal-body">
+        <div class="diag" style="margin-bottom:14px;">
+          <div class="diag-t">Como gerar o arquivo</div>
+          <div class="diag-d">No Google Earth Pro, selecione a pasta ou os marcadores e use
+          <em>Arquivo → Salvar → Salvar lugar como…</em>, escolhendo <strong>KML</strong> (não KMZ,
+          que é compactado e não é lido aqui).</div>
+        </div>
+        <div class="field">
+          <label class="field-label">Arquivo .kml</label>
+          <input type="file" id="kml-file" accept=".kml,application/vnd.google-earth.kml+xml">
+        </div>
+        <div id="kml-preview"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" id="kml-aplicar" style="display:none;">Aplicar coordenadas</button>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('kml-file').onchange = ev => {
+    const arq = ev.target.files[0];
+    if (!arq) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      let doc;
+      try { doc = new DOMParser().parseFromString(fr.result, 'text/xml'); }
+      catch (e) { return showToast('Arquivo não pôde ser lido como XML.'); }
+      if (doc.querySelector('parsererror')) return showToast('KML inválido.');
+
+      const achados = [];
+      doc.querySelectorAll('Placemark').forEach(pm => {
+        const coord = pm.querySelector('Point > coordinates');
+        if (!coord) return;
+        const partes = coord.textContent.trim().split(/[,\s]+/);
+        const lon = Number(partes[0]), lat = Number(partes[1]);
+        if (isNaN(lat) || isNaN(lon)) return;
+        const nome = (pm.querySelector('name') || {}).textContent || '(sem nome)';
+        achados.push({ nome: nome.trim(), lat, lon });
+      });
+
+      if (!achados.length) {
+        document.getElementById('kml-preview').innerHTML =
+          '<p style="font-size:13px;color:var(--nc);">Nenhum marcador de ponto encontrado. Linhas e polígonos não são importados.</p>';
+        return;
+      }
+      state.kmlAchados = achados;
+
+      // Casamento sugerido por código no início do nome, mas nunca aplicado
+      // automaticamente: coordenada errada num ponto contamina toda a série.
+      document.getElementById('kml-preview').innerHTML = `
+        <p style="font-size:13px;margin:14px 0 8px;"><strong>${achados.length}</strong> marcador(es) encontrado(s).
+        Escolha a qual ponto cadastrado cada um corresponde. O que ficar em "ignorar" não é alterado.</p>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Nome no KML</th><th>Coordenada</th><th>Aplicar em</th></tr></thead>
+          <tbody>${achados.map((x, i) => {
+            const sug = c.pontos.find(p =>
+              x.nome.toUpperCase().replace(/\s+/g, '').startsWith(String(p.codigo).toUpperCase().replace(/\s+/g, '')));
+            return `<tr>
+              <td>${esc(x.nome)}</td>
+              <td class="mono" style="font-size:11px;">${x.lat.toFixed(6)}<br>${x.lon.toFixed(6)}</td>
+              <td><select id="kml-alvo-${i}">
+                <option value="">— ignorar —</option>
+                ${c.pontos.map(p => `<option value="${esc(p.id)}" ${sug && sug.id === p.id ? 'selected' : ''}>${esc(p.codigo)} — ${esc(p.nome || p.matriz)}</option>`).join('')}
+              </select></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+        <p style="font-size:12px;color:var(--ink-faint);margin-top:10px;">
+          A UTM cadastrada <strong>não</strong> é sobrescrita: ela é o que o laudo declarou e vale como
+          rastreabilidade. Só lat/long é atualizado.</p>`;
+      document.getElementById('kml-aplicar').style.display = '';
+    };
+    fr.readAsText(arq);
+  };
+
+  document.getElementById('kml-aplicar').onclick = async () => {
+    const achados = state.kmlAchados || [];
+    let n = 0;
+    for (let i = 0; i < achados.length; i++) {
+      const alvo = document.getElementById('kml-alvo-' + i);
+      if (!alvo || !alvo.value) continue;
+      const { error } = await _supabase.from('mon_pontos')
+        .update({ latitude: achados[i].lat, longitude: achados[i].lon })
+        .eq('id', alvo.value);
+      if (error) return showToast('Erro ao salvar: ' + error.message);
+      n++;
+    }
+    fecharModal();
+    showToast(n ? `${n} ponto(s) atualizado(s).` : 'Nada foi alterado.');
+    if (n) await carregarTudo();
+  };
+};
+
+/* ============================================================
    PONTOS — com edição de coordenada
    ============================================================ */
 function utmParaLatLon(zona, e, n) {
@@ -2425,7 +2785,7 @@ function viewPontos() {
               ${pts.sort((a, b) => String(a.codigo).localeCompare(String(b.codigo))).map(p => `<tr>
                 <td><strong>${esc(p.codigo)}</strong></td>
                 <td>${esc(p.nome || '—')}</td>
-                <td class="mono" style="font-size:11.5px;">${esc(p.matriz)}</td>
+                <td>${badgeMatriz(p.matriz)}</td>
                 <td>${esc(p.tipo || '—')}</td>
                 <td class="mono" style="font-size:11.5px;">${p.utm_e ? `${esc(p.utm_zona || '')} ${num(p.utm_e, 0)} / ${num(p.utm_n, 0)}` : '—'}</td>
                 <td class="mono" style="font-size:11.5px;">${p.latitude !== null && p.longitude !== null
@@ -2468,6 +2828,11 @@ window.editarPonto = function (id) {
           <div class="field"><label class="field-label">Latitude</label><input id="pe-lat" type="number" step="0.000001" value="${p.latitude ?? ''}"></div>
           <div class="field"><label class="field-label">Longitude</label><input id="pe-lon" type="number" step="0.000001" value="${p.longitude ?? ''}"></div>
         </div>
+        <div class="field">
+          <label class="field-label">Posição no mapa — clique ou arraste o marcador</label>
+          <div id="pe-mapa" class="mapbox" style="height:280px;border-radius:var(--radius);border:1px solid var(--line);"></div>
+        </div>
+        <button class="btn sm ghost" onclick="utmDoMapa()" style="margin-bottom:10px;">Recalcular UTM a partir do lat/long</button>
         <p id="pe-msg" style="font-size:12px;color:var(--ink-faint);margin:0;"></p>
       </div>
       <div class="modal-foot">
@@ -2476,6 +2841,57 @@ window.editarPonto = function (id) {
       </div>
     </div>
   </div>`;
+
+  // O mapa precisa existir no DOM antes de inicializar.
+  const lat = p.latitude !== null ? Number(p.latitude) : null;
+  const lon = p.longitude !== null ? Number(p.longitude) : null;
+  const vizinhos = state.pontos.filter(x => x.id !== p.id && x.empreendimento_id === p.empreendimento_id
+    && x.latitude !== null && x.longitude !== null);
+  const centro = (lat !== null && lon !== null) ? [lat, lon]
+    : (vizinhos.length ? [Number(vizinhos[0].latitude), Number(vizinhos[0].longitude)] : null);
+
+  const m = criarMapa('pe-mapa', centro, centro ? 17 : 4);
+  state.mapEdit = m;
+
+  // Vizinhos em cinza, só para orientar quem está posicionando.
+  vizinhos.forEach(x => L.circleMarker([Number(x.latitude), Number(x.longitude)],
+    { radius: 6, color: '#fff', weight: 1.5, fillColor: '#888780', fillOpacity: 0.85 })
+    .addTo(m).bindTooltip(x.codigo));
+
+  let marca = null;
+  function poe(la, lo) {
+    if (marca) m.removeLayer(marca);
+    marca = L.marker([la, lo], { draggable: true }).addTo(m);
+    marca.on('dragend', () => {
+      const c2 = marca.getLatLng();
+      document.getElementById('pe-lat').value = c2.lat.toFixed(6);
+      document.getElementById('pe-lon').value = c2.lng.toFixed(6);
+      document.getElementById('pe-msg').textContent =
+        'Posição ajustada no mapa. A UTM cadastrada continua a que o laudo declarou.';
+    });
+    document.getElementById('pe-lat').value = la.toFixed(6);
+    document.getElementById('pe-lon').value = lo.toFixed(6);
+  }
+  if (lat !== null && lon !== null) poe(lat, lon);
+  m.on('click', ev => {
+    poe(ev.latlng.lat, ev.latlng.lng);
+    document.getElementById('pe-msg').textContent =
+      'Posição marcada no mapa. Confira contra o mapa de pontos do laudo antes de salvar.';
+  });
+  window._poeMarca = poe;
+};
+
+window.utmDoMapa = function () {
+  const la = document.getElementById('pe-lat').value;
+  const lo = document.getElementById('pe-lon').value;
+  const r = latLonParaUtm(la, lo);
+  const msg = document.getElementById('pe-msg');
+  if (!r) { msg.textContent = 'Informe latitude e longitude primeiro.'; return; }
+  document.getElementById('pe-zona').value = r.zona;
+  document.getElementById('pe-e').value = r.e;
+  document.getElementById('pe-n').value = r.n;
+  msg.textContent = 'UTM recalculada do lat/long. Atenção: isto substitui a UTM que veio do laudo, '
+    + 'que é dado de rastreabilidade. Use só quando a UTM original estava ausente ou errada.';
 };
 
 window.converterUtm = function () {
@@ -2487,6 +2903,8 @@ window.converterUtm = function () {
   if (!r) { msg.textContent = 'Informe zona (ex.: 22K), E e N para converter.'; return; }
   document.getElementById('pe-lat').value = r.lat.toFixed(6);
   document.getElementById('pe-lon').value = r.lon.toFixed(6);
+  if (window._poeMarca) window._poeMarca(r.lat, r.lon);
+  if (state.mapEdit) state.mapEdit.setView([r.lat, r.lon], 17);
   msg.textContent = 'Convertido de UTM para WGS84. Confira contra o mapa do laudo antes de salvar.';
 };
 
@@ -2512,6 +2930,8 @@ window.salvarPonto = async function (id) {
 
 window.fecharModal = function (ev) {
   if (ev && ev.target !== ev.currentTarget) return;
+  if (state.mapEdit) { state.mapEdit.remove(); state.mapEdit = null; }
+  window._poeMarca = null;
   document.getElementById('modal-root').innerHTML = '';
 };
 
@@ -2648,7 +3068,12 @@ function viewBiblioteca() {
     <span class="mono">update mon_padroes_legais set conferido = true where id like 'c491.%';</span></div>
   </div>` : ''}
 
-  ${state.parametros.filter(p => porParam[p.id]).map(par => `
+  ${[...new Set(state.parametros.filter(p => porParam[p.id]).map(p => p.matriz))].sort().map(mz => `
+    <h2 style="font-size:15px;font-weight:600;margin:26px 0 10px;display:flex;align-items:center;gap:8px;">
+      ${badgeMatriz(mz)} <span style="color:var(--ink-soft);font-weight:500;">${esc(rotuloMatriz(mz, true))}</span>
+      <span style="font-size:12px;color:var(--ink-faint);font-weight:400;">${MATRIZES[mz] ? '· ' + esc(MATRIZES[mz].norma) : ''}</span>
+    </h2>
+    ${state.parametros.filter(p => porParam[p.id] && p.matriz === mz).map(par => `
     <div class="card" style="margin-bottom:18px;">
       <div class="card-pad" style="padding-bottom:0;">
         <div class="eyebrow">${esc(par.sigla)} — ${esc(par.nome)} · ${esc(par.unidade)}</div>
@@ -2680,7 +3105,7 @@ function viewBiblioteca() {
           </tbody>
         </table>
       </div>
-    </div>`).join('')}
+    </div>`).join('')}`).join('')}
 
   <p style="font-size:12px;color:var(--ink-faint);">
     Para acrescentar solo (CONAMA 420), água subterrânea (396), superficial (357), efluente (430),
@@ -2697,12 +3122,15 @@ const VIEWS = {
   campanhas:  { label: 'Campanhas',      html: viewCampanhas,  bind: bindCampanhas },
   importar:   { label: 'Importar',       html: viewImportar,   bind: bindImportar },
   serie:      { label: 'Série histórica',html: viewSerie,      bind: bindSerie },
+  mapa:       { label: 'Mapa',            html: viewMapa,       bind: bindMapa },
   pontos:     { label: 'Pontos',         html: viewPontos,     bind: bindPontos },
   biblioteca: { label: 'Padrões legais', html: viewBiblioteca, bind: null },
   detalhe:    { label: null,             html: viewDetalhe,    bind: bindDetalhe }
 };
 
 function setView(v) {
+  if (state.map) { state.map.remove(); state.map = null; }
+  if (state.mapEdit) { state.mapEdit.remove(); state.mapEdit = null; }
   state.view = v;
   document.getElementById('modal-root').innerHTML = '';
   render();
@@ -2718,6 +3146,7 @@ function render() {
     campanhas:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16"/></svg>',
     importar:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>',
     serie:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>',
+    mapa:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>',
     pontos:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
     biblioteca: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6Z"/></svg>'
   };
@@ -2773,6 +3202,13 @@ async function checkAuth() {
 document.getElementById('btn-logout').onclick = async () => {
   if (_supabase) { await _supabase.auth.signOut(); window.location.href = './index.html'; }
 };
+
+// Fecha qualquer dropdown aberto ao clicar fora dele.
+document.addEventListener('click', ev => {
+  document.querySelectorAll('details.multi-select-details[open]').forEach(d => {
+    if (!d.contains(ev.target)) d.open = false;
+  });
+});
 
 window.addEventListener('online',  () => render());
 window.addEventListener('offline', () => render());
