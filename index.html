@@ -196,6 +196,18 @@
       color: #7C8C7E;
       border-top: 1px solid rgba(255,255,255,.08);
     }
+
+    /* Item de menu que leva para a página de escritório (monitoramentos).
+       É um <a>, não um botão de view: abre outro arquivo do repositório.
+       Aparece também no celular; o clique é barrado quando não há internet,
+       porque a tela depende do Supabase. */
+    a.navbtn.externo {
+      text-decoration: none;
+      margin-top: auto;
+      border-top: 1px solid rgba(255,255,255,.08);
+      padding-top: 14px;
+      border-radius: 0;
+    }
     
     #main {
       flex: 1;
@@ -935,6 +947,12 @@
         justify-content: center;
       }
       .navbtn .ic { font-size: 20px; }
+      a.navbtn.externo {
+        margin-top: 0;
+        padding-top: 8px;
+        border-top: none;
+        border-left: 1px solid rgba(255,255,255,.10);
+      }
       #content { padding: 20px 16px 100px; }
       .grid.cols-5, .grid.cols-4, .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
       .item-top { flex-direction: column; gap: 12px; }
@@ -3514,6 +3532,28 @@ async function bindRanking() {
 }
 
 /* A FUNÇÃO QUE VOCÊ PESQUISOU VAI ESTAR LOGO AQUI ABAIXO: */
+/* Guarda do item "Monitoramentos".
+   1) A página de escritório depende do Supabase: sem internet, o clique é
+      barrado com aviso, em vez de jogar o usuário na tela de erro do
+      navegador (que, no app instalado, costuma não ter botão de voltar).
+   2) Se houver um check-list em preenchimento, confirma antes de sair e
+      grava o rascunho, para não perder o que já foi respondido. */
+window.exigirInternet = function (ev) {
+  if (!navigator.onLine) {
+    if (ev) ev.preventDefault();
+    showToast('Monitoramentos precisa de internet. Reconecte para abrir.');
+    return false;
+  }
+  if (state.view === 'nova') {
+    if (!confirm('Você está preenchendo um check-list.\n\nOK = salvar o rascunho e ir para Monitoramentos\nCancelar = continuar preenchendo')) {
+      if (ev) ev.preventDefault();
+      return false;
+    }
+    try { flushNovaVistoriaDoDom(); salvarRascunhoAgora(); } catch (e) {}
+  }
+  return true;
+};
+
 function setView(viewName) {
   state.view = viewName;
   closeModal();
@@ -3549,7 +3589,10 @@ function render() {
     <button class="navbtn ${state.view === m.id ? 'active' : ''}" onclick="setView('${m.id}')">
       <span class="ic">${svgIc[m.id] || ''}</span> ${m.label}
     </button>
-  `).join('');
+  `).join('') + `
+    <a class="navbtn externo" href="./monitoramento.html" onclick="return exigirInternet(event);">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v5.5L5.5 17A2.5 2.5 0 0 0 7.8 21h8.4a2.5 2.5 0 0 0 2.3-4L14 8.5V3"/><path d="M7.5 14h9"/></svg></span> Monitoramentos
+    </a>`;
 
   document.getElementById('status-sync').textContent = navigator.onLine ? '🟢 Online (Nuvem)' : '🔴 Offline (Local)';
 
