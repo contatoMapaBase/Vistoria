@@ -73,7 +73,11 @@
       font-family: inherit;
       font-size: 14px;
       color: var(--ink);
-      background: var(--surface);
+      /* background-color e nao o atalho: o atalho zera background-repeat e faz
+         a seta do select virar mosaico quando outra regra reaplica a imagem. */
+      background-color: var(--surface);
+      background-image: none;
+      background-repeat: no-repeat;
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 0 12px;
@@ -88,17 +92,33 @@
     input[type="checkbox"], input[type="radio"] {
       width: 16px; height: 16px; padding: 0; border-radius: 4px; accent-color: var(--brand); flex: none;
     }
-    select {
+    select, .multi-select-summary {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%238892A2' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
+      background-repeat: no-repeat;
+      background-position: right 13px center;
+      background-size: 12px 8px;
+      padding-right: 36px;
     }
+    /* O resumo do multi-select tem a seta pelo background, entao esconde a nativa
+       do <summary> e a do <details>. */
+    .multi-select-summary { list-style: none; }
+    .multi-select-summary::-webkit-details-marker,
+    .multi-select-summary::marker { display: none; content: ''; }
+    details[open] > .multi-select-summary { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 6.5 6 1.5l5 5' stroke='%232E4159' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
     input:hover, select:hover, textarea:hover, .multi-select-summary:hover { border-color: #BFC9D6; }
-    input:focus, select:focus, textarea:focus {
-      outline: none; border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(46,65,89,.10); background: var(--surface);
+    input:focus, select:focus, textarea:focus,
+    details[open] > .multi-select-summary {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(46,65,89,.10);
     }
+    /* Chrome pinta o texto do select focado com a cor de selecao do sistema. */
+    select:focus, select:focus-visible { color: var(--ink); }
+    select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--ink); }
     input::placeholder, textarea::placeholder { color: var(--ink-faint); }
-    input:disabled, select:disabled { background: var(--surface-2); color: var(--ink-faint); }
+    input:disabled, select:disabled { background-color: var(--surface-2); color: var(--ink-faint); cursor: not-allowed; }
+    select option { background-color: var(--surface); color: var(--ink); padding: 6px; }
+    select option:disabled { color: var(--ink-faint); }
 
     /* Bloco de campos agrupados dentro dos modais */
     .fset { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; background: var(--surface); }
@@ -125,13 +145,27 @@
     .mtz { margin: 0 0 18px; }
     .mtz-lbl { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #7C8AA0; margin-bottom: 7px; }
     .mtz select {
-      background-color: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); color: #fff;
-      font-weight: 600; font-size: 13.5px; height: 42px;
+      background-color: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.16);
+      color: #fff;
+      font-weight: 600; font-size: 13.5px; height: 44px;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%23AEB9CB' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 13px center;
+      background-size: 12px 8px;
+      /* Faz o navegador desenhar a lista nativa em tema escuro. */
+      color-scheme: dark;
     }
-    .mtz select:hover { background-color: rgba(255,255,255,.11); border-color: rgba(255,255,255,.22); }
-    .mtz select:focus { box-shadow: 0 0 0 3px rgba(120,180,72,.22); border-color: var(--accent); }
-    .mtz select option { color: var(--ink); }
+    .mtz select:hover { background-color: rgba(255,255,255,.12); border-color: rgba(255,255,255,.26); }
+    .mtz select:focus, .mtz select:focus-visible {
+      background-color: rgba(255,255,255,.12);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(120,180,72,.25);
+      color: #fff;
+    }
+    .mtz select:-moz-focusring { color: transparent; text-shadow: 0 0 0 #fff; }
+    .mtz select option { background-color: var(--brand-deep); color: #fff; }
+    .mtz select option:disabled { color: #6E7C92; }
     .mtz-sub { font-size: 11px; color: #7C8AA0; margin-top: 7px; line-height: 1.5; }
 
     .kpi .num { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -.01em; }
@@ -595,7 +629,7 @@
       padding: 10px 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--surface);
+      background-color: var(--surface);
       font-size: 14.5px;
       color: var(--ink);
       cursor: pointer;
@@ -611,6 +645,7 @@
       color: var(--ink-faint);
     }
     
+    .multi-select-details { position: relative; }
     .multi-select-dropdown {
       position: absolute;
       top: 100%;
@@ -621,11 +656,21 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       box-shadow: var(--shadow);
-      max-height: 240px;
+      max-height: 260px;
       overflow-y: auto;
       z-index: 100;
-      padding: 8px;
+      padding: 6px;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(30,44,66,.14), 0 2px 6px rgba(30,44,66,.08);
     }
+    .multi-select-dropdown label {
+      border-radius: 7px;
+      transition: background .12s;
+      line-height: 1.4;
+    }
+    .multi-select-dropdown label:hover { background: var(--surface-2); }
+    .multi-select-dropdown::-webkit-scrollbar { width: 9px; }
+    .multi-select-dropdown::-webkit-scrollbar-thumb { background: var(--line); border-radius: 9px; }
     
     .multi-select-dropdown label {
       display: flex;
@@ -659,7 +704,7 @@
     
     .folder-summary {
       padding: 18px 24px;
-      background: var(--surface);
+      background-color: var(--surface);
       cursor: pointer;
       list-style: none;
       display: flex;
@@ -770,7 +815,7 @@
       padding: 10px 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--surface);
+      background-color: var(--surface);
       font-size: 14.5px;
       color: var(--ink);
       transition: border-color 0.2s;
@@ -1079,7 +1124,85 @@
     .link-app { display:block; font-size:12px; color:var(--ink-faint); text-decoration:none; padding:8px 0; }
     .link-app:hover { color: var(--accent); }
     .chart-box { position: relative; height: 340px; }
-  </style>
+  
+    /* ------------------------------------------------------------------
+       Normalização final dos controles. Fica no fim de propósito: havia
+       regras antigas por atributo (input[type=text], …) com especificidade
+       maior brigando com as novas, e o atalho `background:` zerava o
+       background-repeat, fazendo a seta do select virar mosaico ao focar.
+       Aqui tudo é longhand e a ordem resolve.
+       ------------------------------------------------------------------ */
+    input[type=text], input[type=email], input[type=password], input[type=date],
+    input[type=datetime-local], input[type=number], input[type=search],
+    select, textarea, .multi-select-summary {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background-color: var(--surface);
+      background-repeat: no-repeat;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
+      transition: border-color .15s, box-shadow .15s, background-color .15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    input[type=text], input[type=email], input[type=password], input[type=date],
+    input[type=datetime-local], input[type=number], input[type=search] {
+      height: 40px; padding: 0 12px; background-image: none;
+    }
+    textarea { min-height: 64px; padding: 10px 12px; line-height: 1.6; resize: vertical; background-image: none; }
+    select, .multi-select-summary {
+      height: 40px;
+      padding: 0 36px 0 12px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%238892A2' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-position: right 13px center;
+      background-size: 12px 8px;
+      cursor: pointer;
+    }
+    .multi-select-summary {
+      display: flex; align-items: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    input[type=file] { height: auto; padding: 9px 12px; font-size: 13px; background-image: none; }
+    input[type=checkbox], input[type=radio] {
+      width: 16px; height: 16px; min-width: 16px; padding: 0; margin: 0;
+      border-radius: 4px; accent-color: var(--brand); flex: none; cursor: pointer;
+      appearance: auto; -webkit-appearance: auto; background-image: none;
+    }
+    .mtz select {
+      height: 44px; font-weight: 600; font-size: 13.5px;
+      background-color: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.16);
+      color: #fff; color-scheme: dark;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' stroke='%23AEB9CB' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+    .mtz select:hover { background-color: rgba(255,255,255,.12); border-color: rgba(255,255,255,.26); }
+    .mtz select:focus, .mtz select:focus-visible {
+      background-color: rgba(255,255,255,.12); border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(120,180,72,.25); color: #fff;
+    }
+    .mtz select option { background-color: var(--brand-deep); color: #fff; }
+    .mtz select option:disabled { color: #6E7C92; }
+
+    input:hover, select:hover, textarea:hover, .multi-select-summary:hover { border-color: #BFC9D6; }
+    input:focus, select:focus, textarea:focus,
+    details[open] > .multi-select-summary {
+      outline: none; border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(46,65,89,.10);
+    }
+    select:focus, select:focus-visible { color: var(--ink); }
+    select:-moz-focusring { color: transparent; text-shadow: 0 0 0 var(--ink); }
+    .mtz select:-moz-focusring { color: transparent; text-shadow: 0 0 0 #fff; }
+    input:disabled, select:disabled, textarea:disabled {
+      background-color: var(--surface-2); color: var(--ink-faint); cursor: not-allowed;
+    }
+    select option { background-color: var(--surface); color: var(--ink); }
+    select option:disabled { color: var(--ink-faint); }
+    details[open] > .multi-select-summary {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 6.5 6 1.5l5 5' stroke='%232E4159' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+</style>
 </head>
 <body>
 
