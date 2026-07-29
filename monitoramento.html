@@ -687,7 +687,7 @@
       background: var(--surface-2);
     }
     
-    .multi-select-dropdown input[type="checkbox"] {
+    .multi-select-dropdown input.ms-legado[type="checkbox"] {
       width: auto;
       margin: 0;
     }
@@ -1201,6 +1201,80 @@
     select option:disabled { color: var(--ink-faint); }
     details[open] > .multi-select-summary {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 6.5 6 1.5l5 5' stroke='%232E4159' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    }
+
+    /* ------------------------------------------------------------------
+       Seleção múltipla em cascata
+       ------------------------------------------------------------------ */
+    .multi-select-details { position: relative; }
+    .multi-select-summary { gap: 8px; }
+    .multi-select-summary .ms-resumo {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .multi-select-summary .ms-pill {
+      flex: none; background: var(--brand); color: #fff;
+      font-size: 11px; font-weight: 700; line-height: 1;
+      padding: 4px 7px; border-radius: 999px; margin-right: 2px;
+    }
+    .multi-select-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: var(--surface);
+      border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: 0 14px 36px rgba(30,44,66,.16), 0 2px 6px rgba(30,44,66,.08);
+      max-height: 288px; overflow-y: auto; z-index: 200; padding: 6px;
+    }
+    .multi-select-dropdown::-webkit-scrollbar { width: 10px; }
+    .multi-select-dropdown::-webkit-scrollbar-track { background: transparent; }
+    .multi-select-dropdown::-webkit-scrollbar-thumb {
+      background: #CBD3DD; border-radius: 10px; border: 3px solid var(--surface);
+    }
+    .ms-sep { height: 1px; background: var(--line); margin: 5px 2px; }
+    .ms-vazio { font-size: 12.5px; color: var(--ink-faint); padding: 10px 10px 8px; }
+
+    .ms-opt {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: 8px;
+      font-size: 13.5px; color: var(--ink); line-height: 1.35;
+      cursor: pointer; user-select: none;
+      transition: background .12s;
+    }
+    .ms-opt:hover { background: var(--surface-2); }
+    .ms-opt.on { background: rgba(46,65,89,.055); }
+    .ms-opt .ms-txt { flex: 1; min-width: 0; }
+
+    /* Input nativo continua existindo para o estado e o teclado, mas invisivel. */
+    .ms-opt > input[type="checkbox"] {
+      position: absolute; opacity: 0; width: 1px; height: 1px;
+      margin: 0; padding: 0; pointer-events: none;
+    }
+    .ms-opt .ms-box {
+      flex: none; width: 18px; height: 18px; border-radius: 5px;
+      border: 1.5px solid #C3CCD8; background: var(--surface);
+      position: relative; transition: background .12s, border-color .12s;
+    }
+    .ms-opt:hover .ms-box { border-color: var(--brand); }
+    .ms-opt .ms-box::after {
+      content: ''; position: absolute;
+      left: 5px; top: 2px; width: 5px; height: 9px;
+      border: solid #fff; border-width: 0 2px 2px 0;
+      transform: rotate(45deg) scale(0);
+      transition: transform .13s ease-out;
+    }
+    .ms-opt > input:checked + .ms-box {
+      background: var(--brand); border-color: var(--brand);
+    }
+    .ms-opt > input:checked + .ms-box::after { transform: rotate(45deg) scale(1); }
+    .ms-opt > input:focus-visible + .ms-box {
+      box-shadow: 0 0 0 3px rgba(46,65,89,.18); border-color: var(--brand);
+    }
+
+    /* Em telas estreitas o dropdown ocupa a largura util e nao estoura a lateral. */
+    @media (max-width: 720px) {
+      .filter-bar { display: grid; grid-template-columns: 1fr 1fr; }
+      .multi-select-dropdown { max-height: 240px; }
+    }
+    @media (max-width: 460px) {
+      .filter-bar { grid-template-columns: 1fr; }
     }
 </style>
 </head>
@@ -2108,27 +2182,38 @@ window.exportarPdf = function () {
 /* ============================================================
    MULTI-SELEÇÃO EM CASCATA — componente
    ============================================================ */
+// A caixa de marcacao e desenhada em CSS, nao e o checkbox nativo: havia regra
+// antiga (.multi-select-dropdown input[type=checkbox]) com especificidade maior
+// colapsando a nativa, e appearance:none em checkbox nativo se comporta
+// diferente em cada navegador. O input segue existindo, so fica invisivel.
 function multiSel(id, label, opcoes, selecionados, contagemTotal) {
   const todos = selecionados.length === 0;
+  const nomes = selecionados.map(v => (opcoes.find(o => o.v === v) || {}).t).filter(Boolean);
   const resumo = todos
     ? `Todos (${contagemTotal})`
-    : (selecionados.length === 1
-        ? (opcoes.find(o => o.v === selecionados[0]) || {}).t || '1 selecionado'
-        : `${selecionados.length} selecionados`);
+    : (nomes.length <= 1 ? (nomes[0] || '1 selecionado')
+       : `${nomes.length} de ${contagemTotal} selecionados`);
+
+  const opt = (v, t, marcado, forte) => `
+    <label class="ms-opt${marcado ? ' on' : ''}">
+      <input type="checkbox" data-ms="${id}" value="${esc(v)}" ${marcado ? 'checked' : ''}>
+      <span class="ms-box" aria-hidden="true"></span>
+      <span class="ms-txt"${forte ? ' style="font-weight:600;"' : ''}>${esc(t)}</span>
+    </label>`;
+
   return `
   <div class="field" style="margin:0;">
     <label class="field-label">${esc(label)}</label>
     <details class="multi-select-details" id="ms-${id}">
-      <summary class="multi-select-summary">${esc(resumo)}</summary>
+      <summary class="multi-select-summary" title="${esc(todos ? 'Todos' : nomes.join(', '))}">
+        <span class="ms-resumo">${esc(resumo)}</span>
+        ${todos ? '' : `<span class="ms-pill">${selecionados.length}</span>`}
+      </summary>
       <div class="multi-select-dropdown">
-        <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);">
-          <input type="checkbox" data-ms="${id}" value="" ${todos ? 'checked' : ''}> <strong>Todos</strong>
-        </label>
-        ${opcoes.map(o => `
-          <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;">
-            <input type="checkbox" data-ms="${id}" value="${esc(o.v)}" ${selecionados.includes(o.v) ? 'checked' : ''}>
-            ${esc(o.t)}
-          </label>`).join('')}
+        ${opt('', `Todos (${contagemTotal})`, todos, true)}
+        <div class="ms-sep"></div>
+        ${opcoes.map(o => opt(o.v, o.t, selecionados.includes(o.v))).join('')}
+        ${!opcoes.length ? '<div class="ms-vazio">Nenhuma opção disponível nesta seleção.</div>' : ''}
       </div>
     </details>
   </div>`;
