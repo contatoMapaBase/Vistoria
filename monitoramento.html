@@ -1034,7 +1034,7 @@ const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClie
 const SCHEMA_ACEITO = 'mapabase.monitoramento.v1';
 
 const state = {
-  view: 'campanhas',
+  view: 'painel',
   ready: false,
   empreendimentos: [],
   parametros: [],
@@ -1045,7 +1045,9 @@ const state = {
   diagnostico: null,  // erros/avisos da validação
   detalhe: null,      // campanha aberta
   filtroEmp: '',
-  serie: { emp: '', ponto: '', parametro: '' },
+  serie: { emps: [], pontos: [], params: [], modo: 'pct' },
+  painel: { emps: [], pontos: [], params: [] },
+  contagemPonto: null,
   chart: null
 };
 
@@ -1536,7 +1538,7 @@ function viewCampanhas() {
         <table>
           <thead><tr>
             <th>Período</th><th>Empreendimento</th><th>Laboratório</th>
-            <th>Relatório</th><th>Situação</th>
+            <th>Relatório</th><th>Situação</th><th></th>
           </tr></thead>
           <tbody>
             ${lista.map(c => `
@@ -1550,6 +1552,10 @@ function viewCampanhas() {
                 <td>${c.status === 'com_pendencia_laboratorio'
                       ? '<span class="badge pending">Pendência</span>'
                       : '<span class="badge conforme">Importada</span>'}</td>
+                <td style="white-space:nowrap;">
+                  <button class="btn sm ghost" onclick="editarCampanha('${esc(c.id)}')">Editar</button>
+                  <button class="btn sm danger" onclick="excluirCampanha('${esc(c.id)}')">Excluir</button>
+                </td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -1676,153 +1682,642 @@ async function bindDetalhe() {
     </div>`;
 }
 
-function viewSerie() {
+/* ============================================================
+   MULTI-SELEÇÃO EM CASCATA — componente
+   ============================================================ */
+function multiSel(id, label, opcoes, selecionados, contagemTotal) {
+  const todos = selecionados.length === 0;
+  const resumo = todos
+    ? `Todos (${contagemTotal})`
+    : (selecionados.length === 1
+        ? (opcoes.find(o => o.v === selecionados[0]) || {}).t || '1 selecionado'
+        : `${selecionados.length} selecionados`);
+  return `
+  <div class="field" style="margin:0;">
+    <label class="field-label">${esc(label)}</label>
+    <details class="multi-select-details" id="ms-${id}">
+      <summary class="multi-select-summary">${esc(resumo)}</summary>
+      <div class="multi-select-dropdown">
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);">
+          <input type="checkbox" data-ms="${id}" value="" ${todos ? 'checked' : ''}> <strong>Todos</strong>
+        </label>
+        ${opcoes.map(o => `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" data-ms="${id}" value="${esc(o.v)}" ${selecionados.includes(o.v) ? 'checked' : ''}>
+            ${esc(o.t)}
+          </label>`).join('')}
+      </div>
+    </details>
+  </div>`;
+}
+
+function bindMultiSel(id, onChange) {
+  document.querySelectorAll(`input[data-ms="${id}"]`).forEach(cb => {
+    cb.onchange = () => {
+      const marcados = Array.from(document.querySelectorAll(`input[data-ms="${id}"]`));
+      if (cb.value === '') {
+        marcados.forEach(x => { if (x.value !== '') x.checked = false; });
+        onChange([]);
+        return;
+      }
+      const todosCb = marcados.find(x => x.value === '');
+      if (todosCb) todosCb.checked = false;
+      onChange(marcados.filter(x => x.value !== '' && x.checked).map(x => x.value));
+    };
+  });
+}
+
+/* ============================================================
+   FILTRO EM CASCATA — resolve empreendimento -> ponto -> parâmetro
+   ============================================================ */
+function cascata(f) {
   const emps = state.empreendimentos;
-  const pontosEmp = state.pontos.filter(p => !state.serie.emp || p.empreendimento_id === state.serie.emp);
-  const params = state.parametros;
+  const empIds = f.emps.length ? f.emps : emps.map(e => e.id);
+
+  const pontos = state.pontos.filter(p => empIds.includes(p.empreendimento_id));
+  const pontoIds = f.pontos.length ? f.pontos.filter(id => pontos.some(p => p.id === id)) : pontos.map(p => p.id);
+
+  const matrizes = [...new Set(pontos.filter(p => pontoIds.includes(p.id)).map(p => p.matriz))];
+  const params = state.parametros.filter(p => !matrizes.length || matrizes.includes(p.matriz));
+  const paramIds = f.params.length ? f.params.filter(id => params.some(p => p.id === id)) : params.map(p => p.id);
+
+  return { emps, empIds, pontos, pontoIds, params, paramIds };
+}
+
+async function linhasFiltradas(f) {
+  const c = cascata(f);
+  const { data, error } = await _supabase.from('mon_resultados_avaliados').select('*');
+  if (error) { showToast('Erro ao ler avaliação: ' + error.message); return { rows: [], c }; }
+  const rows = (data || []).filter(r =>
+    c.pontoIds.includes(r.ponto_id) &&
+    c.paramIds.includes(r.parametro_id) &&
+    r.tipo_amostra === 'ambiental'
+  );
+  return { rows, c };
+}
+
+/* ============================================================
+   PAINEL GERAL
+   ============================================================ */
+function viewPainel() {
+  const f = state.painel;
+  const c = cascata(f);
+
+  return `
+  <div class="view-head">
+    <div>
+      <div class="eyebrow">Monitoramentos</div>
+      <h1 class="view-title">Painel geral</h1>
+      <p class="view-sub">Conformidade calculada contra a norma vigente na data de cada coleta. Nada aqui é gravado — é releitura.</p>
+    </div>
+  </div>
+
+  <div id="painel-alerta"></div>
+
+  <div class="filter-bar">
+    ${multiSel('p-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
+    ${multiSel('p-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
+    ${multiSel('p-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
+  </div>
+
+  <div class="grid cols-4" id="painel-kpis" style="margin-bottom:22px;"></div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <div class="eyebrow" style="margin-bottom:10px;">Percentual do limite legal, por campanha</div>
+    <p style="font-size:12px;color:var(--ink-faint);margin:0 0 12px;">
+      O eixo é o percentual do limite, não a concentração: é o que permite comparar parâmetros de limites
+      diferentes no mesmo gráfico e enxergar quando o limite muda de valor no meio da série.
+      A linha em 100% é o limite legal.
+    </p>
+    <div class="chart-box"><canvas id="cv-painel"></canvas></div>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:18px;">
+    <div class="eyebrow" style="margin-bottom:10px;">Base legal aplicada nesta seleção</div>
+    <div id="painel-normas"></div>
+  </div>
+
+  <div class="card" id="painel-tabela-wrap"></div>`;
+}
+
+async function bindPainel() {
+  bindMultiSel('p-emp', v => { state.painel.emps = v; state.painel.pontos = []; state.painel.params = []; render(); });
+  bindMultiSel('p-ponto', v => { state.painel.pontos = v; render(); });
+  bindMultiSel('p-par', v => { state.painel.params = v; render(); });
+
+  const { rows } = await linhasFiltradas(state.painel);
+
+  const conf = rows.filter(r => r.situacao === 'conforme').length;
+  const exc = rows.filter(r => r.situacao === 'excedente').length;
+  const inc = rows.filter(r => r.situacao === 'inconsistente').length;
+  const sp = rows.filter(r => r.situacao === 'sem_padrao').length;
+  const naoAvaliados = inc + sp;
+  const naoConferido = rows.filter(r => r.padrao_conferido === false).length;
+
+  const validos = rows.filter(r => r.status_dado === 'ok' && r.percentual_do_limite !== null);
+  const maior = validos.length ? Math.max(...validos.map(r => Number(r.percentual_do_limite))) : null;
+
+  document.getElementById('painel-kpis').innerHTML = `
+    <div class="card kpi"><div class="num">${rows.length}</div><div class="lbl">Resultados na seleção</div></div>
+    <div class="card kpi"><div class="num" style="${exc ? 'color:var(--nc);' : ''}">${exc}</div><div class="lbl">Excedências</div></div>
+    <div class="card kpi"><div class="num" style="${naoAvaliados ? 'color:var(--media);' : ''}">${naoAvaliados}</div><div class="lbl">Sem conclusão possível</div></div>
+    <div class="card kpi"><div class="num">${maior === null ? '—' : num(maior, 1) + '%'}</div><div class="lbl">Maior razão valor/limite</div></div>`;
+
+  const alertas = [];
+  if (naoAvaliados) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
+    <div class="diag-t">${naoAvaliados} de ${rows.length} resultados sem conclusão possível</div>
+    <div class="diag-d">${inc} com dado inconsistente e ${sp} sem padrão legal vigente na data.
+    Isso é <strong>abstenção, não aprovação</strong>: os ${conf} conformes não cobrem esses casos.
+    Não apresente esta seleção como comprovação de conformidade sem resolver as pendências.</div></div>`);
+  if (naoConferido) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
+    <div class="diag-t">${naoConferido} resultados avaliados contra padrão não conferido em fonte primária</div>
+    <div class="diag-d">A base legal correspondente está com <span class="mono">conferido = false</span>.
+    Confira o texto no Diário Oficial antes de usar em ofício, relatório de cliente ou fiscalização.</div></div>`);
+  document.getElementById('painel-alerta').innerHTML = alertas.join('');
+
+  const normas = {};
+  rows.forEach(r => {
+    if (!r.limite_base_legal) return;
+    const k = r.limite_base_legal + (r.limite_contexto ? ' · ' + r.limite_contexto : '');
+    normas[k] = normas[k] || { n: 0, conferido: r.padrao_conferido, anos: new Set() };
+    normas[k].n++;
+    normas[k].anos.add(String(r.inicio || r.campanha_inicio).slice(0, 4));
+  });
+  const nEntries = Object.entries(normas);
+  document.getElementById('painel-normas').innerHTML = !nEntries.length
+    ? '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum padrão legal aplicável nesta seleção.</p>'
+    : nEntries.map(([k, v]) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);">
+        <span style="flex:1;font-size:13px;">${esc(k)}
+          <span style="color:var(--ink-faint);font-size:11.5px;"> · ${[...v.anos].sort().join(', ')}</span></span>
+        <span class="mono" style="font-size:12px;color:var(--ink-faint);">${v.n} result.</span>
+        ${v.conferido ? '<span class="badge conforme">Conferido</span>' : '<span class="badge pending">Não conferido</span>'}
+      </div>`).join('');
+
+  const grupos = {};
+  validos.forEach(r => {
+    const p = state.pontos.find(x => x.id === r.ponto_id);
+    const k = (p ? p.codigo : '?') + ' · ' + r.parametro;
+    (grupos[k] = grupos[k] || []).push(r);
+  });
+  const anos = [...new Set(validos.map(r => String(r.inicio || r.campanha_inicio).slice(0, 4)))].sort();
+  const cores = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+  const dsets = Object.entries(grupos).slice(0, 24).map((e, i) => ({
+    label: e[0],
+    data: anos.map(a => {
+      const m = e[1].filter(r => String(r.inicio || r.campanha_inicio).slice(0, 4) === a);
+      return m.length ? Math.max(...m.map(r => Number(r.percentual_do_limite))) : null;
+    }),
+    borderColor: cores[i % cores.length],
+    backgroundColor: cores[i % cores.length],
+    borderDash: i % 3 === 1 ? [6, 4] : (i % 3 === 2 ? [2, 3] : []),
+    tension: 0.25, spanGaps: true, pointRadius: 4
+  }));
+
+  if (state.chart) { state.chart.destroy(); state.chart = null; }
+  const cv = document.getElementById('cv-painel');
+  if (cv && dsets.length) {
+    state.chart = new Chart(cv, {
+      type: 'line',
+      data: { labels: anos, datasets: dsets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + Number(c.parsed.y).toFixed(1) + '% do limite' } }
+        },
+        scales: {
+          y: { beginAtZero: true, suggestedMax: 120, ticks: { callback: v => v + '%' }, title: { display: true, text: '% do limite legal' } }
+        }
+      },
+      plugins: [{
+        id: 'linha100',
+        afterDatasetsDraw(ch) {
+          const y = ch.scales.y.getPixelForValue(100), a = ch.chartArea, x = ch.ctx;
+          if (y < a.top || y > a.bottom) return;
+          x.save(); x.strokeStyle = '#d03b3b'; x.lineWidth = 2; x.setLineDash([6, 4]);
+          x.beginPath(); x.moveTo(a.left, y); x.lineTo(a.right, y); x.stroke();
+          x.fillStyle = '#d03b3b'; x.font = '11px sans-serif'; x.fillText('limite legal', a.left + 4, y - 4);
+          x.restore();
+        }
+      }]
+    });
+  }
+
+  const ord = rows.slice().sort((a, b) => (Number(b.percentual_do_limite) || -1) - (Number(a.percentual_do_limite) || -1));
+  document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
+    ? '<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.</p></div>'
+    : `<div class="table-wrapper"><table>
+        <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th>Fonte</th></tr></thead>
+        <tbody>${ord.map(r => {
+          const p = state.pontos.find(x => x.id === r.ponto_id);
+          return `<tr>
+            <td class="mono" style="font-size:11.5px;">${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
+            <td><strong>${esc(p ? p.codigo : '—')}</strong></td>
+            <td>${esc(r.parametro)}</td>
+            <td class="mono">${num(r.valor, 2)} ${esc(r.unidade || '')}</td>
+            <td class="mono">${r.limite === null ? '—' : num(r.limite, 2)}<br>
+              <span style="font-size:10.5px;color:var(--ink-faint);">${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</span></td>
+            <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
+            <td>${badgeSituacao(r.situacao)}</td>
+            <td>${r.limite_base_legal ? (r.padrao_conferido ? '<span class="badge conforme">OK</span>' : '<span class="badge pending">Não conf.</span>') : '—'}</td>
+          </tr>`; }).join('')}</tbody></table></div>`;
+}
+
+/* ============================================================
+   SÉRIE HISTÓRICA — mesma cascata, foco em evolução temporal
+   ============================================================ */
+function viewSerie() {
+  const f = state.serie;
+  const c = cascata(f);
 
   return `
   <div class="view-head">
     <div>
       <div class="eyebrow">Monitoramentos</div>
       <h1 class="view-title">Série histórica</h1>
-      <p class="view-sub">Evolução de um parâmetro em um ponto, campanha a campanha, contra o limite legal vigente.</p>
+      <p class="view-sub">Evolução campanha a campanha. Um ponto comparado consigo mesmo ao longo do tempo.</p>
+    </div>
+    <div class="seg">
+      <button class="btn sm ${f.modo === 'pct' ? 'primary' : 'ghost'}" onclick="setModoSerie('pct')">% do limite</button>
+      <button class="btn sm ${f.modo === 'abs' ? 'primary' : 'ghost'}" onclick="setModoSerie('abs')">Concentração</button>
     </div>
   </div>
 
   <div class="filter-bar">
-    <div class="field" style="margin:0;">
-      <label class="field-label">Empreendimento</label>
-      <select id="s-emp">
-        <option value="">Selecione</option>
-        ${emps.map(e => `<option value="${esc(e.id)}" ${state.serie.emp === e.id ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}
-      </select>
-    </div>
-    <div class="field" style="margin:0;">
-      <label class="field-label">Ponto</label>
-      <select id="s-ponto">
-        <option value="">Selecione</option>
-        ${pontosEmp.map(p => `<option value="${esc(p.id)}" ${state.serie.ponto === p.id ? 'selected' : ''}>${esc(p.codigo)} — ${esc(p.nome || p.matriz)}</option>`).join('')}
-      </select>
-    </div>
-    <div class="field" style="margin:0;">
-      <label class="field-label">Parâmetro</label>
-      <select id="s-par">
-        <option value="">Selecione</option>
-        ${params.map(p => `<option value="${esc(p.id)}" ${state.serie.parametro === p.id ? 'selected' : ''}>${esc(p.sigla)} (${esc(p.unidade)})</option>`).join('')}
-      </select>
-    </div>
+    ${multiSel('s-emp', 'Empreendimentos', c.emps.map(e => ({ v: e.id, t: e.nome })), f.emps, c.emps.length)}
+    ${multiSel('s-ponto', 'Pontos', c.pontos.map(p => ({ v: p.id, t: p.codigo + ' — ' + (p.nome || p.matriz) })), f.pontos, c.pontos.length)}
+    ${multiSel('s-par', 'Parâmetros', c.params.map(p => ({ v: p.id, t: p.sigla + ' (' + p.unidade + ')' })), f.params, c.params.length)}
   </div>
 
   <div class="card card-pad">
+    <div id="serie-aviso"></div>
     <div class="chart-box"><canvas id="cv-serie"></canvas></div>
     <div id="serie-nota" style="margin-top:14px;"></div>
   </div>`;
 }
 
+window.setModoSerie = function (m) { state.serie.modo = m; render(); };
+
 async function bindSerie() {
-  const se = document.getElementById('s-emp');
-  const sp = document.getElementById('s-ponto');
-  const sr = document.getElementById('s-par');
+  bindMultiSel('s-emp', v => { state.serie.emps = v; state.serie.pontos = []; state.serie.params = []; render(); });
+  bindMultiSel('s-ponto', v => { state.serie.pontos = v; render(); });
+  bindMultiSel('s-par', v => { state.serie.params = v; render(); });
 
-  se.onchange = () => { state.serie.emp = se.value; state.serie.ponto = ''; render(); };
-  sp.onchange = () => { state.serie.ponto = sp.value; render(); };
-  sr.onchange = () => { state.serie.parametro = sr.value; render(); };
+  const { rows } = await linhasFiltradas(state.serie);
+  const validos = rows.filter(r => r.status_dado === 'ok' && r.valor !== null);
+  const fora = rows.length - validos.length;
+  const modo = state.serie.modo;
 
-  const nota = document.getElementById('serie-nota');
-  if (!state.serie.ponto || !state.serie.parametro) {
-    nota.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Escolha ponto e parâmetro para montar a série.</p>';
-    return;
-  }
-
-  const ponto = state.pontos.find(p => p.id === state.serie.ponto);
-  const par = state.parametros.find(p => p.id === state.serie.parametro);
-  if (!ponto || !par) return;
-
-  // Só entra na série: amostra ambiental, dado sem inconsistência e valor numérico.
-  const rows = (await buscarAvaliados({ ponto_id: ponto.id, parametro_id: par.id }))
-    .filter(r => r.tipo_amostra === 'ambiental' && r.status_dado === 'ok' && r.valor !== null)
-    .sort((a, b) => new Date(a.inicio || a.campanha_inicio) - new Date(b.inicio || b.campanha_inicio));
+  document.getElementById('serie-aviso').innerHTML = fora
+    ? `<div class="diag aviso" style="margin-bottom:14px;">
+        <div class="diag-t">${fora} resultado(s) fora da série</div>
+        <div class="diag-d">Dado marcado como inconsistente não entra em gráfico, de propósito.
+        Ele continua no histórico e na tela da campanha.</div></div>`
+    : '';
 
   if (state.chart) { state.chart.destroy(); state.chart = null; }
 
-  if (!rows.length) {
-    nota.innerHTML = `<p style="font-size:13px;color:var(--ink-faint);margin:0;">
-      Nenhum dado válido para ${esc(par.sigla)} no ponto ${esc(ponto.codigo)}.
-      Dado marcado como inconsistente fica fora da série de propósito.</p>`;
+  const nota = document.getElementById('serie-nota');
+  if (!validos.length) {
+    nota.innerHTML = '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum dado válido nesta seleção.</p>';
     return;
   }
 
-  const labels = rows.map(r => fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10)));
-  const valores = rows.map(r => Number(r.valor));
-  const limite = rows[rows.length - 1].limite;
-
-  const ds = [{
-    label: `${par.sigla} (${par.unidade})`,
-    data: valores,
-    borderColor: '#2E4159',
-    backgroundColor: 'rgba(46,65,89,.08)',
-    borderWidth: 2, tension: .25, pointRadius: 4, fill: true
-  }];
-  if (limite !== null && limite !== undefined) {
-    ds.push({
-      label: `Limite legal (${num(limite, 0)} ${par.unidade})`,
-      data: valores.map(() => Number(limite)),
-      borderColor: '#C4332C', borderWidth: 2, borderDash: [6, 4],
-      pointRadius: 0, fill: false
-    });
-  }
-
-  state.chart = new Chart(document.getElementById('cv-serie'), {
-    type: 'line',
-    data: { labels, datasets: ds },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true, title: { display: true, text: par.unidade } } },
-      plugins: { legend: { position: 'bottom' } }
-    }
+  const anos = [...new Set(validos.map(r => String(r.inicio || r.campanha_inicio).slice(0, 4)))].sort();
+  const grupos = {};
+  validos.forEach(r => {
+    const p = state.pontos.find(x => x.id === r.ponto_id);
+    const k = (p ? p.codigo : '?') + ' · ' + r.parametro;
+    (grupos[k] = grupos[k] || []).push(r);
   });
 
-  const maior = Math.max(...valores);
-  nota.innerHTML = `<p style="font-size:12.5px;color:var(--ink-soft);margin:0;">
-    ${rows.length} campanha(s) · maior valor ${num(maior)} ${esc(par.unidade)}
-    ${limite ? ` · ${num((maior / limite) * 100, 1)}% do limite vigente` : ''}.
-    ${rows.length < 2 ? '<br><strong>Uma campanha só não forma tendência</strong> — a série ganha leitura a partir da segunda.' : ''}
-    ${par.sigla === 'PTS' ? '<br>PTS é parâmetro auxiliar na 506/2024 e não tem cálculo de IQAr previsto na norma.' : ''}
-  </p>`;
+  if (modo === 'abs') {
+    const unidades = [...new Set(validos.map(r => r.unidade))];
+    if (unidades.length > 1) {
+      nota.innerHTML = `<p style="font-size:13px;color:var(--nc);margin:0;">
+        A seleção mistura as unidades ${unidades.map(esc).join(', ')}. Em concentração não existe eixo comum —
+        use "% do limite" ou restrinja a seleção. Sem conversão automática de unidade, por decisão de projeto.</p>`;
+      return;
+    }
+  }
+
+  const cores = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+  const dsets = Object.entries(grupos).slice(0, 24).map((e, i) => ({
+    label: e[0],
+    data: anos.map(a => {
+      const m = e[1].filter(r => String(r.inicio || r.campanha_inicio).slice(0, 4) === a);
+      if (!m.length) return null;
+      return modo === 'pct'
+        ? (m.some(r => r.percentual_do_limite !== null) ? Math.max(...m.filter(r => r.percentual_do_limite !== null).map(r => Number(r.percentual_do_limite))) : null)
+        : Math.max(...m.map(r => Number(r.valor)));
+    }),
+    borderColor: cores[i % cores.length],
+    backgroundColor: cores[i % cores.length],
+    borderDash: i % 3 === 1 ? [6, 4] : (i % 3 === 2 ? [2, 3] : []),
+    tension: 0.25, spanGaps: true, pointRadius: 4
+  }));
+
+  const un = modo === 'pct' ? '% do limite legal' : ([...new Set(validos.map(r => r.unidade))][0] || '');
+  state.chart = new Chart(document.getElementById('cv-serie'), {
+    type: 'line',
+    data: { labels: anos, datasets: dsets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + Number(c.parsed.y).toFixed(2) + (modo === 'pct' ? '%' : ' ' + un) } }
+      },
+      scales: { y: { beginAtZero: true, title: { display: true, text: un }, ticks: modo === 'pct' ? { callback: v => v + '%' } : {} } }
+    },
+    plugins: modo === 'pct' ? [{
+      id: 'l100',
+      afterDatasetsDraw(ch) {
+        const y = ch.scales.y.getPixelForValue(100), a = ch.chartArea, x = ch.ctx;
+        if (y < a.top || y > a.bottom) return;
+        x.save(); x.strokeStyle = '#d03b3b'; x.lineWidth = 2; x.setLineDash([6, 4]);
+        x.beginPath(); x.moveTo(a.left, y); x.lineTo(a.right, y); x.stroke();
+        x.fillStyle = '#d03b3b'; x.font = '11px sans-serif'; x.fillText('limite legal', a.left + 4, y - 4);
+        x.restore();
+      }
+    }] : []
+  });
+
+  nota.innerHTML = modo === 'pct'
+    ? `<p style="font-size:12px;color:var(--ink-faint);margin:0;">
+        Em percentual, a mudança de norma fica visível: o mesmo valor sobe de patamar quando o limite cai.
+        Pontos amostrados em dias diferentes não são comparáveis entre si — cada linha vale como evolução dela mesma.</p>`
+    : `<p style="font-size:12px;color:var(--ink-faint);margin:0;">
+        Em concentração o limite não aparece, porque ele muda ao longo da série. Para ler conformidade, use "% do limite".</p>`;
+}
+
+/* ============================================================
+   PONTOS — com edição de coordenada
+   ============================================================ */
+function utmParaLatLon(zona, e, n) {
+  const m = String(zona || '').match(/^(\d{1,2})\s*([A-Za-z])?$/);
+  if (!m || !e || !n) return null;
+  const fuso = parseInt(m[1], 10);
+  const letra = (m[2] || 'K').toUpperCase();
+  const sul = letra < 'N';
+  const a = 6378137.0, f = 1 / 298.257223563;
+  const e2 = 2 * f - f * f, e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+  const x = Number(e) - 500000.0;
+  let y = Number(n); if (sul) y -= 10000000.0;
+  const k0 = 0.9996, M = y / k0;
+  const mu = M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * Math.pow(e2, 3) / 256));
+  const p1 = mu + (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32) * Math.sin(2 * mu)
+    + (21 * e1 * e1 / 16 - 55 * Math.pow(e1, 4) / 32) * Math.sin(4 * mu)
+    + (151 * Math.pow(e1, 3) / 96) * Math.sin(6 * mu);
+  const ep2 = e2 / (1 - e2);
+  const C1 = ep2 * Math.pow(Math.cos(p1), 2);
+  const T1 = Math.pow(Math.tan(p1), 2);
+  const N1 = a / Math.sqrt(1 - e2 * Math.pow(Math.sin(p1), 2));
+  const R1 = a * (1 - e2) / Math.pow(1 - e2 * Math.pow(Math.sin(p1), 2), 1.5);
+  const D = x / (N1 * k0);
+  const lat = p1 - (N1 * Math.tan(p1) / R1) * (D * D / 2
+    - (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * ep2) * Math.pow(D, 4) / 24
+    + (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * ep2 - 3 * C1 * C1) * Math.pow(D, 6) / 720);
+  const lon = (D - (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6
+    + (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * ep2 + 24 * T1 * T1) * Math.pow(D, 5) / 120) / Math.cos(p1);
+  const lon0 = (fuso - 1) * 6 - 180 + 3;
+  return { lat: lat * 180 / Math.PI, lon: lon0 + lon * 180 / Math.PI };
 }
 
 function viewPontos() {
   const grupos = {};
   state.pontos.forEach(p => { (grupos[p.empreendimento_id] = grupos[p.empreendimento_id] || []).push(p); });
+  const semCoord = state.pontos.filter(p => p.latitude === null || p.longitude === null).length;
 
   return `
   <div class="view-head">
     <div>
       <div class="eyebrow">Monitoramentos</div>
       <h1 class="view-title">Pontos de monitoramento</h1>
-      <p class="view-sub">Cadastrados automaticamente na primeira importação de cada empreendimento.</p>
+      <p class="view-sub">Nascem na primeira importação. Editáveis aqui — código, nome, tipo e coordenada.</p>
     </div>
   </div>
-  ${!state.pontos.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto ainda. Eles nascem junto com a primeira campanha importada.</p></div>`
+
+  ${semCoord ? `<div class="diag aviso" style="margin-bottom:18px;">
+    <div class="diag-t">${semCoord} ponto(s) sem coordenada geográfica</div>
+    <div class="diag-d">Sem lat/long o ponto não pode ser localizado em mapa nem conferido contra o limite
+    da propriedade. Informe a UTM do laudo e o sistema converte.</div></div>` : ''}
+
+  <div class="diag" style="margin-bottom:18px;">
+    <div class="diag-t">O código do ponto é a identidade dele</div>
+    <div class="diag-d">A importação casa ponto por <span class="mono">código</span>. Se um laudo escrever
+    "PONTO 01" e outro "P01", nascem dois pontos e a série histórica se parte em duas.
+    Mantenha o código estável entre campanhas.</div>
+  </div>
+
+  ${!state.pontos.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto ainda.</p></div>`
   : Object.entries(grupos).map(([empId, pts]) => `
       <div class="card" style="margin-bottom:18px;">
         <div class="card-pad" style="padding-bottom:0;"><div class="eyebrow">${esc(nomeEmp(empId))}</div></div>
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>Código</th><th>Nome</th><th>Matriz</th><th>Tipo</th><th>Coordenadas</th></tr></thead>
+            <thead><tr><th>Código</th><th>Nome</th><th>Matriz</th><th>Tipo</th><th>UTM</th><th>Lat / Long</th><th>Campanhas</th><th></th></tr></thead>
             <tbody>
-              ${pts.map(p => `<tr>
+              ${pts.sort((a, b) => String(a.codigo).localeCompare(String(b.codigo))).map(p => `<tr>
                 <td><strong>${esc(p.codigo)}</strong></td>
                 <td>${esc(p.nome || '—')}</td>
-                <td>${esc(p.matriz)}</td>
+                <td class="mono" style="font-size:11.5px;">${esc(p.matriz)}</td>
                 <td>${esc(p.tipo || '—')}</td>
-                <td class="mono" style="font-size:11.5px;">${p.utm_e ? `${esc(p.utm_zona || '')} ${num(p.utm_e,0)} / ${num(p.utm_n,0)}` : '—'}</td>
+                <td class="mono" style="font-size:11.5px;">${p.utm_e ? `${esc(p.utm_zona || '')} ${num(p.utm_e, 0)} / ${num(p.utm_n, 0)}` : '—'}</td>
+                <td class="mono" style="font-size:11.5px;">${p.latitude !== null && p.longitude !== null
+                    ? `${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}`
+                    : '<span style="color:var(--nc);">sem coordenada</span>'}</td>
+                <td class="mono" style="font-size:11.5px;">${state.contagemPonto && state.contagemPonto[p.id] ? state.contagemPonto[p.id] : '—'}</td>
+                <td><button class="btn sm ghost" onclick="editarPonto('${esc(p.id)}')">Editar</button></td>
               </tr>`).join('')}
             </tbody>
           </table>
         </div>
       </div>`).join('')}`;
+}
+
+window.editarPonto = function (id) {
+  const p = state.pontos.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Editar ponto ${esc(p.codigo)}</strong></div>
+      <div class="modal-body">
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Código</label><input id="pe-cod" value="${esc(p.codigo)}"></div>
+          <div class="field"><label class="field-label">Nome</label><input id="pe-nome" value="${esc(p.nome || '')}"></div>
+        </div>
+        <div class="field"><label class="field-label">Tipo</label>
+          <select id="pe-tipo">
+            ${['interno', 'limite_propriedade', 'receptor', 'montante', 'jusante'].map(t =>
+              `<option value="${t}" ${p.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="grid cols-3">
+          <div class="field"><label class="field-label">Zona UTM</label><input id="pe-zona" value="${esc(p.utm_zona || '')}" placeholder="22K"></div>
+          <div class="field"><label class="field-label">UTM E</label><input id="pe-e" type="number" step="1" value="${p.utm_e ?? ''}"></div>
+          <div class="field"><label class="field-label">UTM N</label><input id="pe-n" type="number" step="1" value="${p.utm_n ?? ''}"></div>
+        </div>
+        <button class="btn sm ghost" onclick="converterUtm()" style="margin-bottom:14px;">Converter UTM para lat/long</button>
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Latitude</label><input id="pe-lat" type="number" step="0.000001" value="${p.latitude ?? ''}"></div>
+          <div class="field"><label class="field-label">Longitude</label><input id="pe-lon" type="number" step="0.000001" value="${p.longitude ?? ''}"></div>
+        </div>
+        <p id="pe-msg" style="font-size:12px;color:var(--ink-faint);margin:0;"></p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" onclick="salvarPonto('${esc(p.id)}')">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+window.converterUtm = function () {
+  const z = document.getElementById('pe-zona').value;
+  const e = document.getElementById('pe-e').value;
+  const n = document.getElementById('pe-n').value;
+  const r = utmParaLatLon(z, e, n);
+  const msg = document.getElementById('pe-msg');
+  if (!r) { msg.textContent = 'Informe zona (ex.: 22K), E e N para converter.'; return; }
+  document.getElementById('pe-lat').value = r.lat.toFixed(6);
+  document.getElementById('pe-lon').value = r.lon.toFixed(6);
+  msg.textContent = 'Convertido de UTM para WGS84. Confira contra o mapa do laudo antes de salvar.';
+};
+
+window.salvarPonto = async function (id) {
+  const cod = document.getElementById('pe-cod').value.trim();
+  if (!cod) return showToast('O código é obrigatório.');
+  const patch = {
+    codigo: cod,
+    nome: document.getElementById('pe-nome').value.trim() || null,
+    tipo: document.getElementById('pe-tipo').value,
+    utm_zona: document.getElementById('pe-zona').value.trim() || null,
+    utm_e: document.getElementById('pe-e').value === '' ? null : Number(document.getElementById('pe-e').value),
+    utm_n: document.getElementById('pe-n').value === '' ? null : Number(document.getElementById('pe-n').value),
+    latitude: document.getElementById('pe-lat').value === '' ? null : Number(document.getElementById('pe-lat').value),
+    longitude: document.getElementById('pe-lon').value === '' ? null : Number(document.getElementById('pe-lon').value)
+  };
+  const { error } = await _supabase.from('mon_pontos').update(patch).eq('id', id);
+  if (error) return showToast('Erro ao salvar: ' + error.message);
+  fecharModal();
+  showToast('Ponto atualizado.');
+  await carregarTudo();
+};
+
+window.fecharModal = function (ev) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  document.getElementById('modal-root').innerHTML = '';
+};
+
+/* ============================================================
+   EDITAR / EXCLUIR CAMPANHA
+   ============================================================ */
+window.editarCampanha = function (id) {
+  const c = state.campanhas.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Editar campanha</strong></div>
+      <div class="modal-body">
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Data início</label><input id="ce-ini" type="date" value="${esc(c.data_inicio || '')}"></div>
+          <div class="field"><label class="field-label">Data fim</label><input id="ce-fim" type="date" value="${esc(c.data_fim || '')}"></div>
+        </div>
+        <div class="field"><label class="field-label">Laboratório</label><input id="ce-lab" value="${esc(c.laboratorio || '')}"></div>
+        <div class="grid cols-2">
+          <div class="field"><label class="field-label">Responsável técnico</label><input id="ce-rt" value="${esc(c.responsavel_tecnico || '')}"></div>
+          <div class="field"><label class="field-label">CREA</label><input id="ce-crea" value="${esc(c.crea || '')}"></div>
+        </div>
+        <div class="grid cols-3">
+          <div class="field"><label class="field-label">ART</label><input id="ce-art" value="${esc(c.art || '')}"></div>
+          <div class="field"><label class="field-label">Relatório nº</label><input id="ce-rel" value="${esc(c.relatorio_numero || '')}"></div>
+          <div class="field"><label class="field-label">Revisão</label><input id="ce-rev" value="${esc(c.relatorio_revisao || '')}"></div>
+        </div>
+        <div class="field"><label class="field-label">Link do laudo (Drive)</label><input id="ce-link" value="${esc(c.link_externo || '')}" placeholder="https://"></div>
+        <div class="field"><label class="field-label">Observações</label><textarea id="ce-obs" rows="3">${esc(c.observacoes || '')}</textarea></div>
+        <p style="font-size:12px;color:var(--ink-faint);margin:0;">
+          O JSON de origem não é alterado aqui — ele fica preservado como registro do que o laudo trouxe.
+          Editar metadado não recalcula conformidade: isso a view faz sozinha a cada leitura.</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" onclick="salvarCampanha('${esc(c.id)}')">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+window.salvarCampanha = async function (id) {
+  const g = i => document.getElementById(i).value.trim() || null;
+  const patch = {
+    data_inicio: g('ce-ini'), data_fim: g('ce-fim'), laboratorio: g('ce-lab'),
+    responsavel_tecnico: g('ce-rt'), crea: g('ce-crea'), art: g('ce-art'),
+    relatorio_numero: g('ce-rel'), relatorio_revisao: g('ce-rev'),
+    link_externo: g('ce-link'), observacoes: g('ce-obs'),
+    atualizado_em: new Date().toISOString()
+  };
+  if (!patch.data_inicio) return showToast('Data de início é obrigatória.');
+  const { error } = await _supabase.from('mon_campanhas').update(patch).eq('id', id);
+  if (error) return showToast('Erro ao salvar: ' + error.message);
+  fecharModal();
+  showToast('Campanha atualizada.');
+  await carregarTudo();
+};
+
+window.excluirCampanha = function (id) {
+  const c = state.campanhas.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Excluir campanha</strong></div>
+      <div class="modal-body">
+        <div class="diag erro">
+          <div class="diag-t">Isto apaga resultados e meteorologia da campanha</div>
+          <div class="diag-d">Campanha de ${fmtData(c.data_inicio)}, ${esc(nomeEmp(c.empreendimento_id))}.
+          Os pontos permanecem, porque são compartilhados entre campanhas. Não há desfazer.</div>
+        </div>
+        <p style="font-size:13px;margin:14px 0 6px;">Para confirmar, digite <span class="mono"><strong>EXCLUIR</strong></span>:</p>
+        <input id="cd-confirma" placeholder="EXCLUIR">
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn danger" onclick="confirmarExclusao('${esc(c.id)}')">Excluir definitivamente</button>
+      </div>
+    </div>
+  </div>`;
+};
+
+window.confirmarExclusao = async function (id) {
+  if (document.getElementById('cd-confirma').value.trim().toUpperCase() !== 'EXCLUIR')
+    return showToast('Digite EXCLUIR para confirmar.');
+  for (const t of ['mon_resultados', 'mon_meteorologia']) {
+    const { error } = await _supabase.from(t).delete().eq('campanha_id', id);
+    if (error) return showToast(`Erro ao apagar ${t}: ` + error.message);
+  }
+  const { error } = await _supabase.from('mon_campanhas').delete().eq('id', id);
+  if (error) return showToast('Erro ao apagar campanha: ' + error.message);
+  fecharModal();
+  showToast('Campanha excluída.');
+  state.detalhe = null;
+  setView('campanhas');
+  await carregarTudo();
+};
+
+async function bindPontos() {
+  const { data } = await _supabase.from('mon_resultados').select('ponto_id,campanha_id');
+  if (!data) return;
+  const m = {};
+  data.forEach(r => { (m[r.ponto_id] = m[r.ponto_id] || new Set()).add(r.campanha_id); });
+  state.contagemPonto = {};
+  Object.entries(m).forEach(([k, v]) => { state.contagemPonto[k] = v.size + (v.size === 1 ? ' campanha' : ' campanhas'); });
+  const el = document.getElementById('content');
+  if (el && state.view === 'pontos') el.innerHTML = viewPontos();
 }
 
 function viewBiblioteca() {
@@ -1841,8 +2336,12 @@ function viewBiblioteca() {
 
   ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
     <div class="diag-t">${pendentes} padrão(ões) ainda não conferido(s)</div>
-    <div class="diag-d">Os valores foram transcritos do laudo da BIOAR, não do texto oficial da resolução.
-    Depois de conferir, rode no SQL Editor: <span class="mono">update mon_padroes_legais set conferido = true where id like 'c506.%';</span></div>
+    <div class="diag-d">Padrão não conferido é padrão cuja origem ainda não foi validada em fonte primária
+    (Diário Oficial da União ou publicação do órgão). Documento de cliente — laudo, memorial, relatório —
+    <strong>não serve de base legal</strong>, mesmo quando reproduz o anexo da resolução corretamente.
+    A biblioteca é compartilhada por todos os clientes: um valor errado aqui contamina todas as avaliações.
+    Depois de conferir no DOU, rode no SQL Editor, ajustando o prefixo para a norma conferida:
+    <span class="mono">update mon_padroes_legais set conferido = true where id like 'c491.%';</span></div>
   </div>` : ''}
 
   ${state.parametros.filter(p => porParam[p.id]).map(par => `
@@ -1880,10 +2379,11 @@ function viewBiblioteca() {
    ROTEADOR
    ============================================================ */
 const VIEWS = {
+  painel:     { label: 'Painel geral',   html: viewPainel,     bind: bindPainel },
   campanhas:  { label: 'Campanhas',      html: viewCampanhas,  bind: bindCampanhas },
   importar:   { label: 'Importar',       html: viewImportar,   bind: bindImportar },
   serie:      { label: 'Série histórica',html: viewSerie,      bind: bindSerie },
-  pontos:     { label: 'Pontos',         html: viewPontos,     bind: null },
+  pontos:     { label: 'Pontos',         html: viewPontos,     bind: bindPontos },
   biblioteca: { label: 'Padrões legais', html: viewBiblioteca, bind: null },
   detalhe:    { label: null,             html: viewDetalhe,    bind: bindDetalhe }
 };
@@ -1900,6 +2400,7 @@ function render() {
   if (!state.ready) return;
 
   const ic = {
+    painel:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/></svg>',
     campanhas:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 3v3M16 3v3M4 10h16"/></svg>',
     importar:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>',
     serie:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>',
