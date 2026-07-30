@@ -1710,14 +1710,48 @@ async function salvarPacote() {
       if (existente) { mapaPonto[cod] = existente.id; return; }
       const id = 'pt' + uid();
       mapaPonto[cod] = id;
+
+      const zona = (p.utm && p.utm.zona) || null;
+      const ue = (p.utm && p.utm.e) || null;
+      const un = (p.utm && p.utm.n) || null;
+
+      // Coordenada canônica do sistema = WGS84 em graus decimais.
+      // A UTM é preservada como o laudo declarou (rastreabilidade) e o par
+      // lat/long é DERIVADO dela quando o laudo não traz graus decimais.
+      // A derivação roda aqui, em código, e não no chat de extração: converter
+      // zona ou hemisfério errado joga o ponto do outro lado do mundo e nada no
+      // JSON denunciaria. A origem fica registrada em detalhes.coord.
+      let lat = p.latitude ?? null, lon = p.longitude ?? null;
+      const det = Object.assign({}, p.detalhes || {});
+      if (lat !== null && lon !== null) {
+        det.coord = { origem: 'declarada_no_laudo', datum_declarado: null };
+      } else if (zona && ue && un) {
+        const conv = utmParaLatLon(zona, ue, un);
+        if (conv) {
+          lat = Number(conv.lat.toFixed(6));
+          lon = Number(conv.lon.toFixed(6));
+          det.coord = {
+            origem: 'derivada_da_utm',
+            utm: { zona, e: ue, n: un },
+            // O laudo em geral não declara o datum da UTM. Assumir WGS84 é
+            // seguro na prática: SIRGAS2000 (datum oficial brasileiro) e WGS84
+            // divergem abaixo de 1 m, irrelevante para localizar um ponto de
+            // amostragem. Fica registrado que foi premissa, não leitura.
+            datum_assumido: 'WGS84 (SIRGAS2000 equivalente, divergência < 1 m)',
+            convertido_em: new Date().toISOString(),
+            convertido_por: 'MapaBase — conversão UTM inversa (Snyder/USGS)'
+          };
+        }
+      } else {
+        det.coord = { origem: 'ausente', motivo: 'laudo sem UTM e sem graus decimais' };
+      }
+
       novosPontos.push({
         id, empreendimento_id: empId, codigo: cod, nome: p.nome || null,
         matriz: p.matriz, tipo: p.tipo || null,
-        utm_zona: (p.utm && p.utm.zona) || null,
-        utm_e: (p.utm && p.utm.e) || null,
-        utm_n: (p.utm && p.utm.n) || null,
-        latitude: p.latitude ?? null, longitude: p.longitude ?? null,
-        detalhes: p.detalhes || {}
+        utm_zona: zona, utm_e: ue, utm_n: un,
+        latitude: lat, longitude: lon,
+        detalhes: det
       });
     });
     if (novosPontos.length) {
@@ -3190,6 +3224,15 @@ function viewPontos() {
     da propriedade. Informe a UTM do laudo e o sistema converte.</div></div>` : ''}
 
   <div class="diag" style="margin-bottom:18px;">
+    <div class="diag-t">Padrão de coordenada: WGS84 em graus decimais</div>
+    <div class="diag-d">A UTM é guardada como o laudo declarou e vale como rastreabilidade.
+    O par lat/long é o padrão do sistema, derivado da UTM na importação quando o laudo não traz
+    graus decimais — é o que permite pôr num mesmo mapa pontos de zonas UTM diferentes, como
+    22K e 22L, que não têm eixo comum entre si. A tabela mostra se cada coordenada foi
+    declarada, derivada ou editada.</div>
+  </div>
+
+  <div class="diag" style="margin-bottom:18px;">
     <div class="diag-t">O código do ponto é a identidade dele</div>
     <div class="diag-d">A importação casa ponto por <span class="mono">código</span>. Se um laudo escrever
     "PONTO 01" e outro "P01", nascem dois pontos e a série histórica se parte em duas.
@@ -3211,7 +3254,12 @@ function viewPontos() {
                 <td>${esc(p.tipo || '—')}</td>
                 <td class="mono" style="font-size:11.5px;">${p.utm_e ? `${esc(p.utm_zona || '')} ${num(p.utm_e, 0)} / ${num(p.utm_n, 0)}` : '—'}</td>
                 <td class="mono" style="font-size:11.5px;">${p.latitude !== null && p.longitude !== null
-                    ? `${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}`
+                    ? `${Number(p.latitude).toFixed(6)}, ${Number(p.longitude).toFixed(6)}` + (() => {
+                        const o = (p.detalhes && p.detalhes.coord && p.detalhes.coord.origem) || null;
+                        if (o === 'derivada_da_utm') return '<br><span style="font-size:10px;color:var(--ink-faint);" title="Derivado da UTM declarada no laudo. Datum assumido WGS84.">derivada da UTM</span>';
+                        if (o === 'declarada_no_laudo') return '<br><span style="font-size:10px;color:var(--ink-faint);">declarada no laudo</span>';
+                        return '';
+                      })()
                     : '<span style="color:var(--nc);">sem coordenada</span>'}</td>
                 <td class="mono" style="font-size:11.5px;">${state.contagemPonto && state.contagemPonto[p.id] ? state.contagemPonto[p.id] : '—'}</td>
                 <td><button class="btn sm ghost" onclick="editarPonto('${esc(p.id)}')">Editar</button></td>
@@ -3351,10 +3399,19 @@ window.converterUtm = function () {
 window.salvarPonto = async function (id) {
   const cod = document.getElementById('pe-cod').value.trim();
   if (!cod) return showToast('O código é obrigatório.');
+  const p0 = state.pontos.find(x => x.id === id) || {};
+  const det0 = Object.assign({}, p0.detalhes || {});
+  det0.coord = Object.assign({}, det0.coord || {}, {
+    origem: 'editada_manualmente',
+    editada_em: new Date().toISOString(),
+    editada_por: state.usuario || null
+  });
+
   const patch = {
     codigo: cod,
     nome: document.getElementById('pe-nome').value.trim() || null,
     tipo: document.getElementById('pe-tipo').value,
+    detalhes: det0,
     utm_zona: document.getElementById('pe-zona').value.trim() || null,
     utm_e: document.getElementById('pe-e').value === '' ? null : Number(document.getElementById('pe-e').value),
     utm_n: document.getElementById('pe-n').value === '' ? null : Number(document.getElementById('pe-n').value),
