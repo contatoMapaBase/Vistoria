@@ -142,7 +142,12 @@
     .table-wrapper tbody tr:hover { background: var(--surface-2); }
 
     /* Alternador de matriz na lateral */
-    .mtz { margin: 0 0 18px; }
+    .mtz {
+      padding: 18px 12px 16px;
+      margin: 0 0 4px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .mtz-lbl, .mtz-sub { padding-left: 3px; padding-right: 3px; }
     .mtz-lbl { font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: #A8B6C9; margin-bottom: 8px; }
     .mtz select {
       background-color: rgba(255,255,255,.07);
@@ -1358,6 +1363,17 @@
       .filter-bar { grid-template-columns: 1fr !important; }
       .navbtn { min-width: 68px; font-size: 9.5px; }
     }
+
+    /* Legenda do contexto: contagem em cima, base legal de referência embaixo.
+       Numa linha só, "CONAMA 491/2018 e 506/2024" quebrava feio na lateral. */
+    .mtz-norma {
+      font-size: 10.5px;
+      color: #8494AB;
+      letter-spacing: .015em;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+    @media (max-width: 860px) { #sidebar .mtz-norma { display: none; } }
 </style>
 </head>
 <body>
@@ -1389,7 +1405,8 @@
       </div>
       <div class="brand-sub">Monitoramentos</div>
     </div>
-    <div class="mtz"><div class="mtz-lbl">Monitoramento</div>
+    <div class="mtz">
+      <div class="mtz-lbl">Tipo de monitoramento</div>
       <select id="sel-matriz"></select>
       <div class="mtz-sub" id="mtz-sub"></div>
     </div>
@@ -3860,10 +3877,15 @@ function render() {
     if (state.view === 'detalhe') state.view = 'campanhas';
     render();
   };
-  const nP = state.pontos.filter(p => !state.matriz || p.matriz === state.matriz).length;
-  document.getElementById('mtz-sub').textContent = state.matriz
-    ? `${nP} ponto(s) · ${MATRIZES[state.matriz] ? MATRIZES[state.matriz].norma : ''}`
-    : `${mats.length} matriz(es) · ${nP} ponto(s)`;
+  const pts = state.pontos.filter(p => !state.matriz || p.matriz === state.matriz);
+  const empsCtx = new Set(pts.map(p => p.empreendimento_id));
+  const nCamp = state.campanhas.filter(c => empsCtx.has(c.empreendimento_id)).length;
+  const plural = (n, s1, s2) => `${n} ${n === 1 ? s1 : s2}`;
+  document.getElementById('mtz-sub').innerHTML = state.matriz
+    ? `${plural(pts.length, 'ponto', 'pontos')} · ${plural(nCamp, 'campanha', 'campanhas')}
+       <div class="mtz-norma">${esc(MATRIZES[state.matriz] ? MATRIZES[state.matriz].norma : '')}</div>`
+    : `${plural(mats.length, 'tipo', 'tipos')} · ${plural(pts.length, 'ponto', 'pontos')}
+       <div class="mtz-norma">Todos os monitoramentos</div>`;
 
   document.getElementById('status-sync').textContent = navigator.onLine ? '🟢 Online' : '🔴 Sem conexão';
 
