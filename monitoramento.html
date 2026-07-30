@@ -1703,12 +1703,18 @@ async function salvarPacote() {
     const mapaPonto = {};
     const novosPontos = [];
     (j.pontos || []).forEach(p => {
-      const cod = String(p.codigo).trim();
+      const norm = normalizarCodigoPonto(p.codigo);
+      const cod = norm.codigo;
+      const chave = String(p.codigo).trim();   // o resultado referencia o código do JSON
+
+      // Casa pela forma normalizada: um laudo que escreva "PONTO 01" encontra o
+      // "P01" já cadastrado em vez de criar um ponto novo.
       const existente = state.pontos.find(x =>
-        x.empreendimento_id === empId && x.matriz === p.matriz && x.codigo === cod
+        x.empreendimento_id === empId && x.matriz === p.matriz && mesmoPonto(x.codigo, p.codigo)
       );
-      if (existente) { mapaPonto[cod] = existente.id; return; }
+      if (existente) { mapaPonto[chave] = existente.id; mapaPonto[cod] = existente.id; return; }
       const id = 'pt' + uid();
+      mapaPonto[chave] = id;
       mapaPonto[cod] = id;
 
       const zona = (p.utm && p.utm.zona) || null;
@@ -1745,6 +1751,9 @@ async function salvarPacote() {
       } else {
         det.coord = { origem: 'ausente', motivo: 'laudo sem UTM e sem graus decimais' };
       }
+
+      // Guarda como o laudo escreveu, quando difere do código canônico.
+      if (norm.mudou) det.codigo_no_laudo = norm.original;
 
       novosPontos.push({
         id, empreendimento_id: empId, codigo: cod, nome: p.nome || null,
@@ -2894,6 +2903,41 @@ async function bindSerie() {
 }
 
 /* ============================================================
+   CÓDIGO DO PONTO — normalização
+   ------------------------------------------------------------
+   O código é a identidade do ponto: a importação casa por ele. Os laudos da
+   Bioar escrevem o mesmo ponto físico como "1º Ponto", "Ponto 01", "PONTO 01",
+   "01" e "P01" em anos e seções diferentes — foi assim que 4 pontos da Goiascal
+   viraram 12 registros e a série histórica se partiu em três.
+   A normalização é deliberadamente CONSERVADORA: só reescreve o que reconhece
+   como ponto genérico numerado. Códigos com prefixo próprio (PM-01 de poço de
+   monitoramento, SS-03 de sondagem de solo, MTZ de montante) são preservados,
+   porque ali o prefixo é informação, não ruído.
+   ============================================================ */
+function normalizarCodigoPonto(bruto) {
+  const s0 = String(bruto == null ? '' : bruto).trim().replace(/\s+/g, ' ');
+  if (!s0) return { codigo: '', original: s0, mudou: false };
+
+  // "P01" · "P 1" · "01" · "1" · "Ponto 01" · "PONTO 1" · "ponto1"
+  let m = s0.match(/^(?:p(?:onto)?\s*[-–.]?\s*)?(\d{1,3})\s*[ºo°]?$/i);
+  // "1º Ponto" · "2o ponto" · "3 PONTO"
+  if (!m) m = s0.match(/^(\d{1,3})\s*[ºo°]?\s*p(?:onto)?$/i);
+
+  if (m) {
+    const cod = 'P' + String(parseInt(m[1], 10)).padStart(2, '0');
+    return { codigo: cod, original: s0, mudou: cod !== s0 };
+  }
+  // Não reconhecido: mantém como está. Não inventa padrão sobre o que não entende.
+  return { codigo: s0, original: s0, mudou: false };
+}
+
+// Casamento tolerante: compara pela forma normalizada, sem diferenciar caixa.
+function mesmoPonto(a, b) {
+  return normalizarCodigoPonto(a).codigo.toUpperCase()
+       === normalizarCodigoPonto(b).codigo.toUpperCase();
+}
+
+/* ============================================================
    COORDENADAS — conversão nos dois sentidos
    ============================================================ */
 function latLonParaUtm(lat, lon) {
@@ -3234,9 +3278,14 @@ function viewPontos() {
 
   <div class="diag" style="margin-bottom:18px;">
     <div class="diag-t">O código do ponto é a identidade dele</div>
-    <div class="diag-d">A importação casa ponto por <span class="mono">código</span>. Se um laudo escrever
-    "PONTO 01" e outro "P01", nascem dois pontos e a série histórica se parte em duas.
-    Mantenha o código estável entre campanhas.</div>
+    <div class="diag-d">A importação casa ponto por <span class="mono">código</span> e normaliza
+    formas genéricas na entrada: <span class="mono">1º Ponto</span>,
+    <span class="mono">Ponto 01</span>, <span class="mono">PONTO 01</span>,
+    <span class="mono">01</span> e <span class="mono">P1</span> todos viram
+    <span class="mono">P01</span>, e o texto original fica guardado.
+    Códigos com prefixo próprio — <span class="mono">PM-01</span> de poço de monitoramento,
+    <span class="mono">SS-03</span> de sondagem, <span class="mono">MTZ</span> de montante —
+    são preservados como estão, porque ali o prefixo é informação.</div>
   </div>
 
   ${!lista.length ? `<div class="empty"><div class="ic">📍</div><p>Nenhum ponto cadastrado nesta matriz.</p></div>`
@@ -3248,7 +3297,10 @@ function viewPontos() {
             <thead><tr><th>Código</th><th>Nome</th><th>Matriz</th><th>Tipo</th><th>UTM</th><th>Lat / Long</th><th>Campanhas</th><th></th></tr></thead>
             <tbody>
               ${pts.sort((a, b) => String(a.codigo).localeCompare(String(b.codigo))).map(p => `<tr>
-                <td><strong>${esc(p.codigo)}</strong></td>
+                <td><strong>${esc(p.codigo)}</strong>${
+                  p.detalhes && p.detalhes.codigo_no_laudo
+                    ? `<br><span style="font-size:10px;color:var(--ink-faint);" title="Como o laudo escreveu. Normalizado na importação para não partir a série histórica.">laudo: ${esc(p.detalhes.codigo_no_laudo)}</span>`
+                    : ''}</td>
                 <td>${esc(p.nome || '—')}</td>
                 <td>${badgeMatriz(p.matriz)}</td>
                 <td>${esc(p.tipo || '—')}</td>
