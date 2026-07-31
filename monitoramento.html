@@ -2750,8 +2750,14 @@ function caixaProcedencia(padroes) {
 
       <p style="margin-top:10px;">Conferir não é só marcar um visto. O registro precisa dizer
       <strong>qual fonte</strong> foi consultada, <strong>quem</strong> conferiu e <strong>quando</strong> —
-      é isso que torna a afirmação auditável, em vez de indistinguível de um clique errado.
-      Use o botão <em>Registrar conferência</em> na norma correspondente, mais abaixo nesta tela.</p>
+      é isso que torna a afirmação auditável, em vez de indistinguível de um clique errado.</p>
+
+      <p><strong>Avaliável e Procedência não são a mesma coisa.</strong> Avaliável responde
+      <em>este padrão entra no cálculo de conformidade?</em> — fica em Não quando a etapa nunca foi ativada
+      pela norma, ou quando o período é anual e quatro dias de coleta por ano não produzem média anual.
+      Procedência responde <em>de onde veio o número e quem validou?</em> São independentes, e a combinação
+      mais perigosa é Avaliável = Sim com procedência não conferida: o padrão já está julgando conformidade
+      sem ter sido validado.</p>
     </div>
   </details>`;
 }
@@ -2832,8 +2838,6 @@ function viewPainel() {
     <div class="eyebrow" style="margin-bottom:10px;">Base legal aplicada nesta seleção</div>
     <div id="painel-normas"></div>
   </div>
-
-  ${caixaProcedencia(state.padroes)}
 
   <div class="card" id="painel-tabela-wrap"></div>
 
@@ -4223,28 +4227,10 @@ function viewBiblioteca() {
     </div>
   </div>
 
-  <div class="diag" style="margin-bottom:18px;">
-    <div class="diag-t">Duas colunas que parecem a mesma coisa e não são</div>
-    <div class="diag-d">
-      <strong>Avaliável</strong> responde <em>este padrão entra no cálculo de conformidade?</em> Fica em Não
-      quando a etapa nunca foi ativada pela norma, ou quando o período é anual — quatro dias de coleta por ano
-      não produzem média anual.<br>
-      <strong>Procedência</strong> responde <em>de onde veio este número e quem validou?</em> São
-      independentes: um padrão pode estar Avaliável = Sim e com procedência não conferida, e é justamente
-      esse o caso mais perigoso, porque ele já está sendo usado para julgar conformidade.
-    </div>
-  </div>
-
-  ${caixaProcedencia(state.padroes)}
-
   ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
-    <div class="diag-t">${pendentes} de ${state.padroes.length} padrões ainda não conferidos em fonte primária</div>
-    <div class="diag-d">Padrão não conferido é padrão cuja origem ainda não foi validada em fonte primária
-    (Diário Oficial da União ou publicação do órgão). Documento de cliente — laudo, memorial, relatório —
-    <strong>não serve de base legal</strong>, mesmo quando reproduz o anexo da resolução corretamente.
-    A biblioteca é compartilhada por todos os clientes: um valor errado aqui contamina todas as avaliações.
-    Depois de conferir o texto no Diário Oficial, use o botão <em>Registrar conferência</em> no cartão da
-    norma, abaixo.</div>
+    <div class="diag-t">${pendentes} de ${state.padroes.length} padrões sem conferência em fonte primária</div>
+    <div class="diag-d">Use <em>Registrar conferência</em> na norma correspondente.
+    <a href="#biblio-ajuda" style="color:var(--accent);">Por que isso importa</a></div>
   </div>` : ''}
 
   <div class="card card-pad" style="margin-bottom:22px;">
@@ -4307,34 +4293,35 @@ function viewBiblioteca() {
             <th>Tipo</th>
             <th>Valor</th>
             <th title="Intervalo de datas em que este padrão vale. É o que permite avaliar laudo de 2021 pela norma de 2021.">Vigência</th>
-            <th title="AVALIÁVEL responde: este padrão entra no cálculo de conformidade? Fica em Não quando a etapa nunca foi ativada, ou quando o período é anual e a campanha de 24 h não tem representatividade para ele.">Avaliável</th>
-            <th title="PROCEDÊNCIA responde outra coisa: de onde veio este número e quem validou. Não é o mesmo que Avaliável — um padrão pode entrar no cálculo (Avaliável = Sim) e ainda assim ter origem não conferida.">Procedência</th>
+            <th title="Este padrão entra no cálculo de conformidade? Fica em Não quando a etapa nunca foi ativada pela norma, ou quando o período é anual e quatro dias de coleta por ano não produzem média anual.">Avaliável</th>
           </tr></thead>
           <tbody>
-            ${porParam[par.id].sort((a,b) => (a.periodo_referencia+a.contexto).localeCompare(b.periodo_referencia+b.contexto)).map(p => `
+            ${porParam[par.id].slice().sort((a, b) => {
+                  // Etapa na ordem cronologica da norma, nao alfabetica: PF vinha
+                  // antes de PI-1 e a escada aparecia fora de sequencia.
+                  const ord = c => ({ 'PI-1': 1, 'PI-2': 2, 'PI-3': 3, 'PI-4': 4, 'PF': 5 })[c] ?? 9;
+                  const per = x => ({ '1h': 1, '8h': 2, '24h': 3, 'anual': 4 })[x.periodo_referencia] ?? 9;
+                  return per(a) - per(b)
+                      || ord(a.contexto) - ord(b.contexto)
+                      || String(a.vigencia_inicio || '9999').localeCompare(String(b.vigencia_inicio || '9999'));
+                }).map(p => `
               <tr>
                 <td><strong>${esc(p.contexto)}</strong><br><span style="font-size:11px;color:var(--ink-faint);">${esc(p.base_legal)}</span></td>
                 <td class="mono">${esc(p.periodo_referencia)}</td>
                 <td class="mono">${esc(p.tipo_limite)}</td>
                 <td class="mono"><strong>${p.valor === null ? '—' : num(p.valor, 2)}</strong></td>
-                <td class="mono" style="font-size:11.5px;">${p.vigencia_inicio ? fmtData(p.vigencia_inicio) : 'sem data'}${p.vigencia_fim ? ' a ' + fmtData(p.vigencia_fim) : ''}</td>
+                <td class="mono" style="font-size:11.5px;">${p.vigencia_inicio
+                    ? fmtData(p.vigencia_inicio) + (p.vigencia_fim ? ' a ' + fmtData(p.vigencia_fim) : ' em diante')
+                    : '<span style="font-family:var(--font-sans);color:var(--ink-faint);" title="A norma prevê esta etapa, mas ela nunca entrou em vigor. Fica registrada para o caso de ser ativada.">etapa não ativada</span>'}</td>
                 <td>${p.avaliavel ? '<span class="badge conforme">Sim</span>' : `<span class="badge na" title="${esc(p.observacao || '')}">Não</span>`}</td>
-                <td>${(() => {
-                  const rot = { dou: 'DOU', orgao: 'Órgão', reproducao: 'Reprodução', nao_registrada: 'Não registrada' };
-                  const f = p.fonte_tipo || 'nao_registrada';
-                  const ok = p.conferido && (f === 'dou' || f === 'orgao');
-                  const badge = ok ? `<span class="badge conforme">${rot[f]}</span>`
-                    : (p.conferido ? `<span class="badge nc" title="Marcado como conferido, mas a procedência registrada não é fonte primária.">${rot[f]} ⚠</span>`
-                                   : `<span class="badge pending">${rot[f]}</span>`);
-                  const det = [p.conferido_por, p.conferido_em ? fmtData(p.conferido_em) : null].filter(Boolean).join(' · ');
-                  return badge + (det ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">${esc(det)}</span>` : '')
-                    + (p.fonte_ref ? `<br><span style="font-size:10px;color:var(--ink-faint);" title="${esc(p.fonte_ref)}">fonte registrada</span>` : '');
-                })()}</td>
+
               </tr>`).join('')}
           </tbody>
         </table>
       </div>
     </div>`).join('')}`).join('')}
+
+  <div id="biblio-ajuda" style="margin-top:26px;">${caixaProcedencia(state.padroes)}</div>
 
   <p style="font-size:12px;color:var(--ink-faint);">
     Para acrescentar solo (CONAMA 420), água subterrânea (396), superficial (357), efluente (430),
