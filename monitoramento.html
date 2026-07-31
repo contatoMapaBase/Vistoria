@@ -1374,6 +1374,15 @@
       line-height: 1.4;
     }
     @media (max-width: 860px) { #sidebar .mtz-norma { display: none; } }
+
+    /* Títulos de grupo no menu lateral. Escondidos no mobile, onde a barra é
+       horizontal e rolável — ali o agrupamento não cabe. */
+    .nav-grupo {
+      font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      color: #6E7C92; padding: 14px 14px 6px; user-select: none;
+    }
+    .nav-grupo:first-child { padding-top: 4px; }
+    @media (max-width: 860px) { .nav-grupo { display: none; } }
 </style>
 </head>
 <body>
@@ -1854,16 +1863,20 @@ async function buscarAvaliados(filtro) {
   return data || [];
 }
 
-function badgeSituacao(s) {
+// "Sem padrão" era o pior rótulo do app: lia-se como "nenhuma norma se aplica
+// a mim", quando o significado é o oposto — a norma existe, mas não está
+// cadastrada para aquela data. Trocado por texto que diz o que fazer.
+function badgeSituacao(s, r) {
   const m = {
-    conforme:      ['conforme', 'Conforme'],
-    excedente:     ['nc', 'Excedente'],
-    inconsistente: ['pending', 'Inconsistente'],
-    sem_padrao:    ['na', 'Sem padrão'],
-    controle:      ['na', 'Controle']
+    conforme:      ['conforme', 'Conforme',   'Valor abaixo do limite vigente na data da coleta.'],
+    excedente:     ['nc',       'Excedente',  'Valor acima do limite vigente na data da coleta.'],
+    inconsistente: ['pending',  'Inconsistente', 'Dado reprovado na trava de coerência técnica. Fica no histórico, fora de gráfico e de conformidade. Não é aprovação nem reprovação: é ausência de conclusão.'],
+    sem_padrao:    ['na',       'Norma não cadastrada', 'A biblioteca legal não tem padrão vigente para este parâmetro nesta data. Não significa que a norma não exista — significa que ela ainda não foi cadastrada. Cadastre em Padrões legais.'],
+    controle:      ['na',       'Controle',   'Amostra de controle de qualidade (branco de campo, branco de transporte ou duplicata). Não é resultado ambiental e não entra em conformidade.']
   };
-  const [cls, txt] = m[s] || ['na', s || '—'];
-  return `<span class="badge ${cls}">${txt}</span>`;
+  const [cls, txt, ajuda] = m[s] || ['na', s || '—', ''];
+  const dt = r && (r.inicio || r.campanha_inicio) ? ' Data da coleta: ' + fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10)) + '.' : '';
+  return `<span class="badge ${cls}" title="${esc(ajuda + (s === 'sem_padrao' ? dt : ''))}" style="cursor:help;">${txt}</span>`;
 }
 
 function barraPercentual(pct, situacao) {
@@ -1878,6 +1891,33 @@ function barraPercentual(pct, situacao) {
 /* ============================================================
    TELAS
    ============================================================ */
+const COMO_IMPORTAR = `
+  <details class="prov-box" style="border-left-color:var(--brand);">
+    <summary>Como gerar o JSON a partir do laudo — três passos</summary>
+    <div class="body">
+      <p><strong>1. Abra um chat novo, limpo.</strong> Cole o conteúdo de
+      <span class="mono">PROMPT_EXTRACAO.md</span> (está no repositório do MapaBase) e anexe o PDF do laudo.
+      Um laudo por chat.</p>
+
+      <p><strong>2. O chat devolve só o JSON.</strong> Confira os valores contra o PDF antes de seguir —
+      a conferência aritmética que o app faz prova coerência interna, não que o número certo foi lido da
+      página certa.</p>
+
+      <p><strong>3. Cole abaixo e verifique.</strong> O app checa estrutura, catálogo de parâmetros,
+      unidades e coerência física antes de gravar. Nada é salvo até você confirmar.</p>
+
+      <p style="border-top:1px solid var(--line);padding-top:10px;margin-top:12px;">
+      <strong>Por que chat limpo importa.</strong> Os laudos do mesmo laboratório são quase idênticos entre
+      anos e entre clientes. Um chat que já viu os números de 2023 pode vazar um deles para dentro da
+      extração de 2025, e o erro passa em branco na revisão. Chat que já conhece o schema também dá falso
+      positivo: prova que aquele chat funciona, não que o prompt funciona.</p>
+
+      <p><strong>Não há upload de PDF nem IA embutida no app,</strong> por decisão de projeto. A extração
+      fica fora, o julgamento técnico fica com você, e o JSON cru é preservado em
+      <span class="mono">origem_json</span> como registro do que o laudo trouxe.</p>
+    </div>
+  </details>`;
+
 function viewImportar() {
   const d = state.diagnostico;
   const pronto = !!state.pacote;
@@ -1911,6 +1951,8 @@ function viewImportar() {
     </div>
   </div>
 
+  ${COMO_IMPORTAR}
+
   ${painel}
 
   <div class="card card-pad">
@@ -1923,9 +1965,9 @@ function viewImportar() {
       <button class="btn ghost" id="btn-limpar">Limpar</button>
     </div>
     <p style="font-size:12px;color:var(--ink-faint);margin:14px 0 0;">
-      O JSON sai de um chat com o laudo anexado, usando o prompt guardado em
-      <span class="mono">PROMPT_EXTRACAO.md</span> no repositório. O laudo em PDF não é armazenado aqui:
-      a rastreabilidade vem de laboratório, RT, CREA, ART e número do relatório.
+      O laudo em PDF não é armazenado aqui: a rastreabilidade vem de laboratório, RT, CREA, ART,
+      número do relatório e link do arquivo. O JSON cru fica preservado em
+      <span class="mono">origem_json</span>.
     </p>
   </div>`;
 }
@@ -2116,7 +2158,7 @@ async function bindDetalhe() {
                 <td class="mono">${r.limite === null ? '—' : num(r.limite, 2) + ' ' + esc(r.unidade)}
                   ${r.limite_contexto ? `<br><span style="font-size:11px;color:var(--ink-faint);">${esc(r.limite_contexto)}</span>` : ''}</td>
                 <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
-                <td>${badgeSituacao(r.situacao)}
+                <td>${badgeSituacao(r.situacao, r)}
                   ${r.motivo_inconsistencia ? `<br><span style="font-size:11px;color:var(--nc);">${esc(r.motivo_inconsistencia)}</span>` : ''}</td>
               </tr>`).join('')}
           </tbody>
@@ -2203,7 +2245,7 @@ window.fecharZoom = function (ev) {
 };
 
 window.baixarPng = function (nome, canvasId) {
-  const cv = document.getElementById(canvasId || (state.view === 'serie' ? 'cv-serie' : 'cv-painel'));
+  const cv = document.getElementById(canvasId || 'cv-serie');
   if (!cv) return showToast('Gráfico não encontrado.');
   // Fundo branco: canvas transparente vira PNG ilegível em documento impresso.
   const tmp = document.createElement('canvas');
@@ -2510,6 +2552,39 @@ function caixaProcedencia(padroes) {
 /* ============================================================
    PAINEL GERAL
    ============================================================ */
+const GLOSSARIO = `
+  <details class="prov-box" style="border-left-color:var(--linha-neutra, #C3CCD8);">
+    <summary>Glossário — seis palavras que sustentam o sistema</summary>
+    <div class="body">
+      <table>
+        <tr><td style="white-space:nowrap;padding-right:14px;"><strong>Monitoramento</strong></td>
+            <td>O tipo de meio ambiental medido: qualidade do ar, água superficial, solo, ruído. É o
+            seletor no topo da lateral e governa todas as abas: define unidade, lógica de avaliação e
+            qual norma se aplica. No banco chama-se <span class="mono">matriz</span>.</td></tr>
+        <tr><td style="padding-right:14px;"><strong>Campanha</strong></td>
+            <td>Um laudo entregue pelo laboratório. Uma campanha, um laudo, um período de coleta.</td></tr>
+        <tr><td style="padding-right:14px;"><strong>Ponto</strong></td>
+            <td>Um local de amostragem, identificado por um código estável entre campanhas. O código é a
+            identidade: se o laudo escrever "PONTO 01" num ano e "P01" no outro, a série se parte em duas.</td></tr>
+        <tr><td style="padding-right:14px;"><strong>Parâmetro</strong></td>
+            <td>O que foi medido — PTS, MP10, MP2,5. Cada um tem unidade própria e limite próprio.</td></tr>
+        <tr><td style="padding-right:14px;"><strong>Padrão legal</strong></td>
+            <td>Um limite de uma norma, com etapa e janela de vigência. Vive na biblioteca compartilhada
+            por todos os clientes, e é por isso que só aceita valor conferido em fonte primária.</td></tr>
+        <tr><td style="padding-right:14px;"><strong>Situação</strong></td>
+            <td><strong>Conforme</strong> e <strong>Excedente</strong> são conclusões.
+            <strong>Inconsistente</strong> e <strong>Norma não cadastrada</strong> não são: significam que
+            não se pode concluir. <strong>Controle</strong> é branco de campo ou duplicata, não resultado
+            ambiental.</td></tr>
+      </table>
+      <p style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px;">
+      <strong>A regra que explica o resto:</strong> conformidade nunca é gravada. Cada vez que você abre
+      uma tela, cada resultado é comparado ao padrão vigente <em>na data da própria coleta</em>. Por isso
+      um laudo de 2021 é julgado pela norma de 2021, e por isso cadastrar uma norma nova reescreve o
+      histórico inteiro sozinho.</p>
+    </div>
+  </details>`;
+
 function viewPainel() {
   const f = state.painel;
   const c = cascata(f);
@@ -2517,12 +2592,14 @@ function viewPainel() {
   return `
   <div class="view-head">
     <div>
-      <div class="eyebrow">Monitoramentos</div>
+      <div class="eyebrow" id="eyebrow-painel"></div>
       <h1 class="view-title">Painel geral</h1>
       <p class="view-sub">Conformidade calculada contra a norma vigente na data de cada coleta. Nada aqui é gravado — é releitura.</p>
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${c.matIds.map(m => badgeMatriz(m)).join('')}</div>
     </div>
   </div>
+
+  ${GLOSSARIO}
 
   <div id="painel-alerta"></div>
 
@@ -2540,17 +2617,6 @@ function viewPainel() {
   <div id="painel-piores" style="margin-bottom:18px;"></div>
 
   <div class="card card-pad" style="margin-bottom:18px;">
-    <div class="eyebrow" style="margin-bottom:10px;">Percentual do limite legal, por campanha</div>
-    <p style="font-size:12px;color:var(--ink-faint);margin:0 0 12px;">
-      O eixo é o percentual do limite, não a concentração: é o que permite comparar parâmetros de limites
-      diferentes no mesmo gráfico e enxergar quando o limite muda de valor no meio da série.
-      A linha em 100% é o limite legal.
-    </p>
-    ${chartTools('painel-percentual-limite')}
-    <div class="chart-box"><canvas id="cv-painel"></canvas></div>
-  </div>
-
-  <div class="card card-pad" style="margin-bottom:18px;">
     <div class="eyebrow" style="margin-bottom:10px;">Resumo por campanha</div>
     <div id="painel-campanhas"></div>
   </div>
@@ -2562,7 +2628,9 @@ function viewPainel() {
 
   ${caixaProcedencia(state.padroes)}
 
-  <div class="card" id="painel-tabela-wrap"></div>`;
+  <div class="card" id="painel-tabela-wrap"></div>
+
+  <p id="painel-rodape" style="font-size:11.5px;color:var(--ink-faint);margin:14px 0 0;text-align:center;"></p>`;
 }
 
 async function bindPainel() {
@@ -2642,52 +2710,6 @@ async function bindPainel() {
         ${v.conferido ? '<span class="badge conforme">Conferido</span>' : '<span class="badge pending">Não conferido</span>'}
       </div>`).join('');
 
-  const grupos = {};
-  validos.forEach(r => {
-    const p = state.pontos.find(x => x.id === r.ponto_id);
-    const k = (p ? p.codigo : '?') + ' · ' + r.parametro;
-    (grupos[k] = grupos[k] || []).push(r);
-  });
-  const anos = [...new Set(validos.map(r => String(r.inicio || r.campanha_inicio).slice(0, 4)))].sort();
-  const cores = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
-  const dsets = Object.entries(grupos).slice(0, 24).map((e, i) => ({
-    label: e[0],
-    data: anos.map(a => {
-      const m = e[1].filter(r => String(r.inicio || r.campanha_inicio).slice(0, 4) === a);
-      return m.length ? Math.max(...m.map(r => Number(r.percentual_do_limite))) : null;
-    }),
-    borderColor: cores[i % cores.length],
-    backgroundColor: cores[i % cores.length],
-    borderDash: i % 3 === 1 ? [6, 4] : (i % 3 === 2 ? [2, 3] : []),
-    tension: 0.25, spanGaps: true, pointRadius: 4
-  }));
-
-  renderChart('cv-painel', !dsets.length ? null : () => ({
-      type: 'line',
-      data: { labels: anos, datasets: dsets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: false },
-        plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
-          tooltip: { callbacks: { label: c => c.dataset.label + ': ' + Number(c.parsed.y).toFixed(1) + '% do limite' } }
-        },
-        scales: {
-          y: { beginAtZero: true, suggestedMax: 120, ticks: { callback: v => v + '%' }, title: { display: true, text: '% do limite legal' } }
-        }
-      },
-      plugins: [{
-        id: 'linha100',
-        afterDatasetsDraw(ch) {
-          const y = ch.scales.y.getPixelForValue(100), a = ch.chartArea, x = ch.ctx;
-          if (y < a.top || y > a.bottom) return;
-          x.save(); x.strokeStyle = '#d03b3b'; x.lineWidth = 2; x.setLineDash([6, 4]);
-          x.beginPath(); x.moveTo(a.left, y); x.lineTo(a.right, y); x.stroke();
-          x.fillStyle = '#d03b3b'; x.font = '11px sans-serif'; x.fillText('limite legal', a.left + 4, y - 4);
-          x.restore();
-        }
-      }]
-  }));
 
   // Pior caso por parâmetro — critério determinístico (maior razão valor/limite),
   // nunca escolhido por IA.
@@ -2747,6 +2769,14 @@ async function bindPainel() {
           </tr>`;
         }).join('')}</tbody></table></div>`;
 
+  const eb = document.getElementById('eyebrow-painel');
+  if (eb) eb.textContent = state.matriz ? rotuloMatriz(state.matriz, true) : 'Todos os monitoramentos';
+
+  const rod = document.getElementById('painel-rodape');
+  if (rod) rod.textContent = 'Recalculado agora, ' + new Date().toLocaleString('pt-BR')
+    + ' — cada resultado foi comparado ao padrão legal vigente na data da sua própria coleta. '
+    + 'Conformidade nunca é gravada no banco.';
+
   const ord = rows.slice().sort((a, b) => (Number(b.percentual_do_limite) || -1) - (Number(a.percentual_do_limite) || -1));
   document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
     ? '<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.</p></div>'
@@ -2763,7 +2793,7 @@ async function bindPainel() {
             <td class="mono">${r.limite === null ? '—' : num(r.limite, 2)}<br>
               <span style="font-size:10.5px;color:var(--ink-faint);">${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</span></td>
             <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
-            <td>${badgeSituacao(r.situacao)}</td>
+            <td>${badgeSituacao(r.situacao, r)}</td>
             <td>${r.limite_base_legal ? (r.padrao_conferido ? '<span class="badge conforme">OK</span>' : '<span class="badge pending">Não conf.</span>') : '—'}</td>
             <td><button class="btn sm ghost" onclick="editarResultado('${esc(r.id)}')">Editar</button></td>
           </tr>`; }).join('')}</tbody></table></div>`;
@@ -3872,6 +3902,18 @@ function viewBiblioteca() {
     </div>
   </div>
 
+  <div class="diag" style="margin-bottom:18px;">
+    <div class="diag-t">Duas colunas que parecem a mesma coisa e não são</div>
+    <div class="diag-d">
+      <strong>Avaliável</strong> responde <em>este padrão entra no cálculo de conformidade?</em> Fica em Não
+      quando a etapa nunca foi ativada pela norma, ou quando o período é anual — quatro dias de coleta por ano
+      não produzem média anual.<br>
+      <strong>Procedência</strong> responde <em>de onde veio este número e quem validou?</em> São
+      independentes: um padrão pode estar Avaliável = Sim e com procedência não conferida, e é justamente
+      esse o caso mais perigoso, porque ele já está sendo usado para julgar conformidade.
+    </div>
+  </div>
+
   ${caixaProcedencia(state.padroes)}
 
   ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
@@ -3897,7 +3939,15 @@ function viewBiblioteca() {
       </div>
       <div class="table-wrapper">
         <table>
-          <thead><tr><th>Contexto</th><th>Período</th><th>Tipo</th><th>Valor</th><th>Vigência</th><th>Avaliável</th><th>Procedência</th></tr></thead>
+          <thead><tr>
+            <th title="No ar é a etapa da norma (PI-1 a PI-4, PF). Em água superficial seria a classe do corpo hídrico; no solo, o cenário de uso; no ruído, o zoneamento.">Contexto</th>
+            <th title="Janela de tempo a que o limite se refere. Um resultado de 24 h só pode ser comparado a um limite de 24 h.">Período</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th title="Intervalo de datas em que este padrão vale. É o que permite avaliar laudo de 2021 pela norma de 2021.">Vigência</th>
+            <th title="AVALIÁVEL responde: este padrão entra no cálculo de conformidade? Fica em Não quando a etapa nunca foi ativada, ou quando o período é anual e a campanha de 24 h não tem representatividade para ele.">Avaliável</th>
+            <th title="PROCEDÊNCIA responde outra coisa: de onde veio este número e quem validou. Não é o mesmo que Avaliável — um padrão pode entrar no cálculo (Avaliável = Sim) e ainda assim ter origem não conferida.">Procedência</th>
+          </tr></thead>
           <tbody>
             ${porParam[par.id].sort((a,b) => (a.periodo_referencia+a.contexto).localeCompare(b.periodo_referencia+b.contexto)).map(p => `
               <tr>
@@ -3968,10 +4018,20 @@ function render() {
     biblioteca: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6Z"/></svg>'
   };
 
-  document.getElementById('mainnav').innerHTML = Object.entries(VIEWS)
-    .filter(([, v]) => v.label)
-    .map(([k, v]) => `<button class="navbtn ${state.view === k ? 'active' : ''}" onclick="setView('${k}')">
-        <span class="ic">${ic[k] || ''}</span> ${v.label}</button>`).join('');
+  // Sete itens numa lista plana misturavam naturezas diferentes: análise,
+  // registro, entrada de dado e curadoria da biblioteca. Agrupar deixa claro
+  // que "Padrões legais" é curadoria, não configuração.
+  const NAV_GRUPOS = [
+    { titulo: 'Análise',             abas: ['painel', 'serie', 'mapa'] },
+    { titulo: 'Registros',           abas: ['campanhas', 'pontos'] },
+    { titulo: 'Entrada e curadoria', abas: ['importar', 'biblioteca'] }
+  ];
+  const btn = k => VIEWS[k] && VIEWS[k].label
+    ? `<button class="navbtn ${state.view === k ? 'active' : ''}" onclick="setView('${k}')">
+         <span class="ic">${ic[k] || ''}</span> ${VIEWS[k].label}</button>`
+    : '';
+  document.getElementById('mainnav').innerHTML = NAV_GRUPOS
+    .map(g => `<div class="nav-grupo">${esc(g.titulo)}</div>${g.abas.map(btn).join('')}`).join('');
 
   const mats = matrizesExistentes();
   if (state.matriz === null) state.matriz = mats.length === 1 ? mats[0] : '';
