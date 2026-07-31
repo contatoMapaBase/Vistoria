@@ -2379,7 +2379,7 @@ async function bindDetalhe() {
         <p style="font-size:11.5px;color:var(--ink-faint);margin:0;">
           Limite escolhido pelo padrão vigente na data da coleta. Média anual não é avaliada:
           campanha pontual não tem representatividade amostral para padrão anual.
-          ${naoConferido ? '<br><strong style="color:var(--media);">Atenção: os padrões usados ainda estão marcados como não conferidos contra o texto da resolução.</strong>' : ''}
+          ${naoConferido ? '<br><strong style="color:var(--media);">Atenção: os limites usados foram copiados de uma reprodução da norma e ainda não foram checados no texto oficial.</strong>' : ''}
         </p>
       </div>
     </div>`;
@@ -2515,9 +2515,9 @@ window.exportarPdf = function () {
       na data de cada coleta. Resultado marcado como inconsistente ou sem padrão
       <strong>não é resultado aprovado</strong> — é resultado sobre o qual não se pode concluir.
       ${semConc ? `Nesta seleção há ${semConc} caso(s) nessa condição.` : ''}
-      ${naoConf ? `<br><strong>Atenção:</strong> ${naoConf} resultado(s) foram avaliados contra padrão cuja
-      origem ainda não foi validada em fonte primária (Diário Oficial ou publicação do órgão).
-      Este documento não deve ser usado como comprovação até essa conferência.` : ''}
+      ${naoConf ? `<br><strong>Atenção:</strong> ${naoConf} resultado(s) foram avaliados contra limites
+      copiados de uma reprodução da norma, sem confirmação no texto oficial. Este documento não deve ser
+      usado como comprovação até essa checagem.` : ''}
       ${rows.filter(r => r.valor_divergente_do_laudo).length ? `<br><strong>Edição manual:</strong>
       ${rows.filter(r => r.valor_divergente_do_laudo).length} resultado(s) têm valor diferente do que o
       laboratório reportou, por correção manual registrada. A tabela "Edições manuais" no fim deste
@@ -2535,7 +2535,7 @@ window.exportarPdf = function () {
     <h2>Resultados</h2>
     <table><thead><tr>
       <th>Coleta</th><th>Matriz</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
-      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Fonte</th><th>Editado</th>
+      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Limite checado</th><th>Editado</th>
     </tr></thead><tbody>
     ${ord.map(r => `<tr>
       <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
@@ -2548,7 +2548,7 @@ window.exportarPdf = function () {
       <td>${esc(r.limite_base_legal || '—')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</td>
       <td>${r.percentual_do_limite === null ? '—' : num(r.percentual_do_limite, 1) + '%'}</td>
       <td>${esc(r.situacao === 'sem_padrao' ? 'sem padrão' : r.situacao)}</td>
-      <td>${!r.limite_base_legal ? '—' : (r.padrao_conferido ? 'conferida' : 'NÃO conferida')}</td>
+      <td>${!r.limite_base_legal ? '—' : (r.padrao_conferido ? 'sim' : 'NÃO')}</td>
       <td>${r.valor_divergente_do_laudo ? 'SIM — laudo: ' + num(r.valor_original, 2) : (r.editado ? 'metadado' : '—')}</td>
     </tr>`).join('')}
     </tbody></table>
@@ -2715,49 +2715,34 @@ function caixaProcedencia(padroes) {
   const porFonte = {};
   padroes.forEach(x => { const k = x.fonte_tipo || 'nao_registrada'; porFonte[k] = (porFonte[k] || 0) + 1; });
   const rot = {
-    dou: 'Diário Oficial da União — fonte primária',
-    orgao: 'Publicação do órgão ambiental competente — fonte primária',
-    reproducao: 'Reprodução em documento secundário — não serve de base legal',
-    nao_registrada: 'Origem não registrada'
+    dou: 'lido no Diário Oficial da União',
+    orgao: 'lido em publicação do órgão ambiental',
+    reproducao: 'copiado de uma reprodução (repositório de terceiro ou laudo)',
+    nao_registrada: 'origem não registrada'
   };
   return `
   <details class="prov-box">
-    <summary>O que significa "não conferido" — e por que a resolução estar cadastrada não basta</summary>
+    <summary>O que "conferido" quer dizer aqui</summary>
     <div class="body">
-      <p><strong>"Conferido" não quer dizer que o valor está no banco.</strong> Todos os 
-      ${padroes.length} padrões estão cadastrados e todos são usados na avaliação. O campo
-      responde outra pergunta: <em>alguém com responsabilidade técnica comparou este número
-      com o texto oficial da norma?</em></p>
+      <p><strong>Não é a lei que está em dúvida.</strong> A resolução do CONAMA está certa e é definitiva.
+      O que está em dúvida é a <em>nossa cópia dela</em>: alguém digitou ${padroes.length} números da
+      resolução para dentro deste banco, e conferir significa abrir o texto oficial e verificar se a
+      digitação bate.</p>
 
-      <p>A distinção existe porque a biblioteca é <strong>compartilhada por todos os clientes</strong>.
-      Um número errado aqui não erra um laudo — erra todas as avaliações de todos os
-      empreendimentos, para trás e para frente no tempo. Já aconteceu duas vezes neste projeto:
-      valores semeados a partir do Anexo I reproduzido em laudo da Bioar. Os valores até
-      coincidiam, mas a base da conferência não valia, e um deles não coincidia — a primeira
-      faixa do IQAr, que o laudo dava como MP10 0–50 e MP2,5 0–25 quando o Anexo II oficial
-      manda usar o padrão final como teto (45 e 15).</p>
+      <p>Isso importa porque a biblioteca é <strong>compartilhada por todos os clientes</strong>. Um número
+      digitado errado aqui não erra um laudo — erra todas as avaliações, para trás e para frente no tempo.</p>
 
-      <p>Laudo, memorial e repositório de terceiro reproduzem a norma; não <em>são</em> a norma.
-      Reprodução tem erro de digitação, versão desatualizada e recorte parcial — e quem assina o
-      relatório com CREA responde pelo valor, não o laboratório que o copiou.</p>
+      <p><strong>E cópia erra.</strong> Os três laudos da Bioar reproduzem o Anexo I da 506/2024 e acertam;
+      os mesmos três reproduzem o Anexo II e erram, todos igualmente: dão a primeira faixa do IQAr como
+      MP10 0–50 e MP2,5 0–25 quando o art. 8º §3º manda usar o padrão final, 45 e 15. Três documentos
+      unânimes e errados. É por isso que "está em três lugares" não substitui "está no Diário Oficial".</p>
 
-      <p><strong>Procedência registrada hoje:</strong></p>
+      <p><strong>De onde vieram os valores hoje:</strong></p>
       <table>
         ${Object.entries(porFonte).map(([k, v]) => `<tr>
-          <td style="white-space:nowrap;"><strong>${v}</strong></td>
+          <td style="white-space:nowrap;padding-right:10px;"><strong>${v}</strong></td>
           <td>${esc(rot[k] || k)}</td></tr>`).join('')}
       </table>
-
-      <p style="margin-top:10px;">Conferir não é só marcar um visto. O registro precisa dizer
-      <strong>qual fonte</strong> foi consultada, <strong>quem</strong> conferiu e <strong>quando</strong> —
-      é isso que torna a afirmação auditável, em vez de indistinguível de um clique errado.</p>
-
-      <p><strong>Avaliável e Procedência não são a mesma coisa.</strong> Avaliável responde
-      <em>este padrão entra no cálculo de conformidade?</em> — fica em Não quando a etapa nunca foi ativada
-      pela norma, ou quando o período é anual e quatro dias de coleta por ano não produzem média anual.
-      Procedência responde <em>de onde veio o número e quem validou?</em> São independentes, e a combinação
-      mais perigosa é Avaliável = Sim com procedência não conferida: o padrão já está julgando conformidade
-      sem ter sido validado.</p>
     </div>
   </details>`;
 }
@@ -2897,9 +2882,10 @@ async function bindPainel() {
     <div class="diag-d">Sem alteração de valor — as edições mexeram em metadado
     (data, método, status ou atribuição de ponto/parâmetro).</div></div>`);
   if (naoConferido) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
-    <div class="diag-t">${naoConferido} resultados avaliados contra padrão não conferido em fonte primária</div>
-    <div class="diag-d">A base legal correspondente está com <span class="mono">conferido = false</span>.
-    Confira o texto no Diário Oficial antes de usar em ofício, relatório de cliente ou fiscalização.</div></div>`);
+    <div class="diag-t">${naoConferido} resultados avaliados contra limites cuja digitação não foi checada</div>
+    <div class="diag-d">Os limites usados foram copiados de uma reprodução da norma, não lidos no texto
+    oficial. A norma está certa; o que não foi confirmado é se os números foram transcritos corretamente
+    para o sistema. Checar em Padrões legais antes de usar em ofício, relatório de cliente ou fiscalização.</div></div>`);
   document.getElementById('painel-alerta').innerHTML = alertas.join('');
 
   const normas = {};
@@ -3005,7 +2991,11 @@ async function bindPainel() {
               <span style="font-size:10.5px;color:var(--ink-faint);">${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</span></td>
             <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
             <td>${badgeSituacao(r.situacao, r)}</td>
-            <td>${r.limite_base_legal ? (r.padrao_conferido ? '<span class="badge conforme">OK</span>' : '<span class="badge pending">Não conf.</span>') : '—'}</td>
+            <td>${r.limite_base_legal
+                ? (r.padrao_conferido
+                    ? '<span class="badge conforme" title="Limite lido no texto oficial da norma.">Checado</span>'
+                    : '<span class="badge pending" title="Limite copiado de uma reprodução da norma. A norma está certa; a digitação não foi confirmada no texto oficial.">Não checado</span>')
+                : '—'}</td>
             <td><button class="btn sm ghost" onclick="editarResultado('${esc(r.id)}')">Editar</button></td>
           </tr>`; }).join('')}</tbody></table></div>`;
 }
@@ -3323,7 +3313,7 @@ async function bindMapa() {
           — <strong style="color:${cor};">${num(pior.percentual_do_limite, 1)}% do limite</strong><br>
           <span style="font-size:11px;color:#666;">${esc(pior.limite_base_legal || '')}${pior.limite_contexto ? ' · ' + esc(pior.limite_contexto) : ''}<br>
           coleta ${fmtData(String(pior.inicio || pior.campanha_inicio).slice(0, 10))}</span>
-          ${pior.padrao_conferido === false ? '<br><span style="font-size:11px;color:#a35;">fonte legal não conferida</span>' : ''}`
+          ${pior.padrao_conferido === false ? '<br><span style="font-size:11px;color:#a35;">limite não checado no texto oficial</span>' : ''}`
         : `<span style="color:#a35;">Sem resultado avaliável nesta seleção.</span>`}
         <hr style="border:0;border-top:1px solid #ddd;margin:7px 0;">
         <a href="#" onclick="event.preventDefault();editarPonto('${esc(p.id)}')">Editar ponto</a>
@@ -3988,25 +3978,25 @@ window.registrarConferencia = function (norma) {
   document.getElementById('modal-root').innerHTML = `
   <div class="modal-backdrop" onclick="fecharModal(event)">
     <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
-      <div class="modal-head"><strong>Registrar conferência</strong>
+      <div class="modal-head"><strong>Checar a transcrição contra o texto oficial</strong>
         <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">${esc(norma)}</span></div>
       <div class="modal-body">
 
-        <div class="diag aviso" style="margin-bottom:16px;">
-          <div class="diag-t">Isto é uma afirmação sua, com responsabilidade técnica</div>
-          <div class="diag-d">Ao registrar, você declara que comparou os ${linhas.length} valores desta norma
-          com o texto oficial. A biblioteca é compartilhada por todos os clientes: um valor errado aqui
-          contamina todas as avaliações, para trás e para frente no tempo.</div>
+        <div class="diag" style="margin-bottom:16px;">
+          <div class="diag-t">Você está confirmando a digitação, não validando a lei</div>
+          <div class="diag-d">Ao salvar, você declara que abriu o texto oficial e comparou os
+          ${linhas.length} valores desta norma com o que está cadastrado aqui. É afirmação sua, com
+          responsabilidade técnica — a biblioteca é compartilhada por todos os clientes.</div>
         </div>
 
         <div class="fset">
-          <div class="fset-t">Fonte consultada</div>
-          <div class="field"><label class="field-label">Tipo de fonte</label>
+          <div class="fset-t">Onde você leu os valores</div>
+          <div class="field"><label class="field-label">Documento consultado</label>
             <select id="cf-tipo">
-              <option value="dou" ${atual.fonte_tipo === 'dou' ? 'selected' : ''}>Diário Oficial da União — fonte primária</option>
-              <option value="orgao" ${atual.fonte_tipo === 'orgao' ? 'selected' : ''}>Publicação do órgão ambiental competente — fonte primária</option>
-              <option value="reproducao" ${atual.fonte_tipo === 'reproducao' ? 'selected' : ''}>Reprodução em documento secundário — NÃO serve de base legal</option>
-              <option value="nao_registrada" ${!atual.fonte_tipo || atual.fonte_tipo === 'nao_registrada' ? 'selected' : ''}>Origem não registrada</option>
+              <option value="dou" ${atual.fonte_tipo === 'dou' ? 'selected' : ''}>Diário Oficial da União — texto oficial</option>
+              <option value="orgao" ${atual.fonte_tipo === 'orgao' ? 'selected' : ''}>Publicação do órgão ambiental competente — texto oficial</option>
+              <option value="reproducao" ${atual.fonte_tipo === 'reproducao' ? 'selected' : ''}>Uma cópia da norma (laudo, repositório de terceiro)</option>
+              <option value="nao_registrada" ${!atual.fonte_tipo || atual.fonte_tipo === 'nao_registrada' ? 'selected' : ''}>Não sei de onde vieram</option>
             </select>
           </div>
           <div class="field" style="margin-bottom:0;"><label class="field-label">Referência exata da fonte</label>
@@ -4018,22 +4008,22 @@ window.registrarConferencia = function (norma) {
         </div>
 
         <div class="fset">
-          <div class="fset-t">Quem conferiu</div>
+          <div class="fset-t">Quem checou</div>
           <div class="grid cols-2">
             <div class="field" style="margin-bottom:0;"><label class="field-label">Nome e registro profissional</label>
               <input id="cf-por" value="${esc(atual.conferido_por || state.usuario || '')}"
                      placeholder="Ex.: Maria Souza, CREA 12345/D-GO"></div>
-            <div class="field" style="margin-bottom:0;"><label class="field-label">Data da conferência</label>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Data em que checou</label>
               <input id="cf-em" type="date" value="${esc(atual.conferido_em ? String(atual.conferido_em).slice(0,10) : new Date().toISOString().slice(0,10))}"></div>
           </div>
         </div>
 
         <div class="fset" id="cf-aviso-repro" style="display:none;border-color:var(--nc);">
-          <div class="fset-t" style="color:var(--nc);">Fonte secundária não conferida</div>
-          <p class="hint" style="color:var(--ink);">Reprodução e origem não registrada não sustentam base legal.
-          Ao salvar com uma dessas opções, os ${linhas.length} padrões desta norma voltam para
-          <strong>não conferido</strong> — os valores permanecem e continuam sendo usados na avaliação,
-          mas a tela passa a exibir a ressalva.</p>
+          <div class="fset-t" style="color:var(--nc);">Cópia não confirma a digitação</div>
+          <p class="hint" style="color:var(--ink);">Uma cópia pode ter erro de transcrição — e a cópia
+          seguinte repete o mesmo erro. Ao salvar com esta opção, os ${linhas.length} valores desta norma
+          continuam sendo usados na avaliação, mas a tela volta a exibir a ressalva de que a digitação
+          não foi confirmada no texto oficial.</p>
         </div>
       </div>
       <div class="modal-foot">
@@ -4080,8 +4070,8 @@ window.salvarConferencia = async function () {
 
   fecharModal();
   showToast(primaria
-    ? `${alvo.length} padrão(ões) marcados como conferidos.`
-    : `${alvo.length} padrão(ões) voltaram para não conferido.`);
+    ? `${alvo.length} valores confirmados contra o texto oficial.`
+    : `${alvo.length} valores voltaram a constar como não checados.`);
   await carregarTudo();
 };
 
@@ -4228,9 +4218,10 @@ function viewBiblioteca() {
   </div>
 
   ${pendentes ? `<div class="diag aviso" style="margin-bottom:20px;">
-    <div class="diag-t">${pendentes} de ${state.padroes.length} padrões sem conferência em fonte primária</div>
-    <div class="diag-d">Use <em>Registrar conferência</em> na norma correspondente.
-    <a href="#biblio-ajuda" style="color:var(--accent);">Por que isso importa</a></div>
+    <div class="diag-t">${pendentes} de ${state.padroes.length} valores copiados de reprodução, ainda não checados no texto oficial</div>
+    <div class="diag-d">A norma está certa — o que falta é confirmar que os números foram digitados
+    corretamente aqui. Abra o Diário Oficial, compare, e use <em>Checar no Diário Oficial</em> na norma.
+    <a href="#biblio-ajuda" style="color:var(--accent);">Entender melhor</a></div>
   </div>` : ''}
 
   <div class="card card-pad" style="margin-bottom:22px;">
@@ -4240,7 +4231,7 @@ function viewBiblioteca() {
       inteiro. O registro fica em cada padrão daquela norma.
     </p>
     <div class="table-wrapper"><table>
-      <thead><tr><th>Norma</th><th>Padrões</th><th>Avaliáveis</th><th>Procedência</th><th>Conferido por</th><th></th></tr></thead>
+      <thead><tr><th>Norma</th><th>Padrões</th><th>Avaliáveis</th><th>Origem do valor</th><th>Checado por</th><th></th></tr></thead>
       <tbody>
       ${Object.entries(state.padroes.reduce((a, x) => {
           const k = x.base_legal || '(sem base legal)';
@@ -4251,7 +4242,7 @@ function viewBiblioteca() {
           if (x.conferido_em) a[k].em.add(String(x.conferido_em).slice(0, 10));
           return a;
         }, {})).sort().map(([norma, g]) => {
-          const rot = { dou: 'DOU', orgao: 'Órgão', reproducao: 'Reprodução', nao_registrada: 'Não registrada' };
+          const rot = { dou: 'Diário Oficial', orgao: 'Publicação do órgão', reproducao: 'Cópia', nao_registrada: 'Sem registro' };
           const primaria = [...g.fontes].every(f => f === 'dou' || f === 'orgao');
           const ok = g.conf === g.n && primaria;
           return `<tr>
@@ -4259,14 +4250,14 @@ function viewBiblioteca() {
             <td class="mono">${g.n}</td>
             <td class="mono">${g.av}</td>
             <td>${[...g.fontes].map(f => ok
-                ? `<span class="badge conforme">${rot[f]}</span>`
-                : `<span class="badge ${g.conf ? 'nc' : 'pending'}">${rot[f]}</span>`).join(' ')}
-              ${g.conf && g.conf < g.n ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">${g.conf} de ${g.n} conferidos</span>` : ''}</td>
+                ? `<span class="badge conforme" title="Os valores foram lidos na fonte oficial.">${rot[f]}</span>`
+                : `<span class="badge ${g.conf ? 'nc' : 'pending'}" title="Os valores vieram de uma reprodução da norma, não do texto oficial. A norma está certa; a cópia é que não foi checada.">${rot[f]}</span>`).join(' ')}
+              ${g.conf && g.conf < g.n ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">${g.conf} de ${g.n} checados</span>` : ''}</td>
             <td style="font-size:11.5px;">${g.por.size ? esc([...g.por].join(', ')) : '—'}
               ${g.em.size ? `<br><span style="color:var(--ink-faint);">${[...g.em].sort().map(fmtData).join(', ')}</span>` : ''}</td>
             <td style="white-space:nowrap;">
               <button class="btn sm ${ok ? 'ghost' : 'primary'}" onclick="registrarConferencia('${esc(norma)}')">
-                ${ok ? 'Revisar registro' : 'Registrar conferência'}</button>
+                ${ok ? 'Revisar' : 'Checar no Diário Oficial'}</button>
             </td>
           </tr>`;
         }).join('')}
