@@ -1466,6 +1466,7 @@ const state = {
   mapEdit: null,
   kmlAchados: null,
   resEdit: null,
+  confNorma: null,
   usuario: null,
   matriz: null,   // null = ainda nao resolvido; '' = todas as matrizes
   contagemPonto: null,
@@ -2537,14 +2538,10 @@ function caixaProcedencia(padroes) {
           <td>${esc(rot[k] || k)}</td></tr>`).join('')}
       </table>
 
-      <p style="margin-top:10px;">Para marcar como conferido, é preciso registrar fonte, quem
-      conferiu e quando — não só virar o booleano:</p>
-      <p class="mono" style="font-size:11.5px;background:var(--bg);padding:8px;border-radius:4px;">
-        update mon_padroes_legais set conferido = true, fonte_tipo = 'dou',<br>
-        &nbsp;&nbsp;fonte_ref = 'DOU de 21/11/2018, secao 1, pag. X',<br>
-        &nbsp;&nbsp;conferido_por = 'seu nome, CREA', conferido_em = current_date<br>
-        &nbsp;where id like 'c491.%';
-      </p>
+      <p style="margin-top:10px;">Conferir não é só marcar um visto. O registro precisa dizer
+      <strong>qual fonte</strong> foi consultada, <strong>quem</strong> conferiu e <strong>quando</strong> —
+      é isso que torna a afirmação auditável, em vez de indistinguível de um clique errado.
+      Use o botão <em>Registrar conferência</em> na norma correspondente, mais abaixo nesta tela.</p>
     </div>
   </details>`;
 }
@@ -3761,6 +3758,120 @@ window.reverterResultado = async function (id) {
 };
 
 /* ============================================================
+   REGISTRAR CONFERÊNCIA DE NORMA
+   ------------------------------------------------------------
+   Antes isto era um comando SQL impresso na tela. Interface que mostra SQL é
+   sintoma de função que faltou: se a ação é necessária, o app faz. E como o
+   campo 'conferido' é uma afirmação de responsabilidade técnica, ele não pode
+   ser um visto solto — exige fonte, autor e data.
+   ============================================================ */
+window.registrarConferencia = function (norma) {
+  const linhas = state.padroes.filter(x => (x.base_legal || '(sem base legal)') === norma);
+  if (!linhas.length) return;
+  const atual = linhas.find(x => x.conferido) || linhas[0];
+  state.confNorma = norma;
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>Registrar conferência</strong>
+        <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">${esc(norma)}</span></div>
+      <div class="modal-body">
+
+        <div class="diag aviso" style="margin-bottom:16px;">
+          <div class="diag-t">Isto é uma afirmação sua, com responsabilidade técnica</div>
+          <div class="diag-d">Ao registrar, você declara que comparou os ${linhas.length} valores desta norma
+          com o texto oficial. A biblioteca é compartilhada por todos os clientes: um valor errado aqui
+          contamina todas as avaliações, para trás e para frente no tempo.</div>
+        </div>
+
+        <div class="fset">
+          <div class="fset-t">Fonte consultada</div>
+          <div class="field"><label class="field-label">Tipo de fonte</label>
+            <select id="cf-tipo">
+              <option value="dou" ${atual.fonte_tipo === 'dou' ? 'selected' : ''}>Diário Oficial da União — fonte primária</option>
+              <option value="orgao" ${atual.fonte_tipo === 'orgao' ? 'selected' : ''}>Publicação do órgão ambiental competente — fonte primária</option>
+              <option value="reproducao" ${atual.fonte_tipo === 'reproducao' ? 'selected' : ''}>Reprodução em documento secundário — NÃO serve de base legal</option>
+              <option value="nao_registrada" ${!atual.fonte_tipo || atual.fonte_tipo === 'nao_registrada' ? 'selected' : ''}>Origem não registrada</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Referência exata da fonte</label>
+            <input id="cf-ref" value="${esc(atual.fonte_ref || '')}"
+                   placeholder="Ex.: DOU de 21/11/2018, Seção 1, pág. 155">
+            <p class="hint">Quanto mais específico, mais útil numa auditoria. Página, seção, ou URL da
+            publicação oficial.</p>
+          </div>
+        </div>
+
+        <div class="fset">
+          <div class="fset-t">Quem conferiu</div>
+          <div class="grid cols-2">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Nome e registro profissional</label>
+              <input id="cf-por" value="${esc(atual.conferido_por || state.usuario || '')}"
+                     placeholder="Ex.: Maria Souza, CREA 12345/D-GO"></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Data da conferência</label>
+              <input id="cf-em" type="date" value="${esc(atual.conferido_em ? String(atual.conferido_em).slice(0,10) : new Date().toISOString().slice(0,10))}"></div>
+          </div>
+        </div>
+
+        <div class="fset" id="cf-aviso-repro" style="display:none;border-color:var(--nc);">
+          <div class="fset-t" style="color:var(--nc);">Fonte secundária não conferida</div>
+          <p class="hint" style="color:var(--ink);">Reprodução e origem não registrada não sustentam base legal.
+          Ao salvar com uma dessas opções, os ${linhas.length} padrões desta norma voltam para
+          <strong>não conferido</strong> — os valores permanecem e continuam sendo usados na avaliação,
+          mas a tela passa a exibir a ressalva.</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" onclick="salvarConferencia()">Salvar registro</button>
+      </div>
+    </div>
+  </div>`;
+
+  const sel = document.getElementById('cf-tipo');
+  const mostra = () => {
+    const sec = sel.value === 'reproducao' || sel.value === 'nao_registrada';
+    document.getElementById('cf-aviso-repro').style.display = sec ? '' : 'none';
+  };
+  sel.onchange = mostra; mostra();
+};
+
+window.salvarConferencia = async function () {
+  const norma = state.confNorma;
+  const tipo = document.getElementById('cf-tipo').value;
+  const ref = document.getElementById('cf-ref').value.trim();
+  const por = document.getElementById('cf-por').value.trim();
+  const em = document.getElementById('cf-em').value;
+  const primaria = tipo === 'dou' || tipo === 'orgao';
+
+  if (primaria) {
+    if (ref.length < 8) return showToast('Descreva a referência da fonte (página, seção ou URL).');
+    if (por.length < 4) return showToast('Informe quem conferiu, com registro profissional.');
+    if (!em) return showToast('Informe a data da conferência.');
+  }
+
+  // conferido é consequência da procedência, não um campo independente.
+  const patch = {
+    fonte_tipo: tipo,
+    fonte_ref: ref || null,
+    conferido_por: primaria ? por : null,
+    conferido_em: primaria ? em : null,
+    conferido: primaria
+  };
+
+  const alvo = state.padroes.filter(x => (x.base_legal || '(sem base legal)') === norma).map(x => x.id);
+  const { error } = await _supabase.from('mon_padroes_legais').update(patch).in('id', alvo);
+  if (error) return showToast('Erro ao salvar: ' + error.message);
+
+  fecharModal();
+  showToast(primaria
+    ? `${alvo.length} padrão(ões) marcados como conferidos.`
+    : `${alvo.length} padrão(ões) voltaram para não conferido.`);
+  await carregarTudo();
+};
+
+/* ============================================================
    EDITAR / EXCLUIR CAMPANHA
    ============================================================ */
 window.editarCampanha = function (id) {
@@ -3922,9 +4033,50 @@ function viewBiblioteca() {
     (Diário Oficial da União ou publicação do órgão). Documento de cliente — laudo, memorial, relatório —
     <strong>não serve de base legal</strong>, mesmo quando reproduz o anexo da resolução corretamente.
     A biblioteca é compartilhada por todos os clientes: um valor errado aqui contamina todas as avaliações.
-    Depois de conferir no DOU, rode no SQL Editor, ajustando o prefixo para a norma conferida:
-    <span class="mono">update mon_padroes_legais set conferido = true where id like 'c491.%';</span></div>
+    Depois de conferir o texto no Diário Oficial, use o botão <em>Registrar conferência</em> no cartão da
+    norma, abaixo.</div>
   </div>` : ''}
+
+  <div class="card card-pad" style="margin-bottom:22px;">
+    <div class="eyebrow" style="margin-bottom:10px;">Normas na biblioteca</div>
+    <p style="font-size:12px;color:var(--ink-faint);margin:0 0 12px;">
+      A conferência é por norma, não linha por linha: você abre o Diário Oficial uma vez e valida o anexo
+      inteiro. O registro fica em cada padrão daquela norma.
+    </p>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Norma</th><th>Padrões</th><th>Avaliáveis</th><th>Procedência</th><th>Conferido por</th><th></th></tr></thead>
+      <tbody>
+      ${Object.entries(state.padroes.reduce((a, x) => {
+          const k = x.base_legal || '(sem base legal)';
+          a[k] = a[k] || { n: 0, av: 0, conf: 0, fontes: new Set(), por: new Set(), em: new Set() };
+          a[k].n++; if (x.avaliavel) a[k].av++; if (x.conferido) a[k].conf++;
+          a[k].fontes.add(x.fonte_tipo || 'nao_registrada');
+          if (x.conferido_por) a[k].por.add(x.conferido_por);
+          if (x.conferido_em) a[k].em.add(String(x.conferido_em).slice(0, 10));
+          return a;
+        }, {})).sort().map(([norma, g]) => {
+          const rot = { dou: 'DOU', orgao: 'Órgão', reproducao: 'Reprodução', nao_registrada: 'Não registrada' };
+          const primaria = [...g.fontes].every(f => f === 'dou' || f === 'orgao');
+          const ok = g.conf === g.n && primaria;
+          return `<tr>
+            <td><strong>${esc(norma)}</strong></td>
+            <td class="mono">${g.n}</td>
+            <td class="mono">${g.av}</td>
+            <td>${[...g.fontes].map(f => ok
+                ? `<span class="badge conforme">${rot[f]}</span>`
+                : `<span class="badge ${g.conf ? 'nc' : 'pending'}">${rot[f]}</span>`).join(' ')}
+              ${g.conf && g.conf < g.n ? `<br><span style="font-size:10.5px;color:var(--ink-faint);">${g.conf} de ${g.n} conferidos</span>` : ''}</td>
+            <td style="font-size:11.5px;">${g.por.size ? esc([...g.por].join(', ')) : '—'}
+              ${g.em.size ? `<br><span style="color:var(--ink-faint);">${[...g.em].sort().map(fmtData).join(', ')}</span>` : ''}</td>
+            <td style="white-space:nowrap;">
+              <button class="btn sm ${ok ? 'ghost' : 'primary'}" onclick="registrarConferencia('${esc(norma)}')">
+                ${ok ? 'Revisar registro' : 'Registrar conferência'}</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>
+  </div>
 
   ${[...new Set(state.parametros.filter(p => porParam[p.id]).map(p => p.matriz))].sort()
       .filter(mz => !state.matriz || mz === state.matriz).map(mz => `
