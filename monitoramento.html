@@ -1467,6 +1467,9 @@ const state = {
   kmlAchados: null,
   resEdit: null,
   confNorma: null,
+  achados: [],
+  achadoEdit: null,
+  achadoCamp: null,
   usuario: null,
   matriz: null,   // null = ainda nao resolvido; '' = todas as matrizes
   contagemPonto: null,
@@ -1521,15 +1524,16 @@ function paramPorSigla(sigla, matriz) {
    CARGA INICIAL
    ============================================================ */
 async function carregarTudo() {
-  const [emp, par, pad, camp, pts] = await Promise.all([
+  const [emp, par, pad, camp, pts, ach] = await Promise.all([
     _supabase.from('empreendimentos').select('id,nome,tipo').order('nome'),
     _supabase.from('mon_parametros').select('*').eq('ativo', true).order('ordem'),
     _supabase.from('mon_padroes_legais').select('*'),
     _supabase.from('mon_campanhas').select('*').order('data_inicio', { ascending: false }),
-    _supabase.from('mon_pontos').select('*').order('codigo')
+    _supabase.from('mon_pontos').select('*').order('codigo'),
+    _supabase.from('mon_achados').select('*')
   ]);
 
-  const erro = [emp, par, pad, camp, pts].find(r => r.error);
+  const erro = [emp, par, pad, camp, pts, ach].find(r => r.error);
   if (erro) {
     showToast('Erro ao carregar: ' + erro.error.message);
     console.error(erro.error);
@@ -1540,6 +1544,7 @@ async function carregarTudo() {
   state.padroes = pad.data || [];
   state.campanhas = camp.data || [];
   state.pontos = pts.data || [];
+  state.achados = ach.data || [];
 
   if (!state.parametros.length) {
     showToast('Biblioteca vazia: aplique o 02_seed_conama506.sql no Supabase.');
@@ -2043,7 +2048,7 @@ function viewCampanhas() {
         <table>
           <thead><tr>
             <th>Período</th><th>Empreendimento</th><th>Matriz</th><th>Laboratório</th>
-            <th>Relatório</th><th>Situação</th><th></th>
+            <th>Relatório</th><th>Situação</th><th title="Achados da leitura crítica do laudo. O conteúdo fica no detalhe da campanha.">Leitura</th><th></th>
           </tr></thead>
           <tbody>
             ${lista.map(c => `
@@ -2058,6 +2063,13 @@ function viewCampanhas() {
                 <td>${c.status === 'com_pendencia_laboratorio'
                       ? '<span class="badge pending">Pendência</span>'
                       : '<span class="badge conforme">Importada</span>'}</td>
+                <td>${(() => {
+                  const l = (state.achados || []).filter(a => a.campanha_id === c.id && a.status !== 'descartado');
+                  if (!l.length) return '<span style="font-size:11px;color:var(--ink-faint);">—</span>';
+                  const cr = l.filter(a => a.severidade === 'critico').length;
+                  return `<span class="badge ${cr ? 'nc' : 'pending'}" style="cursor:help;"
+                    title="${l.length} achado(s) na leitura crítica do laudo${cr ? ', ' + cr + ' crítico(s)' : ''}. Abra a campanha para ver.">${l.length}</span>`;
+                })()}</td>
                 <td style="white-space:nowrap;">
                   <button class="btn sm ghost" onclick="editarCampanha('${esc(c.id)}')">Editar</button>
                   <button class="btn sm danger" onclick="excluirCampanha('${esc(c.id)}')">Excluir</button>
@@ -2122,9 +2134,207 @@ function viewDetalhe() {
     ${c.observacoes ? `<p style="font-size:13px;color:var(--ink-soft);margin:16px 0 0;border-top:1px solid var(--line);padding-top:14px;">${esc(c.observacoes)}</p>` : ''}
   </div>
 
+  ${blocoAchados(c.id)}
+
   <div id="det-resultados"><div class="card card-pad"><p style="color:var(--ink-faint);font-size:13px;">Carregando resultados...</p></div></div>
   <div id="det-meteo"></div>`;
 }
+
+/* ============================================================
+   LEITURA CRÍTICA DO LAUDO — só no detalhe da campanha
+   ------------------------------------------------------------
+   Distinção deliberada: a SITUAÇÃO do resultado (conforme, inconsistente,
+   norma não cadastrada) é fato computado pelo sistema e aparece no Painel
+   geral, porque esconder abstenção a faria parecer aprovação. O ACHADO é
+   julgamento técnico da MapaBase sobre o trabalho do laboratório — na prática
+   uma imputação — e vive apenas aqui, onde quem lê tem o laudo em mão.
+   Não entra no Painel geral nem no PDF de resultados.
+   ============================================================ */
+const SEV = {
+  critico:    ['erro',   'Crítico',    'Compromete a conclusão. O resultado não pode ser usado como comprovação sem retificação do laboratório.'],
+  relevante:  ['aviso',  'Relevante',  'Não invalida o resultado por si, mas precisa de resposta do laboratório.'],
+  observacao: ['',       'Observação', 'Registro para o histórico e para o ofício. Não afeta a leitura do resultado.']
+};
+const CAT = {
+  coerencia_fisica: 'Coerência física', calibracao: 'Calibração', vazao: 'Vazão',
+  rastreabilidade: 'Rastreabilidade', norma_citada: 'Norma citada',
+  texto_de_terceiro: 'Texto de terceiro', aritmetica: 'Aritmética', datas: 'Datas',
+  identificacao: 'Identificação', conclusao: 'Conclusão do laudo', outro: 'Outro'
+};
+const ST_ACHADO = {
+  aberto: ['pending', 'Aberto'], em_oficio: ['na', 'Em ofício'],
+  respondido: ['na', 'Respondido'], resolvido: ['conforme', 'Resolvido'],
+  descartado: ['na', 'Descartado']
+};
+
+function blocoAchados(campId) {
+  const lista = (state.achados || []).filter(a => a.campanha_id === campId
+    && a.status !== 'descartado');
+  const ordem = { critico: 0, relevante: 1, observacao: 2 };
+  lista.sort((a, b) => (ordem[a.severidade] ?? 9) - (ordem[b.severidade] ?? 9)
+    || String(a.id).localeCompare(String(b.id)));
+
+  const n = { critico: 0, relevante: 0, observacao: 0 };
+  lista.forEach(a => { n[a.severidade] = (n[a.severidade] || 0) + 1; });
+
+  return `
+  <div class="card card-pad" style="margin-bottom:20px;border-left:3px solid ${lista.length ? 'var(--nc)' : 'var(--line)'};">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div class="eyebrow">Leitura crítica do laudo</div>
+        <p style="font-size:12.5px;color:var(--ink-faint);margin:6px 0 0;max-width:62ch;">
+          Análise técnica da MapaBase sobre o documento entregue pelo laboratório. É julgamento
+          profissional, não resultado calculado pelo sistema — por isso fica aqui, junto do laudo,
+          e não no Painel geral nem no PDF de resultados.
+        </p>
+      </div>
+      <button class="btn sm ghost" onclick="novoAchado('${esc(campId)}')">Registrar achado</button>
+    </div>
+
+    ${!lista.length ? `
+      <p style="font-size:13px;color:var(--ink-faint);margin:16px 0 0;">
+        Nenhum achado registrado nesta campanha. Ausência de registro não significa laudo conferido:
+        significa que a leitura crítica ainda não foi feita ou não foi anotada.
+      </p>`
+    : `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;">
+        ${n.critico ? `<span class="badge nc">${n.critico} crítico${n.critico > 1 ? 's' : ''}</span>` : ''}
+        ${n.relevante ? `<span class="badge pending">${n.relevante} relevante${n.relevante > 1 ? 's' : ''}</span>` : ''}
+        ${n.observacao ? `<span class="badge na">${n.observacao} observação${n.observacao > 1 ? 'ões' : ''}</span>` : ''}
+      </div>
+
+      ${lista.map(a => {
+        const [cls, rot, ajuda] = SEV[a.severidade] || ['', a.severidade, ''];
+        const [scls, srot] = ST_ACHADO[a.status] || ['na', a.status];
+        return `
+        <div class="diag ${cls}" style="margin-top:14px;">
+          <div class="diag-t" style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+            <span>${esc(a.titulo)}</span>
+            <span style="flex:none;display:flex;gap:5px;align-items:center;">
+              <span class="badge ${scls}" style="font-size:10px;">${srot}</span>
+              <button class="btn sm ghost" style="padding:2px 8px;font-size:11px;"
+                      onclick="editarAchado('${esc(a.id)}')">Editar</button>
+            </span>
+          </div>
+          <div class="diag-d">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);margin-bottom:6px;"
+                 title="${esc(ajuda)}">${esc(rot)} · ${esc(CAT[a.categoria] || a.categoria)}${a.referencia ? ' · ' + esc(a.referencia) : ''}</div>
+            ${esc(a.descricao)}
+            ${a.evidencia ? `<div class="mono" style="font-size:11.5px;background:var(--bg);padding:8px 10px;border-radius:6px;margin-top:10px;line-height:1.6;">
+              <span style="color:var(--ink-faint);">Transcrito do laudo:</span><br>${esc(a.evidencia)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+
+      <p style="font-size:11.5px;color:var(--ink-faint);margin:16px 0 0;border-top:1px solid var(--line);padding-top:12px;">
+        Cada achado exige transcrição literal do laudo. Sem evidência citável, o achado não sustenta
+        um ofício de retificação.
+      </p>`}
+  </div>`;
+}
+
+window.novoAchado = function (campId) { abrirAchado(null, campId); };
+window.editarAchado = function (id) { abrirAchado(id, null); };
+
+function abrirAchado(id, campId) {
+  const a = id ? (state.achados || []).find(x => x.id === id) : null;
+  const cid = a ? a.campanha_id : campId;
+  const c = state.campanhas.find(x => x.id === cid);
+  state.achadoEdit = a ? a.id : null;
+  state.achadoCamp = cid;
+
+  document.getElementById('modal-root').innerHTML = `
+  <div class="modal-backdrop" onclick="fecharModal(event)">
+    <div class="modal" style="max-width:720px;" onclick="event.stopPropagation()">
+      <div class="modal-head"><strong>${a ? 'Editar achado' : 'Registrar achado'}</strong>
+        <span style="font-weight:400;color:var(--ink-faint);font-size:12.5px;">
+          ${c ? 'Campanha de ' + fmtData(c.data_inicio) : ''}</span></div>
+      <div class="modal-body">
+        <div class="fset">
+          <div class="fset-t">Classificação</div>
+          <div class="grid cols-3">
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Severidade</label>
+              <select id="ah-sev">${Object.entries(SEV).map(([k, v]) =>
+                `<option value="${k}" ${a && a.severidade === k ? 'selected' : ''}>${v[1]}</option>`).join('')}</select></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Categoria</label>
+              <select id="ah-cat">${Object.entries(CAT).map(([k, v]) =>
+                `<option value="${k}" ${a && a.categoria === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+            <div class="field" style="margin-bottom:0;"><label class="field-label">Situação</label>
+              <select id="ah-st">${Object.entries(ST_ACHADO).map(([k, v]) =>
+                `<option value="${k}" ${a && a.status === k ? 'selected' : ''}>${v[1]}</option>`).join('')}</select></div>
+          </div>
+          <p class="hint"><strong>Crítico</strong> compromete a conclusão e impede usar o resultado como
+          comprovação sem retificação. <strong>Relevante</strong> exige resposta do laboratório.
+          <strong>Observação</strong> fica para o histórico.</p>
+        </div>
+
+        <div class="fset">
+          <div class="fset-t">O achado</div>
+          <div class="field"><label class="field-label">Título</label>
+            <input id="ah-tit" value="${a ? esc(a.titulo) : ''}"
+                   placeholder="Ex.: Vazão acima do critério do próprio laboratório"></div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Descrição técnica</label>
+            <textarea id="ah-desc" rows="4">${a ? esc(a.descricao) : ''}</textarea></div>
+        </div>
+
+        <div class="fset" style="border-color:var(--brand);background:var(--surface-2);">
+          <div class="fset-t" style="color:var(--brand);">Evidência — o que sustenta o achado</div>
+          <div class="field"><label class="field-label">Transcrição literal do laudo</label>
+            <textarea id="ah-ev" rows="3" placeholder='Ex.: Critério impresso na planilha: "Qr entre 1,05 e 1,21 m3/min?" — valor usado: 6,180'>${a && a.evidencia ? esc(a.evidencia) : ''}</textarea></div>
+          <div class="field" style="margin-bottom:0;"><label class="field-label">Onde no laudo</label>
+            <input id="ah-ref" value="${a && a.referencia ? esc(a.referencia) : ''}"
+                   placeholder="Ex.: Anexo A, pág. 43/81, planilha do Ponto 01">
+            <p class="hint">Transcrição e localização não são formalidade: são o que permite o
+            laboratório verificar e o que sustenta o achado se ele for contestado.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        ${a ? `<button class="btn danger" onclick="descartarAchado('${esc(a.id)}')">Descartar</button>` : ''}
+        <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn primary" onclick="salvarAchado()">Salvar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.salvarAchado = async function () {
+  const g = i => document.getElementById(i).value.trim();
+  const tit = g('ah-tit'), desc = g('ah-desc');
+  if (tit.length < 8) return showToast('Descreva o achado num título claro.');
+  if (desc.length < 20) return showToast('A descrição técnica precisa dizer o que está errado e por quê.');
+
+  const patch = {
+    campanha_id: state.achadoCamp,
+    severidade: g('ah-sev'), categoria: g('ah-cat'), status: g('ah-st'),
+    titulo: tit, descricao: desc,
+    evidencia: g('ah-ev') || null, referencia: g('ah-ref') || null,
+    atualizado_em: new Date().toISOString()
+  };
+
+  let error;
+  if (state.achadoEdit) {
+    ({ error } = await _supabase.from('mon_achados').update(patch).eq('id', state.achadoEdit));
+  } else {
+    patch.id = 'ah' + uid();
+    patch.criado_por = state.usuario || null;
+    ({ error } = await _supabase.from('mon_achados').insert(patch));
+  }
+  if (error) return showToast('Erro ao salvar: ' + error.message);
+  fecharModal();
+  showToast('Achado registrado.');
+  await carregarTudo();
+};
+
+window.descartarAchado = async function (id) {
+  if (!confirm('Descartar este achado? Ele sai da leitura crítica, mas o registro é preservado no banco.')) return;
+  const { error } = await _supabase.from('mon_achados')
+    .update({ status: 'descartado', atualizado_em: new Date().toISOString() }).eq('id', id);
+  if (error) return showToast('Erro: ' + error.message);
+  fecharModal();
+  showToast('Achado descartado.');
+  await carregarTudo();
+};
 
 async function bindDetalhe() {
   const c = state.campanhas.find(x => x.id === state.detalhe);
