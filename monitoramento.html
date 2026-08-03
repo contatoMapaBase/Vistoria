@@ -1474,9 +1474,10 @@ const state = {
   matriz: null,   // null = ainda nao resolvido; '' = todas as matrizes
   contagemPonto: null,
   ultimasLinhas: null,
-  cfgFabrica: null,
+  charts: {},
+  fabricas: {},
   chartZoom: null,
-  chart: null
+  chartZoom2: null
 };
 
 /* ---------- utilitários ---------- */
@@ -2134,6 +2135,8 @@ function viewDetalhe() {
     ${c.observacoes ? `<p style="font-size:13px;color:var(--ink-soft);margin:16px 0 0;border-top:1px solid var(--line);padding-top:14px;">${esc(c.observacoes)}</p>` : ''}
   </div>
 
+  <div id="det-fontes"></div>
+
   ${blocoAchados(c.id)}
 
   <div id="det-resultados"><div class="card card-pad"><p style="color:var(--ink-faint);font-size:13px;">Carregando resultados...</p></div></div>
@@ -2336,6 +2339,38 @@ window.descartarAchado = async function (id) {
   await carregarTudo();
 };
 
+function blocoFontesLegais(rows) {
+  const comLimite = rows.filter(r => r.limite_base_legal);
+  if (!comLimite.length) return '';
+  const porNorma = {};
+  comLimite.forEach(r => {
+    const k = r.limite_base_legal + (r.limite_contexto ? ' · etapa ' + r.limite_contexto : '');
+    porNorma[k] = porNorma[k] || { n: 0, checado: r.padrao_conferido };
+    porNorma[k].n++;
+  });
+  const pend = Object.values(porNorma).filter(v => !v.checado).length;
+
+  return `
+  <div class="card card-pad" style="margin-bottom:20px;">
+    <div class="eyebrow" style="margin-bottom:10px;">Base legal aplicada nesta campanha</div>
+    <table style="width:100%;font-size:13px;">
+      ${Object.entries(porNorma).map(([k, v]) => `<tr>
+        <td style="padding:6px 0;border-bottom:1px solid var(--line);">${esc(k)}</td>
+        <td style="padding:6px 0;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;">
+          <span class="mono" style="color:var(--ink-faint);font-size:12px;">${v.n} result.</span>
+          ${v.checado
+            ? ' <span class="badge conforme" title="Os valores desta norma foram lidos no texto oficial.">digitação checada</span>'
+            : ' <span class="badge pending" title="Os valores desta norma foram copiados de uma reprodução. A norma está correta; o que falta é confirmar a transcrição no texto oficial.">digitação não checada</span>'}
+        </td></tr>`).join('')}
+    </table>
+    ${pend ? `<p style="font-size:12px;color:var(--ink-faint);margin:12px 0 0;">
+      Controle de qualidade interno da MapaBase: ${pend} norma(s) desta campanha tiveram os limites
+      copiados de uma reprodução, e a transcrição ainda não foi confirmada no texto oficial. Isso não
+      questiona a norma nem o resultado do laudo — é revisão da nossa digitação, e resolve-se em
+      <strong>Padrões legais</strong>.</p>` : ''}
+  </div>`;
+}
+
 async function bindDetalhe() {
   const c = state.campanhas.find(x => x.id === state.detalhe);
   if (!c) return;
@@ -2343,7 +2378,8 @@ async function bindDetalhe() {
   const rows = await buscarAvaliados({ campanha_id: c.id });
   rows.sort((a, b) => (a.ponto_codigo || '').localeCompare(b.ponto_codigo || '') || (a.parametro || '').localeCompare(b.parametro || ''));
 
-  const naoConferido = rows.some(r => r.limite !== null && r.padrao_conferido === false);
+  const fx = document.getElementById('det-fontes');
+  if (fx) fx.innerHTML = blocoFontesLegais(rows);
 
   const alvo = document.getElementById('det-resultados');
   alvo.innerHTML = !rows.length
@@ -2379,7 +2415,7 @@ async function bindDetalhe() {
         <p style="font-size:11.5px;color:var(--ink-faint);margin:0;">
           Limite escolhido pelo padrão vigente na data da coleta. Média anual não é avaliada:
           campanha pontual não tem representatividade amostral para padrão anual.
-          ${naoConferido ? '<br><strong style="color:var(--media);">Atenção: os limites usados foram copiados de uma reprodução da norma e ainda não foram checados no texto oficial.</strong>' : ''}
+
         </p>
       </div>
     </div>`;
@@ -2416,25 +2452,35 @@ async function bindDetalhe() {
 /* ============================================================
    GRÁFICO — ampliar, baixar PNG, exportar PDF
    ============================================================ */
-function chartTools(nome) {
+function chartTools(nome, canvasId, comPdf) {
   return `<div class="chart-tools">
-    <button class="btn sm ghost" onclick="ampliarGrafico()">Ampliar</button>
-    <button class="btn sm ghost" onclick="baixarPng('${esc(nome)}')">Baixar PNG</button>
-    <button class="btn sm ghost" onclick="exportarPdf()">Exportar PDF</button>
+    <button class="btn sm ghost" onclick="ampliarGrafico('${esc(canvasId)}')">Ampliar</button>
+    <button class="btn sm ghost" onclick="baixarPng('${esc(nome)}','${esc(canvasId)}')">Baixar PNG</button>
+    ${comPdf === false ? '' : `<button class="btn sm ghost" onclick="exportarPdf()">Exportar PDF</button>`}
   </div>`;
 }
 
-// Guarda uma FÁBRICA de config, não a config: Chart.js muta o objeto que recebe,
-// então reaproveitar a mesma config em dois canvas quebra o primeiro gráfico.
+// Registro por canvas: o Painel tem dois gráficos ao mesmo tempo, então um
+// state.chart único destruiria o primeiro ao montar o segundo.
+// Guarda a FÁBRICA e não a config: Chart.js muta o objeto que recebe, e
+// reaproveitar a mesma config em dois canvas quebra o primeiro.
 function renderChart(canvasId, fabrica) {
-  if (state.chart) { state.chart.destroy(); state.chart = null; }
-  state.cfgFabrica = fabrica;
+  state.charts = state.charts || {};
+  state.fabricas = state.fabricas || {};
+  if (state.charts[canvasId]) { state.charts[canvasId].destroy(); delete state.charts[canvasId]; }
+  state.fabricas[canvasId] = fabrica;
   const cv = document.getElementById(canvasId);
-  if (cv && fabrica) state.chart = new Chart(cv, fabrica());
+  if (cv && fabrica) state.charts[canvasId] = new Chart(cv, fabrica());
 }
 
-window.ampliarGrafico = function () {
-  if (!state.cfgFabrica) return showToast('Nenhum gráfico para ampliar.');
+function destruirCharts() {
+  Object.values(state.charts || {}).forEach(c => { try { c.destroy(); } catch (e) {} });
+  state.charts = {}; state.fabricas = {};
+}
+
+window.ampliarGrafico = function (canvasId) {
+  const fab = (state.fabricas || {})[canvasId];
+  if (!fab) return showToast('Nenhum gráfico para ampliar.');
   document.getElementById('modal-root').innerHTML = `
   <div class="modal-backdrop" onclick="fecharZoom(event)">
     <div class="modal" style="max-width:96vw;width:96vw;" onclick="event.stopPropagation()">
@@ -2446,7 +2492,7 @@ window.ampliarGrafico = function () {
       </div>
     </div>
   </div>`;
-  state.chartZoom = new Chart(document.getElementById('cv-zoom'), state.cfgFabrica());
+  state.chartZoom = new Chart(document.getElementById('cv-zoom'), fab());
 };
 
 window.fecharZoom = function (ev) {
@@ -2494,7 +2540,7 @@ window.exportarPdf = function () {
   const escopo = f.camps.length
     ? `${nCamp} campanha(s) selecionada(s)`
     : `Todas as campanhas disponíveis (${nCamp})`;
-  const img = state.chart ? state.chart.toBase64Image() : null;
+  const img = (state.charts && state.charts['cv-serie'] ? state.charts['cv-serie'].toBase64Image() : (state.charts && state.charts['cv-razao'] ? state.charts['cv-razao'].toBase64Image() : null));
 
   const ord = rows.slice().sort((a, b) =>
     String(a.inicio || a.campanha_inicio).localeCompare(String(b.inicio || b.campanha_inicio))
@@ -2515,9 +2561,7 @@ window.exportarPdf = function () {
       na data de cada coleta. Resultado marcado como inconsistente ou sem padrão
       <strong>não é resultado aprovado</strong> — é resultado sobre o qual não se pode concluir.
       ${semConc ? `Nesta seleção há ${semConc} caso(s) nessa condição.` : ''}
-      ${naoConf ? `<br><strong>Atenção:</strong> ${naoConf} resultado(s) foram avaliados contra limites
-      copiados de uma reprodução da norma, sem confirmação no texto oficial. Este documento não deve ser
-      usado como comprovação até essa checagem.` : ''}
+
       ${rows.filter(r => r.valor_divergente_do_laudo).length ? `<br><strong>Edição manual:</strong>
       ${rows.filter(r => r.valor_divergente_do_laudo).length} resultado(s) têm valor diferente do que o
       laboratório reportou, por correção manual registrada. A tabela "Edições manuais" no fim deste
@@ -2535,7 +2579,7 @@ window.exportarPdf = function () {
     <h2>Resultados</h2>
     <table><thead><tr>
       <th>Coleta</th><th>Matriz</th><th>Ponto</th><th>Par.</th><th>Valor</th><th>Un.</th>
-      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Limite checado</th><th>Editado</th>
+      <th>Limite</th><th>Norma / etapa</th><th>% lim.</th><th>Situação</th><th>Editado</th>
     </tr></thead><tbody>
     ${ord.map(r => `<tr>
       <td>${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}</td>
@@ -2548,10 +2592,15 @@ window.exportarPdf = function () {
       <td>${esc(r.limite_base_legal || '—')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</td>
       <td>${r.percentual_do_limite === null ? '—' : num(r.percentual_do_limite, 1) + '%'}</td>
       <td>${esc(r.situacao === 'sem_padrao' ? 'sem padrão' : r.situacao)}</td>
-      <td>${!r.limite_base_legal ? '—' : (r.padrao_conferido ? 'sim' : 'NÃO')}</td>
       <td>${r.valor_divergente_do_laudo ? 'SIM — laudo: ' + num(r.valor_original, 2) : (r.editado ? 'metadado' : '—')}</td>
     </tr>`).join('')}
     </tbody></table>
+    ${naoConf ? `<p class="meta" style="margin-top:14pt;border-top:0.5pt solid #999;padding-top:6pt;">
+      Nota de controle interno: os limites legais aplicados a ${naoConf} resultado(s) deste documento
+      foram transcritos de reprodução da norma, e a conferência da transcrição contra o texto oficial
+      ainda não foi registrada. A norma aplicada e sua vigência estão indicadas por resultado.
+    </p>` : ''}
+
     ${rows.some(r => r.editado) ? `<h2>Edições manuais</h2>
       <table><thead><tr><th>Coleta</th><th>Ponto</th><th>Par.</th><th>Valor do laudo</th><th>Valor atual</th><th>Quem / quando</th><th>Motivo</th></tr></thead><tbody>
       ${ord.filter(r => r.editado).map(r => `<tr>
@@ -2812,6 +2861,24 @@ function viewPainel() {
     ${[1,2,3,4].map(() => `<div class="card kpi"><div class="skel" style="width:40%;margin:6px 0 12px;"></div><div class="skel" style="width:80%;"></div></div>`).join('')}
   </div>
 
+  <div class="grid cols-2" style="margin-bottom:18px;gap:18px;">
+    <div class="card card-pad">
+      <div class="eyebrow" style="margin-bottom:6px;">Quão perto do limite legal</div>
+      <p style="font-size:11.5px;color:var(--ink-faint);margin:0 0 10px;">
+        Pior caso de cada parâmetro na seleção, em percentual do limite aplicável.
+        A linha vermelha é o limite.</p>
+      ${chartTools('painel-razao-limite', 'cv-razao', false)}
+      <div style="position:relative;width:100%;height:230px;"><canvas id="cv-razao"></canvas></div>
+    </div>
+    <div class="card card-pad">
+      <div class="eyebrow" style="margin-bottom:6px;">Situação por campanha</div>
+      <p style="font-size:11.5px;color:var(--ink-faint);margin:0 0 10px;">
+        Quantos resultados de cada campanha permitiram concluir, e quantos não.</p>
+      ${chartTools('painel-situacao', 'cv-situacao', false)}
+      <div style="position:relative;width:100%;height:230px;"><canvas id="cv-situacao"></canvas></div>
+    </div>
+  </div>
+
   <div id="painel-piores" style="margin-bottom:18px;"></div>
 
   <div class="card card-pad" style="margin-bottom:18px;">
@@ -2846,7 +2913,6 @@ async function bindPainel() {
   const inc = rows.filter(r => r.situacao === 'inconsistente').length;
   const sp = rows.filter(r => r.situacao === 'sem_padrao').length;
   const naoAvaliados = inc + sp;
-  const naoConferido = rows.filter(r => r.padrao_conferido === false).length;
 
   const validos = rows.filter(r => r.status_dado === 'ok' && r.percentual_do_limite !== null);
   const maior = validos.length ? Math.max(...validos.map(r => Number(r.percentual_do_limite))) : null;
@@ -2868,10 +2934,17 @@ async function bindPainel() {
     porque as unidades e a lógica de avaliação diferem (binária no ar, em faixas no solo e na água
     subterrânea). Para relatório de cliente, prefira uma matriz por documento.</div></div>`);
   if (naoAvaliados) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
-    <div class="diag-t">${naoAvaliados} de ${rows.length} resultados sem conclusão possível</div>
-    <div class="diag-d">${inc} com dado inconsistente e ${sp} sem padrão legal vigente na data.
-    Isso é <strong>abstenção, não aprovação</strong>: os ${conf} conformes não cobrem esses casos.
-    Não apresente esta seleção como comprovação de conformidade sem resolver as pendências.</div></div>`);
+    <div class="diag-t">${naoAvaliados} de ${rows.length} resultados não avaliáveis</div>
+    <div class="diag-d">
+      ${inc ? `<strong>${inc} resultado(s)</strong> entregues pelo laboratório não passam na verificação de
+      coerência física do ensaio — por exemplo MP2,5 maior que MP10, o que é impossível porque a fração
+      menor está contida na maior. <strong>A consistência do ensaio é responsabilidade do laboratório
+      emissor do laudo.</strong> ` : ''}
+      ${sp ? `<strong>${sp} resultado(s)</strong> não têm padrão legal cadastrado para a data da coleta. ` : ''}
+      Esses resultados ficam registrados no histórico e fora de gráfico e de conformidade, porque não é
+      possível concluir sobre eles — nem a favor, nem contra. Os ${conf} conformes não os cobrem.
+      O detalhe técnico de cada caso está na campanha correspondente.
+    </div></div>`);
   if (divergentes) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
     <div class="diag-t">${divergentes} resultado(s) com valor diferente do laudo</div>
     <div class="diag-d">Foram editados manualmente e o valor atual não é o que o laboratório
@@ -2881,18 +2954,14 @@ async function bindPainel() {
     <div class="diag-t">${editados} resultado(s) editado(s) manualmente</div>
     <div class="diag-d">Sem alteração de valor — as edições mexeram em metadado
     (data, método, status ou atribuição de ponto/parâmetro).</div></div>`);
-  if (naoConferido) alertas.push(`<div class="diag aviso" style="margin-bottom:12px;">
-    <div class="diag-t">${naoConferido} resultados avaliados contra limites cuja digitação não foi checada</div>
-    <div class="diag-d">Os limites usados foram copiados de uma reprodução da norma, não lidos no texto
-    oficial. A norma está certa; o que não foi confirmado é se os números foram transcritos corretamente
-    para o sistema. Checar em Padrões legais antes de usar em ofício, relatório de cliente ou fiscalização.</div></div>`);
+
   document.getElementById('painel-alerta').innerHTML = alertas.join('');
 
   const normas = {};
   rows.forEach(r => {
     if (!r.limite_base_legal) return;
     const k = r.limite_base_legal + (r.limite_contexto ? ' · ' + r.limite_contexto : '');
-    normas[k] = normas[k] || { n: 0, conferido: r.padrao_conferido, anos: new Set() };
+    normas[k] = normas[k] || { n: 0, anos: new Set() };
     normas[k].n++;
     normas[k].anos.add(String(r.inicio || r.campanha_inicio).slice(0, 4));
   });
@@ -2904,7 +2973,6 @@ async function bindPainel() {
         <span style="flex:1;font-size:13px;">${esc(k)}
           <span style="color:var(--ink-faint);font-size:11.5px;"> · ${[...v.anos].sort().join(', ')}</span></span>
         <span class="mono" style="font-size:12px;color:var(--ink-faint);">${v.n} result.</span>
-        ${v.conferido ? '<span class="badge conforme">Conferido</span>' : '<span class="badge pending">Não conferido</span>'}
       </div>`).join('');
 
 
@@ -2932,26 +3000,105 @@ async function bindPainel() {
       }).join('')}
     </div>`;
 
+  // ---- Gráfico 1: pior razão valor/limite por parâmetro (barras horizontais).
+  // Pergunta do Painel é "quão perto do limite estamos", que é comparação e não
+  // evolução — por isso não repete a linha temporal da Série histórica.
+  const parsOrd = Object.entries(porPar)
+    .sort((a, b) => Number(b[1].percentual_do_limite) - Number(a[1].percentual_do_limite));
+  renderChart('cv-razao', !parsOrd.length ? null : () => ({
+    type: 'bar',
+    data: {
+      labels: parsOrd.map(e => e[0]),
+      datasets: [{
+        data: parsOrd.map(e => Number(e[1].percentual_do_limite)),
+        backgroundColor: parsOrd.map(e => e[1].situacao === 'excedente' ? '#d03b3b'
+          : (Number(e[1].percentual_do_limite) > 80 ? '#eda100' : '#1baf7a')),
+        borderRadius: 5, maxBarThickness: 26
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => {
+          const r = parsOrd[c.dataIndex][1];
+          return [
+            `${num(r.percentual_do_limite, 1)}% do limite`,
+            `${num(r.valor, 2)} de ${num(r.limite, 2)} ${r.unidade || ''}`,
+            `${r.ponto_codigo || ''} · ${fmtData(String(r.inicio || r.campanha_inicio).slice(0, 10))}`,
+            `${r.limite_base_legal || ''}${r.limite_contexto ? ' · ' + r.limite_contexto : ''}`
+          ];
+        } } }
+      },
+      scales: {
+        x: { beginAtZero: true, suggestedMax: 110, ticks: { callback: v => v + '%' },
+             grid: { color: 'rgba(137,135,129,.18)' } },
+        y: { grid: { display: false } }
+      }
+    },
+    plugins: [{
+      id: 'l100h',
+      afterDatasetsDraw(ch) {
+        const x = ch.scales.x.getPixelForValue(100), a = ch.chartArea, g = ch.ctx;
+        if (x < a.left || x > a.right) return;
+        g.save(); g.strokeStyle = '#d03b3b'; g.lineWidth = 2; g.setLineDash([5, 4]);
+        g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke();
+        g.fillStyle = '#d03b3b'; g.font = '10px sans-serif';
+        g.fillText('limite', x + 4, a.top + 10); g.restore();
+      }
+    }]
+  }));
+
   // Resumo por campanha
   const porCamp = {};
   rows.forEach(r => {
     const k = String(r.campanha_inicio);
-    porCamp[k] = porCamp[k] || { conf: 0, exc: 0, inc: 0, sp: 0, naoConf: 0, n: 0, pior: null };
+    porCamp[k] = porCamp[k] || { conf: 0, exc: 0, inc: 0, sp: 0, n: 0, pior: null };
     const g = porCamp[k];
     g.n++;
     if (r.situacao === 'conforme') g.conf++;
     else if (r.situacao === 'excedente') g.exc++;
     else if (r.situacao === 'inconsistente') g.inc++;
     else if (r.situacao === 'sem_padrao') g.sp++;
-    if (r.limite_base_legal && r.padrao_conferido === false) g.naoConf++;
     if (r.status_dado === 'ok' && r.percentual_do_limite !== null &&
         (!g.pior || Number(r.percentual_do_limite) > Number(g.pior.percentual_do_limite))) g.pior = r;
   });
+  // ---- Gráfico 2: situação por campanha (barras empilhadas).
+  // Torna a abstenção visível graficamente: quem olha o gráfico vê que parte
+  // dos resultados não permitiu concluir, em vez de ler só "conformes".
+  const campKeys = Object.keys(porCamp).sort();
+  renderChart('cv-situacao', !campKeys.length ? null : () => ({
+    type: 'bar',
+    data: {
+      labels: campKeys.map(k => String(k).slice(0, 4)),
+      datasets: [
+        { label: 'Conforme',      data: campKeys.map(k => porCamp[k].conf), backgroundColor: '#1baf7a', borderRadius: 4 },
+        { label: 'Excedente',     data: campKeys.map(k => porCamp[k].exc),  backgroundColor: '#d03b3b', borderRadius: 4 },
+        { label: 'Não avaliável', data: campKeys.map(k => porCamp[k].inc + porCamp[k].sp), backgroundColor: '#eda100', borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 11, font: { size: 11 } } },
+        tooltip: { callbacks: { footer: items => {
+          const k = campKeys[items[0].dataIndex];
+          return 'Campanha de ' + fmtData(k) + ' · ' + porCamp[k].n + ' resultados';
+        } } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: 'rgba(137,135,129,.18)' } }
+      }
+    }
+  }));
+
   document.getElementById('painel-campanhas').innerHTML = !Object.keys(porCamp).length
     ? '<p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhuma campanha nesta seleção.</p>'
     : `<div class="table-wrapper"><table>
         <thead><tr><th>Campanha</th><th>Result.</th><th>Conf.</th><th>Exced.</th>
-        <th>Sem conclusão</th><th>Pior razão</th><th>Fonte legal</th></tr></thead>
+        <th>Sem conclusão</th><th>Pior razão</th></tr></thead>
         <tbody>${Object.keys(porCamp).sort().map(k => {
           const g = porCamp[k];
           const semConc = g.inc + g.sp;
@@ -2962,7 +3109,6 @@ async function bindPainel() {
             <td class="mono" style="${g.exc ? 'color:var(--nc);font-weight:600;' : ''}">${g.exc}</td>
             <td class="mono" style="${semConc ? 'color:var(--media);font-weight:600;' : ''}">${semConc}</td>
             <td>${g.pior ? barraPercentual(g.pior.percentual_do_limite, g.pior.situacao) : '—'}</td>
-            <td>${g.naoConf ? '<span class="badge pending">Não conferida</span>' : (g.n - g.inc - g.sp > 0 ? '<span class="badge conforme">Conferida</span>' : '—')}</td>
           </tr>`;
         }).join('')}</tbody></table></div>`;
 
@@ -2978,7 +3124,7 @@ async function bindPainel() {
   document.getElementById('painel-tabela-wrap').innerHTML = !rows.length
     ? '<div class="card-pad"><p style="font-size:13px;color:var(--ink-faint);margin:0;">Nenhum resultado nesta seleção.</p></div>'
     : `<div class="table-wrapper"><table>
-        <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th>Fonte</th><th></th></tr></thead>
+        <thead><tr><th>Coleta</th><th>Ponto</th><th>Parâmetro</th><th>Valor</th><th>Limite</th><th>% do limite</th><th>Situação</th><th></th></tr></thead>
         <tbody>${ord.map(r => {
           const p = state.pontos.find(x => x.id === r.ponto_id);
           return `<tr>
@@ -2991,11 +3137,7 @@ async function bindPainel() {
               <span style="font-size:10.5px;color:var(--ink-faint);">${esc(r.limite_base_legal || '')}${r.limite_contexto ? ' · ' + esc(r.limite_contexto) : ''}</span></td>
             <td>${barraPercentual(r.percentual_do_limite, r.situacao)}</td>
             <td>${badgeSituacao(r.situacao, r)}</td>
-            <td>${r.limite_base_legal
-                ? (r.padrao_conferido
-                    ? '<span class="badge conforme" title="Limite lido no texto oficial da norma.">Checado</span>'
-                    : '<span class="badge pending" title="Limite copiado de uma reprodução da norma. A norma está certa; a digitação não foi confirmada no texto oficial.">Não checado</span>')
-                : '—'}</td>
+
             <td><button class="btn sm ghost" onclick="editarResultado('${esc(r.id)}')">Editar</button></td>
           </tr>`; }).join('')}</tbody></table></div>`;
 }
@@ -3030,7 +3172,7 @@ function viewSerie() {
 
   <div class="card card-pad">
     <div id="serie-aviso"></div>
-    ${chartTools('serie-historica')}
+    ${chartTools('serie-historica', 'cv-serie')}
     <div class="chart-box"><canvas id="cv-serie"></canvas></div>
     <div id="serie-nota" style="margin-top:14px;"></div>
   </div>`;
@@ -3313,7 +3455,7 @@ async function bindMapa() {
           — <strong style="color:${cor};">${num(pior.percentual_do_limite, 1)}% do limite</strong><br>
           <span style="font-size:11px;color:#666;">${esc(pior.limite_base_legal || '')}${pior.limite_contexto ? ' · ' + esc(pior.limite_contexto) : ''}<br>
           coleta ${fmtData(String(pior.inicio || pior.campanha_inicio).slice(0, 10))}</span>
-          ${pior.padrao_conferido === false ? '<br><span style="font-size:11px;color:#a35;">limite não checado no texto oficial</span>' : ''}`
+          `
         : `<span style="color:#a35;">Sem resultado avaliável nesta seleção.</span>`}
         <hr style="border:0;border-top:1px solid #ddd;margin:7px 0;">
         <a href="#" onclick="event.preventDefault();editarPonto('${esc(p.id)}')">Editar ponto</a>
@@ -4336,6 +4478,7 @@ const VIEWS = {
 };
 
 function setView(v) {
+  destruirCharts();
   if (state.map) { state.map.remove(); state.map = null; }
   if (state.mapEdit) { state.mapEdit.remove(); state.mapEdit = null; }
   state.view = v;
