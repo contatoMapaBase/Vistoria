@@ -1381,7 +1381,7 @@ window.rodarBackfillNcs = async function() {
     }
   }
 
-  await storageSet('vistorias:index', state.vistoriasIndex);
+  await salvarIndice();
   await storageSet('flag:backfillNcs', true);   // marca como já rodado
   window._backfillNcsFeito = true;               // esconde o botão nesta sessão
   render();
@@ -3040,6 +3040,9 @@ const state = {
   evoEmps: [],
   evoEsts: [],
   poligonos: [],
+  usuarioEmail: null,
+  verLixeira: false,
+  lixeira: [],
   mapa: mapaEstadoInicial()
 };
 
@@ -4992,13 +4995,15 @@ async function loadVistoriasNuvem() {
         });
         
         state.vistoriasIndex = Object.values(cloudMap);
-        await storageSet('vistorias:index', state.vistoriasIndex);
+        separarLixeira();
+        await salvarIndice();
       }
     } catch(e) {
       console.error("Erro no load vistorias nuvem:", e);
     }
   } else {
     state.vistoriasIndex = localIndex;
+    separarLixeira();
   }
 }
 
@@ -5115,7 +5120,7 @@ window.sincronizarPendentes = async function() {
       }
     }
   }
-  await storageSet('vistorias:index', state.vistoriasIndex);
+  await salvarIndice();
   render();
   showToast(`${successCount} sincronizados!`);
   } finally {
@@ -5155,7 +5160,7 @@ async function saveVistoria(v) {
   if (idx >= 0) state.vistoriasIndex[idx] = idxData;
   else state.vistoriasIndex.push(idxData);
 
-  await storageSet('vistorias:index', state.vistoriasIndex);
+  await salvarIndice();
   await storageSet('vistoria:' + v.id, v);
   registrarCategorias(v.itens);
 
@@ -7086,9 +7091,79 @@ function bindDashboard() {
 /* ============================================================
    TELA: HISTÓRICO DE VISTORIAS E PDF
    ============================================================ */
+/* state.vistoriasIndex passa a conter APENAS vistorias ativas. A lixeira vive
+   em state.lixeira. Isso é deliberado: cerca de 35 pontos do app leem o índice
+   direto — painel, ranking, IGD, NCs, evolução — e filtrar em cada um seria
+   frágil. Separando na fonte, uma vistoria na lixeira sai de todo cálculo sem
+   nenhuma alteração nesses pontos. */
+function separarLixeira() {
+  const todas = state.vistoriasIndex || [];
+  state.lixeira = todas.filter(v => v.excluidaEm);
+  state.vistoriasIndex = todas.filter(v => !v.excluidaEm);
+}
+
+/* Grava as duas listas na mesma chave: o formato em disco continua um array
+   só, então backup antigo e sincronização seguem funcionando. */
+async function salvarIndice() {
+  await storageSet('vistorias:index', [...(state.vistoriasIndex || []), ...(state.lixeira || [])]);
+}
+
+function viewLixeira(lista) {
+  const ord = [...lista].sort((a,b) => new Date(b.excluidaEm) - new Date(a.excluidaEm));
+  const idade = iso => {
+    const h = (Date.now() - new Date(iso)) / 36e5;
+    return h < 1 ? 'há menos de 1 h' : h < 24 ? `há ${Math.floor(h)} h` : `há ${Math.floor(h/24)} dia(s)`;
+  };
+  return `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Histórico</div>
+      <h1 class="view-title">Lixeira</h1>
+    </div>
+    <button class="btn ghost" onclick="alternarLixeira()">← Voltar ao histórico</button>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:16px;border-left:3px solid var(--alta);">
+    <strong style="font-size:14px;">Nada é apagado por tempo</strong>
+    <div style="font-size:12.5px;color:var(--ink-soft);margin-top:4px;line-height:1.55;">
+      Check-list é evidência de verificação de conformidade, com fotos e não conformidades.
+      Aqui ele fica guardado por tempo indeterminado, fora do histórico, com quem excluiu e por quê.
+      Apagar de verdade é ação deliberada, e leva as fotos da nuvem junto.
+    </div>
+  </div>
+
+  ${!ord.length ? `<div class="empty card"><div class="ic">🗑</div>A lixeira está vazia.</div>` : `
+  <div class="grid cols-2">
+    ${ord.map(v => `
+      <div class="visual-card">
+        <div class="visual-card-body">
+          <h3 class="visual-card-title">${esc(v.estruturaNome || 'Check-list')}</h3>
+          <div class="visual-card-desc" style="margin-top:6px;">
+            ${esc(v.empreendimentoNome || '')}<br>
+            Realizado em ${fmtDate(v.dataHora)}<br>
+            ${v.totalNC ? `<span style="color:var(--nc);">${v.totalNC} NC</span> · ` : ''}${v.totalItens || 0} itens
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-faint);line-height:1.55;">
+            <strong style="color:var(--ink-soft);">Excluído ${idade(v.excluidaEm)}</strong><br>
+            ${esc(v.excluidoPor || 'autor não identificado')}<br>
+            ${fmtDate(v.excluidaEm)}
+            ${v.motivoExclusao ? `<div style="margin-top:5px;color:var(--ink-soft);">"${esc(v.motivoExclusao)}"</div>` : ''}
+          </div>
+        </div>
+        <div class="visual-card-foot">
+          <button class="btn ghost sm" onclick="restaurarVistoria('${esc(v.id)}')">↩ Restaurar</button>
+          <button class="btn ghost sm danger" onclick="apagarDefinitivo('${esc(v.id)}')">Apagar de vez</button>
+        </div>
+      </div>`).join('')}
+  </div>`}`;
+}
+
 function viewVistorias() {
-  const filtradas = aplicarFiltros([...state.vistoriasIndex].sort((a,b) => new Date(b.dataHora) - new Date(a.dataHora)), 'hist');
-  const temPendentes = state.vistoriasIndex.some(v => v.syncStatus === 'pending');
+  const naLixeira = state.lixeira || [];
+  if (state.verLixeira) return viewLixeira(naLixeira);
+  const ativas = state.vistoriasIndex;
+  const filtradas = aplicarFiltros([...ativas].sort((a,b) => new Date(b.dataHora) - new Date(a.dataHora)), 'hist');
+  const temPendentes = ativas.some(v => v.syncStatus === 'pending');
   
   let html = `
   <div class="view-head no-print">
@@ -7098,6 +7173,7 @@ function viewVistorias() {
     </div>
     <div class="rowflex">
       ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
+      ${naLixeira.length ? `<button class="btn ghost" onclick="alternarLixeira()">🗑 Lixeira (${naLixeira.length})</button>` : ''}
       <button class="btn ghost" onclick="exportarBackup()">💾 Baixar backup</button>
       <label class="btn ghost" style="cursor:pointer;">↥ Restaurar backup<input type="file" id="backup-file" accept="application/json,.json" style="display:none;"></label>
     </div>
@@ -7431,24 +7507,86 @@ window.duplicarVistoria = async function(id) {
   setView('vistorias');
 };
 
+/* Exclusão vai para a lixeira, não apaga. Vistoria é evidência de verificação
+   de conformidade, com fotos e NCs — e num app offline-first o marcador de
+   exclusão sincroniza como atualização, enquanto o delete definitivo feito sem
+   sinal era desfeito pela sincronização seguinte. */
 window.deletarVistoriaAtual = async function() {
-  if(confirm("Tem certeza que deseja excluir permanentemente este check-list?")) {
-    const aberta = state.vistoriaAberta;
-    const id = aberta.id;
-    const paths = [];
-    (aberta.itens || []).forEach(it => (it.fotos || []).forEach(f => { if (ehFotoRemota(f)) paths.push(caminhoFoto(f)); }));
+  const aberta = state.vistoriaAberta;
+  if (!aberta) return;
+  const motivo = prompt(
+    'Enviar este check-list para a lixeira.\n\n' +
+    'Ele sai do histórico mas continua guardado, com as fotos, e pode ser restaurado.\n' +
+    'Descreva o motivo (obrigatório):', '');
+  if (motivo === null) return;
+  if (motivo.trim().length < 5) return showToast('Descreva o motivo da exclusão.');
+
+  const id = aberta.id;
+  const quando = new Date().toISOString();
+  const quem = state.usuarioEmail || 'usuário não identificado';
+
+  aberta.excluidaEm = quando; aberta.excluidoPor = quem; aberta.motivoExclusao = motivo.trim();
+  const idx = state.vistoriasIndex.find(v => v.id === id);
+  if (idx) {
+    Object.assign(idx, { excluidaEm: quando, excluidoPor: quem, motivoExclusao: motivo.trim() });
     state.vistoriasIndex = state.vistoriasIndex.filter(v => v.id !== id);
-    await storageSet('vistorias:index', state.vistoriasIndex);
-    await storageRemove('vistoria:'+id);
-    if(_supabase && navigator.onLine) {
-      await _supabase.from('vistorias').delete().eq('id', id);
-      if(paths.length) { try { await _supabase.storage.from(FOTOS_BUCKET).remove(paths); } catch(e) { console.warn('Fotos da nuvem não removidas:', e); } }
-    }
-    state.vistoriaAberta = null;
-    setView('vistorias');
-    showToast('Check-list excluído.');
+    state.lixeira = (state.lixeira || []).concat([idx]);
   }
-}
+
+  await salvarIndice();
+  await storageSet('vistoria:' + id, aberta);
+  if (_supabase && navigator.onLine) {
+    await _supabase.from('vistorias')
+      .update({ excluida_em: quando, excluido_por: quem, motivo_exclusao: motivo.trim() }).eq('id', id);
+  }
+  state.vistoriaAberta = null;
+  setView('vistorias');
+  showToast('Enviado para a lixeira. Pode ser restaurado no histórico.');
+};
+
+window.restaurarVistoria = async function(id) {
+  const idx = (state.lixeira || []).find(v => v.id === id);
+  if (!idx) return;
+  delete idx.excluidaEm; delete idx.excluidoPor; delete idx.motivoExclusao;
+  state.lixeira = state.lixeira.filter(v => v.id !== id);
+  state.vistoriasIndex = state.vistoriasIndex.concat([idx]);
+  const paga = await storageGet('vistoria:' + id);
+  if (paga) { delete paga.excluidaEm; delete paga.excluidoPor; delete paga.motivoExclusao;
+              await storageSet('vistoria:' + id, paga); }
+  await salvarIndice();
+  if (_supabase && navigator.onLine) {
+    await _supabase.from('vistorias')
+      .update({ excluida_em: null, excluido_por: null, motivo_exclusao: null }).eq('id', id);
+  }
+  render();
+  showToast('Check-list restaurado.');
+};
+
+/* Definitivo, e só a partir da lixeira. Aqui as fotos do Storage também vão,
+   porque a partir deste ponto não há como restaurar. */
+window.apagarDefinitivo = async function(id) {
+  const idx = (state.lixeira || []).find(v => v.id === id);
+  if (!idx) return;
+  const conf = prompt('Isto apaga o check-list e as fotos da nuvem. NÃO tem desfazer.\n\n' +
+    'Para confirmar, digite APAGAR:', '');
+  if (!conf || conf.trim().toUpperCase() !== 'APAGAR') return;
+
+  const paga = await storageGet('vistoria:' + id);
+  const paths = [];
+  ((paga && paga.itens) || []).forEach(it => (it.fotos || []).forEach(f => { if (ehFotoRemota(f)) paths.push(caminhoFoto(f)); }));
+
+  state.lixeira = state.lixeira.filter(v => v.id !== id);
+  await salvarIndice();
+  await storageRemove('vistoria:' + id);
+  if (_supabase && navigator.onLine) {
+    await _supabase.from('vistorias').delete().eq('id', id);
+    if (paths.length) { try { await _supabase.storage.from(FOTOS_BUCKET).remove(paths); } catch(e) { console.warn('Fotos não removidas:', e); } }
+  }
+  render();
+  showToast('Apagado definitivamente.');
+};
+
+window.alternarLixeira = function() { state.verLixeira = !state.verLixeira; render(); };
 
 window.editarVistoriaAtual = function() {
   try {
@@ -8060,6 +8198,9 @@ async function checkAuth() {
   const { data: { session } } = await _supabase.auth.getSession();
   
   if (session) {
+    // Sem isto, todo campo "quem fez" grava null: criado_por das poligonais,
+    // por dos achados, e agora excluido_por das vistorias.
+    state.usuarioEmail = (session.user && session.user.email) || null;
     loginScreen.style.display = 'none';
     iniciarApp(); 
     return;
@@ -8074,6 +8215,7 @@ async function checkAuth() {
     if (error) {
       alert('Falha no login. Verifique as credenciais.');
     } else { 
+      state.usuarioEmail = email || null;
       loginScreen.style.display = 'none'; 
       iniciarApp(); 
     }
