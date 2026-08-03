@@ -3657,76 +3657,6 @@ function simplificarGeos(geos, maxVertices) {
   return { geos: out, simplificado: true };
 }
 
-/* ---------- Ponto em polígono, com buracos ----------
-   Ray casting. Anel externo conta como dentro; anel interno inverte. */
-function emAnel(lon, lat, anel) {
-  let dentro = false;
-  for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
-    const [xi, yi] = anel[i], [xj, yj] = anel[j];
-    if (((yi > lat) !== (yj > lat)) &&
-        (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) dentro = !dentro;
-  }
-  return dentro;
-}
-
-function dentroDe(lon, lat, geos) {
-  for (const g of geos) {
-    if (g.tipo !== 'poligono') continue;
-    if (!emAnel(lon, lat, g.aneis[0])) continue;
-    let buraco = false;
-    for (let k = 1; k < g.aneis.length; k++) if (emAnel(lon, lat, g.aneis[k])) { buraco = true; break; }
-    if (!buraco) return g;
-  }
-  return null;
-}
-
-/* ---------- Distância ao limite, em metros ----------
-   Aproximação plana local: na escala de uma ADA (km) o erro é
-   centimétrico, e evita trigonometria esférica a cada frame. */
-function metrosPorGrau(lat) {
-  return { x: 111320 * Math.cos(lat * Math.PI / 180), y: 110540 };
-}
-
-function distanciaAoLimite(lon, lat, geos) {
-  const m = metrosPorGrau(lat);
-  let melhor = Infinity;
-  for (const g of geos) {
-    for (const anel of g.aneis) {
-      for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
-        const ax = (anel[j][0] - lon) * m.x, ay = (anel[j][1] - lat) * m.y;
-        const bx = (anel[i][0] - lon) * m.x, by = (anel[i][1] - lat) * m.y;
-        const dx = bx - ax, dy = by - ay;
-        let t = (dx || dy) ? -(ax * dx + ay * dy) / (dx * dx + dy * dy) : 0;
-        t = Math.max(0, Math.min(1, t));
-        const px = ax + t * dx, py = ay + t * dy;
-        const d = Math.hypot(px, py);
-        if (d < melhor) melhor = d;
-      }
-    }
-  }
-  return melhor;
-}
-
-/* ---------- Situação com regra de decisão ----------
-   O GPS tem erro. Se a distância até o limite for menor que a
-   precisão do aparelho, o app não pode afirmar dentro nem fora:
-   o sensor não sustenta a afirmação. Devolve 'indeterminado'. */
-function situacaoNaArea(lon, lat, acc, geos) {
-  const alvo = geos.filter(g => g.tipo === 'poligono');
-  if (!alvo.length) return { estado: 'sem_poligono' };
-  const dist = distanciaAoLimite(lon, lat, alvo);
-  const g = dentroDe(lon, lat, alvo);
-  const precisao = (acc == null || !isFinite(acc)) ? null : acc;
-  if (precisao !== null && dist < precisao) {
-    return { estado: 'indeterminado', dist, precisao, dentro: !!g, area: g ? g.nome : null };
-  }
-  return { estado: g ? 'dentro' : 'fora', dist, precisao, area: g ? g.nome : null };
-}
-
-
-/* data curta para rótulos de licença */
-function fmtDataCurta(iso){ if(!iso) return ''; const d=new Date(String(iso).slice(0,10)+'T12:00:00'); return isNaN(d)?String(iso):d.toLocaleDateString('pt-BR'); }
-
 /* ============================================================
    ABA MAPA — app de campo
    ------------------------------------------------------------
@@ -3964,16 +3894,27 @@ function mapaDesenhar() {
     }
   });
 
-  // ---- minha posição. Halo branco porque sobre preenchimento sólido
-  // um ponto sem contorno desaparece justamente quando você está dentro.
+  // ---- minha posição.
+  // O círculo de precisão é o que comunica a dúvida: se ele cruza a linha da
+  // poligonal, a posição em relação ao limite não está resolvida, e isso se vê
+  // sem o app precisar afirmar nada.
+  // Halo branco porque sobre preenchimento sólido a seta desaparece.
   if (m.gps) {
     const [x, y] = px(m.gps.lng, m.gps.lat);
     const escPx = escalaPxPorMetro(m.gps.lat, m.z);
-    const rAcc = Math.min((m.gps.acc || 0) * escPx, Math.max(m.larg, m.alt));
-    if (rAcc > 6) svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rAcc.toFixed(1)}"
-                           fill="#2a78d6" fill-opacity="0.13" stroke="#2a78d6" stroke-opacity="0.4" stroke-width="1"/>`;
-    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="#fff"/>
-            <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="#2a78d6" stroke="#fff" stroke-width="2"/>`;
+    const rAcc = Math.min((m.gps.acc || 0) * escPx, Math.max(m.larg, m.alt) * 1.5);
+    if (rAcc > 5) svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rAcc.toFixed(1)}"
+                           fill="#2a78d6" fill-opacity="0.13" stroke="#2a78d6" stroke-opacity="0.45"
+                           stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    const rumo = (m.gps.rumo != null && isFinite(m.gps.rumo)) ? m.gps.rumo : null;
+    if (rumo != null) {
+      // Seta aponta para onde o aparelho se move. heading só vem com deslocamento.
+      svg += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rumo.toFixed(0)})">
+        <path d="M0,-13 L8.5,9 L0,4.5 L-8.5,9 Z" fill="#2a78d6" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+      </g>`;
+    } else {
+      svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="8.5" fill="#2a78d6" stroke="#fff" stroke-width="2.5"/>`;
+    }
   }
   document.getElementById('mapa-svg').innerHTML = svg;
 
@@ -3993,53 +3934,42 @@ function escalaPxPorMetro(lat, z) {
   return 1 / mppEq;
 }
 
-/* ---------- painel de situação ---------- */
+/* ---------- leitura do GPS ----------
+   Sem veredito de dentro ou fora: quem olha o mapa vê a seta em relação à
+   linha, e o círculo de precisão mostra a dúvida sem que o app a nomeie.
+   O que aparece aqui é o que o sensor informou, não interpretação. */
 function mapaPainelSituacao() {
   const m = state.mapa;
   const alvo = document.getElementById('mapa-situacao');
   if (!alvo) return;
 
   if (m.erroGps) {
-    alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid var(--media);">
+    alvo.innerHTML = `<div class="card" style="padding:11px 14px;margin-bottom:12px;border-left:3px solid var(--media);">
       <strong style="font-size:13.5px;">GPS indisponível</strong>
       <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">${esc(m.erroGps)}
       As poligonais continuam visíveis; só a sua posição não aparece.</div></div>`;
     return;
   }
   if (!m.gps) {
-    alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;">
+    alvo.innerHTML = `<div class="card" style="padding:11px 14px;margin-bottom:12px;">
       <span style="font-size:13.5px;">Buscando satélites…</span>
       <div style="font-size:12px;color:var(--ink-faint);margin-top:3px;">
       Sem rede a primeira fixação demora mais, porque não há assistência de rede para acelerar.</div></div>`;
     return;
   }
 
-  const s = situacaoNaArea(m.gps.lng, m.gps.lat, m.gps.acc, m.geos);
-  const cor = { dentro: 'var(--conforme)', fora: 'var(--nc)', indeterminado: 'var(--media)' }[s.estado] || 'var(--line)';
-  let titulo, corpo;
-
-  if (s.estado === 'sem_poligono') {
-    titulo = 'Sem polígono para comparar';
-    corpo  = 'As camadas anexadas não incluem área fechada.';
-  } else if (s.estado === 'indeterminado') {
-    // Mesma lógica de qualquer medição: não se afirma além da precisão do sensor.
-    titulo = 'Não é possível afirmar dentro ou fora';
-    corpo  = `Você está a ${s.dist < 10 ? s.dist.toFixed(1) : s.dist.toFixed(0)} m do limite, e a precisão do GPS
-              agora é de ${s.precisao.toFixed(0)} m. A distância é menor que o erro do aparelho, então o
-              app não conclui. Aguarde a precisão melhorar ou afaste-se do limite.`;
-  } else if (s.estado === 'dentro') {
-    titulo = `Dentro de ${esc(s.area || 'área')}`;
-    corpo  = `${s.dist.toFixed(0)} m até o limite mais próximo. Precisão do GPS ${s.precisao ? s.precisao.toFixed(0) + ' m' : 'não informada'}.`;
-  } else {
-    titulo = 'Fora das áreas cadastradas';
-    corpo  = `${s.dist.toFixed(0)} m do limite mais próximo. Precisão do GPS ${s.precisao ? s.precisao.toFixed(0) + ' m' : 'não informada'}.`;
-  }
-
-  alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid ${cor};">
-    <strong style="font-size:14px;">${titulo}</strong>
-    <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5;">${corpo}</div>
-    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:6px;font-variant-numeric:tabular-nums;">
-      ${m.gps.lat.toFixed(6)}, ${m.gps.lng.toFixed(6)}${m.gps.alt != null ? ' · alt ' + m.gps.alt.toFixed(0) + ' m' : ''}
+  const acc = m.gps.acc;
+  const corAcc = acc == null ? 'var(--ink-faint)' : acc <= 10 ? 'var(--conforme)' : acc <= 25 ? 'var(--media)' : 'var(--nc)';
+  alvo.innerHTML = `<div class="card" style="padding:11px 14px;margin-bottom:12px;">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;">
+      <span class="mono" style="font-size:13px;font-variant-numeric:tabular-nums;">
+        ${m.gps.lat.toFixed(6)}, ${m.gps.lng.toFixed(6)}</span>
+      <span style="font-size:12px;color:${corAcc};">precisão ${acc == null ? '—' : acc.toFixed(0) + ' m'}</span>
+      ${m.gps.alt != null ? `<span style="font-size:12px;color:var(--ink-faint);">alt ${m.gps.alt.toFixed(0)} m</span>` : ''}
+    </div>
+    <div style="font-size:11.5px;color:var(--ink-faint);margin-top:5px;line-height:1.5;">
+      O círculo em volta da seta é a margem de erro do aparelho. Se ele encostar na linha da
+      poligonal, a sua posição em relação ao limite não está resolvida.
     </div></div>`;
 }
 
@@ -4172,7 +4102,8 @@ function mapaIniciarGps() {
     pos => {
       m.erroGps = null;
       m.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude,
-                acc: pos.coords.accuracy, alt: pos.coords.altitude };
+                acc: pos.coords.accuracy, alt: pos.coords.altitude,
+                rumo: pos.coords.heading, vel: pos.coords.speed };
       if (m.seguindo) mapaCentrarEm(m.gps.lng, m.gps.lat);
       if (state.view === 'mapa') mapaDesenhar();
     },

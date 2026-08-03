@@ -1,404 +1,454 @@
 # MapaBase — estado do projeto
 
-Documento de retomada. Anexe num chat novo e diga o que quer fazer; não é
-preciso reexplicar nada.
+Documento de retomada. **Numa conversa nova, basta dizer: "leia o
+`ESTADO_DO_PROJETO.md` em `contatoMapaBase/Vistoria`".** Repositório público é
+legível sem credencial, então não é preciso anexar arquivo nenhum.
 
-> Última atualização: 29/07/2026 — semeadura da CONAMA 491/2018 na biblioteca
-> legal, primeira campanha real avaliada, prompt de extração na rev.02.
+> Última atualização: 03/08/2026. Cobre a aba Mapa do app de campo, as
+> poligonais por empreendimento, a leitura crítica de laudos e o cache de tiles.
+
+---
+
+## 0. Onde as coisas estão
+
+| Recurso | Endereço |
+|---|---|
+| Repositório | `contatoMapaBase/Vistoria`, branch `main` |
+| Projeto Supabase | `rbqrinldrtkwzxqopygv` (nome "Vistoria"), sa-east-1, Postgres 17 |
+| Laudos e estudos | Google Drive, pasta-mãe `15QhuFSwnLrX800nQdD5ewBydmqd1eKel` |
+
+O projeto Supabase `contatoMapaBase's Project` está INACTIVE e não é produção.
+
+**Fica fora do repositório, de propósito:** os JSON de importação e o
+`HANDOFF_monitoramento_ar_goiascal.md`. Contêm razão social, CNPJ, endereço de
+planta, resultados medidos e imputação técnica a profissionais nomeados com
+número de CREA. Lugar deles é o Drive.
 
 ---
 
 ## 1. O que é o sistema
 
-**MapaBase** — plataforma de compliance ambiental da MapaBase (consultoria
-ambiental, clientes em agro, mineração e indústria).
-
-Duas peças, mesmo repositório GitHub, mesma origem, mesmo projeto Supabase,
-mesmo login:
+**MapaBase** — plataforma de compliance ambiental de consultoria ambiental, com
+clientes em agro, mineração e indústria.
 
 | Arquivo | O que é | Regime |
 |---|---|---|
-| `index.html` | App de campo: check-list de inspeção ambiental | PWA offline-first |
+| `index.html` | App de campo: check-list de inspeção e aba Mapa | PWA offline-first |
 | `monitoramento.html` | Escritório: monitoramentos ambientais | Online-only |
+| `sw.js` | Service worker: offline do app de campo e cache de tiles | — |
 
-Stack: HTML/CSS/JS puro (sem build), Chart.js, Supabase (Postgres + Auth + RLS),
-publicado por GitHub Pages. Ids gerados no cliente (`uid()`), tipo `text`.
+Stack: HTML/CSS/JS puro sem build, Chart.js, Supabase (Postgres + Auth + RLS),
+GitHub Pages. Ids gerados no cliente por `uid()`, tipo `text`.
 
-Projeto Supabase: **`rbqrinldrtkwzxqopygv`** (nome "Vistoria").
+**Sem framework e sem Leaflet, por decisão.** O mapa foi feito com projeção
+Web Mercator própria, tiles em `<img>` posicionados e vetor em SVG por cima.
+Leaflet são ~150 KB que existem para gerenciar tiles, e a camada que precisa
+funcionar offline é a vetorial.
 
 ---
 
 ## 2. App de campo (`index.html`) — em produção
 
-6.423 linhas, arquivo único. Tabelas: `empreendimentos` (6), `estruturas` (35),
-`vistorias` (78). RLS ligado nas três.
+7.149 linhas na versão atual. Testado em campo uma vez, com resultado positivo.
 
-Telas: Painel Geral, Ranking IGD, Histórico, Não Conformidades, Evolução,
-Empreendimentos, Estruturas, Nova Vistoria.
+Tabelas: `empreendimentos`, `estruturas`, `vistorias`, `empreendimento_poligonos`.
 
-Recursos: IndexedDB com índice leve + payload por vistoria, `syncStatus`
+Telas: Painel Geral · Ranking IGD · Histórico · Não Conformidades · Evolução ·
+**Mapa** · Empreendimentos · Estruturas · Nova Vistoria.
+
+Recursos: IndexedDB com índice leve mais payload por vistoria, `syncStatus`
 pendente→nuvem, fotos como ponteiro `spath:`, rascunho automático com
-recuperação, Wake Lock, service worker com autoatualização, backup JSON
-(exportar/restaurar em modo juntar), duplicar vistoria e estrutura, carimbo de
-última edição, logo por empreendimento.
+recuperação, Wake Lock, service worker com autoatualização, backup JSON,
+duplicar vistoria e estrutura, carimbo de última edição, logo por empreendimento.
 
 Motor de criticidade com pesos (crítica 4 / alta 3 / média 2 / baixa 1), IGD,
-matriz de evolução e comentários automáticos (`gerarComentarios()`).
+matriz de evolução e comentários automáticos.
+
+### Aba Mapa
+
+Aparece no menu **somente quando existe KML anexado** a algum empreendimento.
+
+- Poligonais por empreendimento, servidas do cache local — funciona offline por
+  construção
+- Posição do GPS como **seta que rotaciona com o rumo**; volta a ser círculo
+  quando o aparelho está parado, porque `heading` vem nulo sem deslocamento
+- **Círculo de precisão em escala real**, tracejado. É ele que comunica a
+  dúvida: se encosta na linha da poligonal, a posição em relação ao limite não
+  está resolvida
+- Camada de satélite opcional (Esri World Imagery), com atribuição
+- Arrastar, pinça, roda, botões de zoom, barra de escala métrica
+- "Enquadrar área" e "Centrar em mim", que se desliga ao arrastar
+- Preenchimento adaptativo: o gatilho é **existir imagem de fundo desenhada**,
+  não `navigator.onLine` — com tile em cache offline há imagem, e com tile lento
+  online não há. Sem fundo, 38% de opacidade; com fundo, 10% e borda de 3px;
+  botão "Reforçar área" leva a 45%
+- Legenda com tipo, procedência e número de vértices de cada camada
+
+**O app não afirma "dentro" ou "fora" da ADA.** Decisão explícita: se a seta está
+fora da linha, quem olha vê. Nomear a situação é afirmação de conformidade que o
+app não precisa fazer, e o círculo de precisão já mostra a incerteza. As funções
+de ponto-em-polígono e distância foram removidas junto, para não deixar código
+morto.
+
+**GPS desliga ao sair da aba.** `watchPosition` ligado o dia todo consome
+bateria, e em campo isso pesa mais que a conveniência.
+
+### Anexo de KML no cadastro do empreendimento
+
+Em Empreendimentos → Editar. Ao anexar, mostra vértices e extensão aproximada em
+km — é a conferência mais rápida de que o arquivo é o certo.
+
+O **tipo é obrigatório**: `ada_licenciada`, `area_processo`, `poligonal_dnpm`,
+`car`, `reserva_legal`, `app`, `limite_propriedade`, `outro`. Cada um com cor
+própria. O CAR ganha aviso de que é autodeclarado pelo produtor e **não
+substitui a poligonal licenciada** — distinção que existe porque desenhar o CAR
+rotulado como limite faria o app certificar uma invasão como regular.
+
+Mais campos de licença, emissão e validade.
+
+Poligonal acima de 1.500 vértices é simplificada por Douglas-Peucker na
+importação, com registro de quantos vinham no arquivo, para não travar o SVG no
+celular.
+
+### Armadilhas de KML já tratadas
+
+- **Ordem `longitude,latitude,altitude`**, invertida em relação ao hábito. É o
+  bug que põe a ADA na China
+- **`MultiGeometry`** e vários `Placemark`: um KML de licenciamento raramente é
+  um polígono só
+- **`innerBoundaryIs`** são buracos, áreas excluídas dentro da poligonal
+- **KMZ não abre** sem descompactar. Exportar como KML no Google Earth Pro
+- KML é WGS84 por especificação, então não há a ambiguidade de datum que aparece
+  na UTM dos laudos
+
+O núcleo geográfico foi validado por 22 testes automatizados antes de entrar no
+app: buraco em polígono, ordem lon/lat, `MultiGeometry`, distância em metros com
+erro abaixo de 1 m, e simplificação de 5.001 para 129 vértices preservando o
+interior.
 
 ---
 
 ## 3. Aba de Monitoramentos (`monitoramento.html`)
 
-### Estado
-Construída. **Primeira campanha real já carregada e avaliada**: Goiascal
-Mineração e Calcário, ar/imissão, 11–15/10/2021, laboratório BIOAR,
-4 pontos × 3 parâmetros = 12 resultados. Ainda não publicada no GitHub.
+4.604 linhas. Publicada e em uso.
 
-### Por que é arquivo separado
-Monitoramento é trabalho de escritório: o laudo chega por e-mail, é lido com
-internet e exige julgamento técnico. Embutir no `index.html` aumentaria em ~40%
-o arquivo que o inspetor baixa em 4G ruim, a cada publicação. Separado, o campo
-só baixa o que usa.
+Telas: Painel geral (inicial) · Campanhas · Importar · Série histórica · Mapa ·
+Pontos · Padrões legais, agrupadas no menu em **Análise**, **Registros** e
+**Entrada e curadoria**.
 
-No `sw.js`, `monitoramento.html` está fora do `CORE_ASSETS` e é tratado como
-network-only. O `sw.js` também foi corrigido para que só o app de campo alimente
-a cópia offline (antes, qualquer navegação sobrescrevia `./index.html` no cache).
+O **tipo de monitoramento** é o contexto de trabalho, no topo da lateral, não um
+filtro de tela: trocá-lo muda o que todas as abas mostram. As oito matrizes do
+catálogo aparecem, com "sem dados" nas que ainda não têm nada.
 
-### Navegação
-Último item do menu lateral do `index.html` (`a.navbtn.externo`), visível também
-no celular. O clique é barrado sem internet, e confirma + salva rascunho se
-houver check-list em preenchimento (`exigirInternet()`).
+### Estado dos dados
 
-### Telas
-Campanhas · Importar · Série histórica · Pontos · Padrões legais.
+| Empreendimento | Campanhas de ar |
+|---|---|
+| Goiascal Mineração e Calcário LTDA | 2021, 2022, 2023, 2024, 2025 |
+| Calcário Pirineus Ltda | 2025 |
+| Goianésia Calcário Dolomítico Ltda | 2025, 2026 |
 
-### Entrada de dados
-Não há upload de PDF e não há IA embutida. O fluxo é:
+8 campanhas, 78 resultados. Prontos para importar, no Drive: Calcário Alto do
+Araguaia 2024 (SENAI) e 2026 (Bioar).
 
-1. Chat separado, com o laudo anexado e o prompt de `PROMPT_EXTRACAO.md`
-2. O chat devolve JSON `"schema": "mapabase.monitoramento.v1"`
-3. Cola na tela Importar → valida → salva
+### Requisito de desenho que vem antes da estética
 
-O prompt está na **rev.02**. Mudanças em relação à rev.01: esqueleto todo `null`
-(o esqueleto preenchido fazia o modelo copiar defaults, inclusive `duracao_h`,
-que alimenta trava de coerência); identificação por `razao_social` + lista de
-`cnpj` em vez de nome do empreendimento (o vínculo com o cadastro é feito por
-pessoa na tela Importar — FK não se adivinha); campos novos `norma_citada`,
-`campos_ausentes` e `incerteza`; `metodo` por resultado; proibição explícita de
-transcrever a conclusão do laboratório.
+O KPI não é "não conformidades" — é **"não avaliáveis"**, e quando é maior que
+zero aparece tarja atribuindo a responsabilidade ao laboratório emissor, não ao
+empreendimento. Um painel que exibisse "0 não conformes" comunicaria que está
+tudo bem, quando nenhuma das campanhas fecha a trava de coerência.
 
-Rastreabilidade sem o PDF: laboratório, RT, CREA, ART, número/revisão/emissão do
-relatório e `link_externo` (Drive). O JSON cru fica em `mon_campanhas.origem_json`.
+### Separação entre fato e julgamento
 
-**Regra de teste do prompt:** sempre em chat limpo. Um chat que já conhece o
-schema, os `parametro_id` ou a regra de etapa da norma dá falso positivo.
+| | Onde aparece | Natureza |
+|---|---|---|
+| **Situação** — conforme, excedente, inconsistente, norma não cadastrada | Painel, tabelas, PDF | Fato computado |
+| **Achado** — vazão fora do critério, constante divergente | Só no detalhe da campanha | Julgamento técnico |
+| **Checagem de digitação** da base legal | Só no detalhe da campanha | Controle interno |
 
-### Travas de qualidade
-Não bloqueiam a carga — marcam a linha como `inconsistente`, que entra no
-histórico mas fica fora de gráficos e de conformidade. A campanha vira
-`com_pendencia_laboratorio`.
+Achado é imputação ao laboratório; não vai ao painel nem ao PDF. A checagem de
+digitação é defeito de processo interno da MapaBase e não informa nada sobre o
+meio ambiente do cliente. Ambos verificados por código: zero menções no painel.
 
-- MP2,5 ≤ MP10 ≤ PTS no mesmo ponto e janela (física)
-- volume declarado coerente com vazão × duração (aritmética)
+### Recursos
 
-Na campanha da Goiascal de 2021 as duas travas passaram sem falso positivo.
+Gráficos com ampliar e baixar PNG — o Painel tem dois que a Série não tem
+(razão valor/limite por parâmetro, e situação por campanha empilhada, que torna a
+abstenção visível graficamente). Exportação em PDF por layout de impressão A4
+paisagem, com base legal, gráfico, tabela e seção de edições manuais. Cascata de
+multi-seleção. Editar e excluir campanha. Editar resultado com auditoria
+obrigatória. Editar ponto com conversão UTM ⇄ WGS84 e mapa. Glossário de seis
+termos no Painel.
 
 ---
 
-## 4. Banco — tabelas de monitoramento
+## 4. Banco
 
-Biblioteca compartilhada (curada pela MapaBase):
-- `mon_parametros` — 9 parâmetros de ar; `qc` guarda só a referência do método
-- `mon_padroes_legais` — **92 padrões** (44 da 506/2024 + 48 da 491/2018)
-- `mon_faixas_iqar` — 6 faixas N1 oficiais (Anexo II da 506/2024)
+### Biblioteca legal — 92 padrões
 
-Dados do cliente (todos ancorados em `empreendimento_id NOT NULL`):
-- `mon_pontos`, `mon_campanhas`, `mon_resultados`, `mon_meteorologia`
+- `CONAMA 491/2018, Anexo I` — 48 linhas, vigência 21/11/2018 a 08/07/2024.
+  Apenas 8 avaliáveis. `fonte_tipo = reproducao`, `conferido = false`
+- `CONAMA 506/2024, Anexo I e II` — 44 linhas, vigência a partir de 09/07/2024.
+  `conferido = true`, mas `fonte_tipo = reproducao`
 
-View `mon_resultados_avaliados`: calcula limite aplicável, percentual e situação
-(conforme / excedente / inconsistente / sem_padrao / controle). **Conformidade
-nunca é gravada** — é calculada contra o padrão vigente na data da coleta, então
-quando o PI-3 entrar em 2033 o histórico inteiro é relido sozinho.
+### "Conferido" não é sobre a lei
 
-RLS ligado nas 7 tabelas, uma policy por tabela: `authenticated` faz tudo,
-anônimo não alcança nada.
+O nome que eu usava antes — "padrão não conferido" — dizia algo absurdo: que o
+sistema duvida do CONAMA. **A resolução está certa.** O que não foi confirmado é
+a *nossa cópia dela*: alguém digitou 92 números para dentro do banco, e conferir
+significa abrir o texto oficial e verificar a digitação.
 
-### Regra de ouro da biblioteca
-A biblioteca é **compartilhada por todos os clientes**. Só pode conter:
-(a) norma conferida em fonte primária (DOU / órgão), ou
-(b) regra de física ou aritmética que não depende de fonte.
+A interface hoje fala assim: coluna "Origem do valor", selos "Diário Oficial",
+"Cópia" e "Sem registro", botão "Checar no Diário Oficial". E `conferido` deixou
+de ser campo editável — passou a ser **consequência** da procedência.
 
-Eu havia semeado a biblioteca a partir do laudo de um cliente (BIOAR / Mineração
-Pirineus). Isso foi expurgado: saíram os níveis da 491/2018, a classificação de
-PTS de literatura, as faixas da CETESB e as faixas de vazão específicas daquele
-laboratório.
+**Por que insistir:** os três laudos da Bioar reproduzem o Anexo I da 506 e
+acertam; os mesmos três reproduzem o Anexo II e erram igual, dando a primeira
+faixa do IQAr como MP10 0–50 e MP2,5 0–25 quando o art. 8º §3º manda usar o
+padrão final, 45 e 15. Três documentos unânimes e errados. É por isso que "está
+em três lugares" não substitui "está no Diário Oficial".
 
-Um erro concreto que isso corrigiu: o laudo apresentava a primeira faixa do IQAr
-como MP10 0–50 e MP2,5 0–25; o Anexo II oficial diz **0–45 e 0–15** (art. 8º,
-§3º: o teto da primeira faixa é o PF de cada poluente).
+A origem da tabela errada é o **Anexo IV da 491/2018**, que trazia 0–50 e 0–25 e
+foi carregado para a era da 506 sem checar o §3º. Não era invenção do
+laboratório: era tabela certa, norma errada.
 
-### Base legal cadastrada
-
-**CONAMA 506/2024, Anexos I e II** — 44 linhas, conferidas no DOU.
-Escada PI-1 → PI-4 com datas no próprio texto: PI-1 de 09/07/2024 a 31/12/2024,
-PI-2 de 01/01/2025 a 31/12/2032, PI-3 de 01/01/2033 a 31/12/2043, PI-4 a partir
-de 01/01/2044.
-
-**CONAMA 491/2018, Anexo I** — 48 linhas, `conferido = false` (ver pendências).
-Vigência 21/11/2018 a 08/07/2024. Migração `seed_conama_491_2018_anexo_i`,
-arquivo versionado em `sql/mon_seed_conama_491_2018.sql`.
-
-#### A diferença estrutural entre as duas (isto explica muita confusão)
+### Diferença estrutural entre as duas normas de ar
 
 | | 506/2024 | 491/2018 |
 |---|---|---|
-| Troca de etapa | **Data no texto da norma** | **Sem data.** Dependia de ato do órgão estadual (art. 4º §3º) |
-| Sem ato do estado | não se aplica | §4º: *"prevalece o padrão já adotado"* → fica em **PI-1** |
+| Troca de etapa | **Data no texto**: PI-1 até 31/12/2024, PI-2 em 2025, PI-3 em 2033, PI-4 em 2044 | **Sem data.** Dependia de ato do órgão estadual (art. 4º §3º) |
+| Sem ato do estado | não se aplica | §4º: prevalece o padrão já adotado → **PI-1** |
+| CO, PTS, Pb | PF desde a publicação | PF desde a publicação |
 
-Consequência: durante toda a vida da 491/2018, MP10, MP2,5, SO2, NO2, O3 e FMC
-ficam em **PI-1** por padrão. As linhas PI-2, PI-3 e PF desses poluentes estão
-transcritas com `vigencia_inicio = NULL` e `avaliavel = false` — existem no
-registro, nunca foram ativadas.
+### Regra de ouro da biblioteca
 
-Exceção do **art. 4º §2º**: CO, PTS e Pb adotam o **PF direto desde a
-publicação**. É por isso que um laudo de 2021 avalia PTS contra 240 µg/m³
-enquanto MP10 e MP2,5 estão em faixa intermediária.
+Só entra: norma conferida em fonte primária (DOU ou órgão), ou regra de física ou
+aritmética que não depende de fonte. **Documento de cliente nunca vira base
+legal**, mesmo reproduzindo o anexo corretamente. Já falhou duas vezes.
 
-Das 48 linhas da 491, apenas **8 são avaliáveis**: MP10, MP2,5, SO2 e FMC em 24 h
-(PI-1), NO2 1 h (PI-1), O3 8 h (PI-1), CO 8 h (PF) e PTS 24 h (PF). Todas as
-anuais ficam `avaliavel = false` por representatividade.
+### Tabelas
 
-#### Procedência e o que não foi conferido
+Biblioteca compartilhada: `mon_parametros` (9 de ar), `mon_padroes_legais` (92),
+`mon_faixas_iqar` (6 faixas N1).
 
-A 491/2018 foi lida de PDF servido por `siam.mg.gov.br` (SIAM / SEMAD-MG), que
-reproduz a resolução federal e declara "Publicação — Diário Oficial da União —
-21/11/2018". **É repositório de órgão estadual, não o DOU original.** Daí
-`conferido = false` nas 48 linhas.
+Dados do cliente, ancorados em `empreendimento_id NOT NULL`: `mon_pontos`,
+`mon_campanhas`, `mon_resultados`, `mon_meteorologia`, `mon_achados`.
 
-O texto nativo do PDF está corrompido (fontes Type 3, encoding Custom, sem mapa
-unicode). Os valores foram lidos por OCR em 130/300/400 dpi com recortes
-ampliados. Duas células divergiram entre passes e foram resolvidas por maioria em
-alta resolução: NO2 anual PI-1 = **60** (não 100) e MP2,5 24 h PF = **25** (não 20).
+App de campo: `empreendimentos`, `estruturas`, `vistorias`,
+`empreendimento_poligonos`.
 
-**Validação cruzada independente:** a escada da 491 coincide célula por célula
-com a escada da 506/2024 já conferida no DOU — o PI-1/PI-2/PI-3/PF da 491 é o
-PI-1/PI-2/PI-3/PI-4 da 506. Bateu em MP10, MP2,5, NO2, O3, FMC, CO, PTS
-(incluindo os 80 µg/m³ de média **geométrica**) e Pb.
-
-**Única divergência sem confirmação cruzada: SO2 24 h.** Lido na 491 como
-PI-3 = 30 e PF = 20; a 506 traz PI-3 = 40 e PI-4 = 40. Plausível que a 506 tenha
-alterado o SO2, mas está marcado na `observacao` das duas linhas.
-
-Notas de rodapé do Anexo I da 491, transcritas: 1 média aritmética anual;
-2 média horária; 3 máxima média móvel obtida no dia; 4 média geométrica anual;
-5 medido nas partículas totais em suspensão.
+View `mon_resultados_avaliados`: calcula limite aplicável, percentual e situação.
+**Conformidade nunca é gravada** — é recalculada contra o padrão vigente na data
+de cada coleta, a cada leitura. Por isso cadastrar norma nova relê o histórico
+inteiro sozinho.
 
 ### Bug latente conhecido na view
 
-O `LEFT JOIN LATERAL` de `mon_resultados_avaliados` filtra por `parametro_id`,
-`tipo_limite`, `avaliavel`, `valor IS NOT NULL` e vigência — **mas não confere
-`periodo_referencia` contra a duração do resultado.** Hoje não quebra porque
-todas as linhas anuais estão com `avaliavel = false`: funciona por acidente, não
-por desenho. No dia que existir estação com representatividade anual, um
-resultado de 24 h pode pegar o limite anual. Correção prevista (ver pendências).
+O `LEFT JOIN LATERAL` não confere `periodo_referencia` contra a duração do
+resultado. Hoje não quebra porque toda linha anual está `avaliavel = false`:
+funciona por acidente, não por desenho. **Antes de corrigir, congelar o retrato:**
+
+```sql
+create table mon_baseline_avaliacao as
+select id, parametro_id, limite, limite_contexto, limite_base_legal,
+       percentual_do_limite, situacao, now() as capturado_em
+from mon_resultados_avaliados;
+```
+
+### Índices de unicidade
+
+`mon_campanhas (empreendimento_id, data_inicio)` e
+`mon_pontos (empreendimento_id, codigo, matriz)`. A tela Importar **erra** em
+campanha repetida em vez de duplicar. Limitação conhecida, introduzida por mim:
+quebra no dia que uma planta fizer ar e água na mesma data, porque
+`mon_campanhas` não tem matriz.
 
 ---
 
-## 5. Extensibilidade para outras matrizes
+## 5. Decisões de projeto (não reabrir sem motivo)
 
-O schema já aceita, sem alteração de estrutura: água superficial (357/430),
-água subterrânea (396), solo (420), efluente, ruído (NBR 10151), sismografia
+- **Conformidade nunca é gravada.** Recalculada contra a norma da data da coleta
+- **O app não usa a conclusão do laudo.** Se laboratório e norma divergirem, vale
+  a norma. O prompt proíbe até transcrever essa conclusão
+- **Sem conversão automática de unidade.** Unidade divergente do catálogo é erro
+  de importação, não algo a corrigir silenciosamente
+- **Conversão de coordenada é permitida; de unidade não.** UTM↔WGS84 e DMS→graus
+  decimais são aritmética determinística
+- **WGS84 em graus decimais é o padrão canônico.** A UTM é preservada como o
+  laudo declarou, e o par lat/long é derivado, com a origem gravada em
+  `detalhes.coord`. Motivo: já há duas zonas na base, 22K e 22L, e zonas UTM não
+  têm eixo comum
+- **Sem categoria inventada de conformidade.** Descartada a escala de rótulos:
+  fica o binário da norma, o percentual (que é divisão) e tendência de série
+- **Média anual fica `avaliavel = false`**: campanha de 24 h não tem
+  representatividade anual
+- **IQAr é comunicação à população**, não compliance de empreendimento
+- **Pontos amostrados em dias diferentes não são comparáveis** entre si
+- **O código do ponto é a identidade dele.** Normalização conservadora na
+  importação: `1º Ponto`, `Ponto 01`, `PONTO 01`, `01`, `P1` → `P01`. Códigos com
+  prefixo próprio (`PM-01`, `SS-03`, `MTZ`) são preservados, porque ali o prefixo
+  é informação. Foi o que gerou 12 registros para 4 pontos físicos
+- **Monitoramento é escrita exclusiva da MapaBase.** Cliente é leitor
+- **Etapa da 491/2018 = PI-1 por padrão**, com apoio no art. 4º §4º
+- **O app não afirma dentro ou fora da ADA.** Visual, não verbal
+- **Cache de tiles sem versão no nome**, para sobreviver às publicações
+- **Opacidade do polígono responde a haver fundo desenhado**, não a estar online
+
+---
+
+## 6. Service worker (`sw.js`)
+
+**Não é preciso bumpar `CACHE_VERSION` a cada publicação.** O HTML de navegação é
+buscado com `cache: 'reload'` — rede primeiro, sempre — e o cache é reserva
+offline. Publicar `index.html` novo já basta. `CACHE_VERSION` só muda se as
+bibliotecas trocarem de endereço.
+
+`monitoramento.html` está fora do `CORE_ASSETS` e é network-only: o inspetor em
+campo nunca baixa a tela de escritório. E só o app de campo alimenta a cópia
+offline de `./index.html`.
+
+### Cache de tiles
+
+`CACHE_TILES = 'mapabase-tiles'`, **sem versão no nome**, excluído da limpeza do
+`activate`, cache-first, teto de 800 tiles (~36 MB) com poda FIFO. Hosts
+previstos: `server.arcgisonline.com` e `tile.openstreetmap.org`.
+
+Sem isso, os tiles cairiam no cache versionado: crescimento sem teto ao arrastar
+o mapa em zoom alto, e imagem apagada a cada publicação.
+
+**Efeito colateral desejado:** navegar pelo mapa com internet, no escritório, já
+constrói o mapa offline daquela área. Botão explícito de "baixar mapa" não é
+necessário na primeira versão.
+
+Custo de referência, ADA de 2×2 km: até z17 (~1,2 m/px) são 3,6 MB; até z18
+(~0,6 m/px), 12,8 MB; até z19, 47 MB. O `index.html` inteiro tem 0,29 MB.
+
+---
+
+## 7. Extensibilidade para outras matrizes
+
+O schema aceita, sem alteração de estrutura: água superficial (357/430),
+subterrânea (396), solo (420), efluente, ruído (NBR 10151), sismografia
 (NBR 9653).
 
-Decisões que tornam isso possível:
-- **`contexto`** em `mon_padroes_legais` é a chave genérica: no ar é a etapa
-  (PI-1..PF); na água superficial é a classe do corpo hídrico; na subterrânea é
-  o uso preponderante; no solo é o cenário de uso; no ruído é o zoneamento.
-- **`tipo_limite`** distingue `limite`, `VP`, `VI`, `VMP`, `VRQ` — necessário
-  porque em água subterrânea e solo a avaliação é em faixas, não conforme/não.
-- **`valor` + `qualificador` + `lq`** tratam dado censurado (`< 0,005 mg/L`),
-  que aparece em água e solo e não existe no ar.
-- **`fracao`** faz parte da identidade do parâmetro (ferro dissolvido ≠ total).
-- **`detalhes jsonb`** guarda o que é específico da matriz: filtro/pesos/vazão
-  no ar, profundidade e técnica (direct push) no solo, nível d'água e parâmetros
-  de campo na subterrânea, carga e distância na sismografia.
-- **`mon_pontos.referencia_id`** aponta para o ponto de background (poço a
-  montante), porque em subterrânea a comparação relevante muitas vezes é contra
-  o fundo geoquímico local, não contra limite legal.
-- **`tipo_amostra`** separa branco de campo, branco de transporte e duplicata —
-  vêm no mesmo laudo de água e não são resultado ambiental.
+`contexto` é a chave genérica; `tipo_limite` distingue `limite`, `VP`, `VI`,
+`VMP`, `VRQ`; `valor + qualificador + lq` tratam dado censurado; `fracao` faz
+parte da identidade do parâmetro; `detalhes jsonb` guarda o específico da matriz;
+`mon_pontos.referencia_id` aponta para o ponto de background; `tipo_amostra`
+separa branco de campo, branco de transporte e duplicata.
 
-Sismografia é a única cuja entrada não deve ser JSON de PDF: o sismógrafo
-exporta CSV, então o caminho é importador de CSV.
+### Mas o app ainda NÃO avalia outras matrizes
 
-**Nada de limite legal de outras matrizes está preenchido**, por decisão: a
-biblioteca vale pelo que está conferido, não pelo que está preenchido. Quando
-houver o primeiro laudo de uma matriz, cadastram-se os parâmetros e os limites
-daquela matriz, sempre de fonte primária. Atenção: os VRQ de solo são
-estabelecidos por cada estado, não pela União — em Goiás a base legal é estadual.
+Bloqueios reais, apurados com o laudo de solo da Goiascal em mão (MLA Ambiental,
+ensaios pela Freitag, CRL 0687, coleta 21/03/2025, quatro pontos, ~60 parâmetros):
 
----
+1. A view exige `tipo_limite = 'limite'`. Solo usa VRQ, VP e VI — nenhuma linha
+   casaria, e todos os ~240 resultados sairiam "norma não cadastrada"
+2. **Não há campo de cenário de uso no ponto.** Falta `mon_pontos.contexto`
+3. `situacao` é binária; o art. 13 da 420 define **quatro classes**, com ações
+   distintas no art. 20
+4. **Unidade não é conferida** na view — mg/kg contra µg/m³. Já é bug latente no ar
+5. Dado censurado (`< LQ`) é ignorado; em solo e água é a regra, não a exceção
+6. **NBR de método não entra na biblioteca legal** — NBR 9547 e EPA 6010 dizem
+   *como* medir, não trazem limite. Vão no campo `metodo`. NBR 10151 e 9653 têm
+   tabela, mas são norma paga e protegida: transcrever é questão jurídica
 
-## 6. Decisões de projeto já tomadas (não reabrir sem motivo)
+**VRQ de solo é estadual** (art. 8º). O Anexo II traz "E — a ser definido pelo
+Estado" para todos os inorgânicos. Sem o VRQ de Goiás não existe Classe 1 nem
+Classe 2, mesmo com tudo cadastrado.
 
-- Periodicidade de campanha **não** entra em `mon_campanhas`: é atributo da
-  condicionante da licença, que ainda não está cadastrada. Substituto atual:
-  "há X meses desde a última campanha", sem juízo de prazo.
-- O app **não usa a conclusão do laudo**. Calcula conformidade por conta própria
-  contra a norma. Se laboratório e norma divergirem, vale a norma. Desde a
-  rev.02, o prompt proíbe até transcrever essa conclusão.
-- Média anual (aritmética ou geométrica) fica `avaliavel = false`: campanha
-  trimestral de 24 h não tem representatividade para padrão anual.
-- Sem conversão automática de unidade. Unidade divergente do catálogo é erro de
-  importação, não algo a corrigir silenciosamente.
-- IQAr é instrumento de **comunicação à população**, não de compliance de
-  empreendimento — está no banco, mas não é usado na avaliação.
-- Pontos amostrados em dias diferentes **não são comparáveis** entre si
-  (meteorologias distintas). Não montar ranking entre pontos de uma campanha.
-- Chuva na janela de amostragem gera carimbo de representatividade: o resultado
-  é válido, mas não representa o pior caso operacional.
-- **Sem categoria inventada de conformidade.** Descartada a escala de rótulos
-  ("folga confortável", "margem moderada"): não é norma nem aritmética, e um
-  relatório de cliente citaria o rótulo como se fosse classificação legal. Fica
-  o binário da norma + o percentual (que é divisão) + tendência de série
-  (que é estatística descritiva). Se houver incerteza declarada no laudo, a
-  regra de decisão da ABNT NBR ISO/IEC 17025:2017 permite uma terceira situação
-  legítima, `indeterminado`, quando o limite cai dentro de valor ± U.
-- **Monitoramento é escrita exclusiva da MapaBase.** Cliente é leitor. Importar
-  é escrita em dado técnico com julgamento de laboratório, norma e coerência
-  física; a responsabilidade técnica é da consultoria. Exportação de JSON cru e
-  de `origem_json` também não vai para o cliente — o que o cliente exporta é
-  relatório com limite, norma e data de vigência embutidos.
-- **Etapa da 491/2018 = PI-1 por padrão**, com apoio no art. 4º §4º, até que se
-  comprove ato estadual de migração.
+Os dois consertos que servem a **todas** as matrizes e já estão bloqueando:
+`mon_pontos.contexto` e a checagem de unidade na view.
+
+### Método de trabalho para matriz nova
+
+Generalizar a partir de **dois** casos reais, nunca de um mais imaginação. Toda
+decisão de desenho que deu certo neste projeto veio de um documento na mão: a
+regra de etapa da 491, as duas zonas UTM, os 12 pontos que eram 4, o VRQ estadual.
+Nenhuma era previsível.
+
+### Opacidade veicular — avaliada e descartada por ora
+
+Quatro laudos no Drive (2021–2024). Não vale adicionar: a 418/2009 está estável,
+o limite vem do fabricante e não muda, e a avaliação é binária. O diferencial do
+MapaBase é recalcular contra norma que muda no tempo, e isso não se aplica.
+Revisitar se um segundo cliente tiver a mesma obrigação, ou quando existir
+cadastro de condicionantes de licença — que é o que de fato falta.
 
 ---
 
-## 7. Multi-cliente / portal do cliente — engatilhado, não iniciado
+## 8. Multi-cliente — engatilhado, bloqueado
 
-Mapa de permissões já aprovado:
+Mapa de permissões aprovado: cliente vê só os próprios empreendimentos, cria e
+edita as próprias vistorias, **não** exclui, **não** vê outros clientes.
+Monitoramento é somente leitura para o cliente.
 
-**Cliente** (um login por empresa, compartilhado pela equipe de auditoria dele):
-vê painel, evolução, ranking, NCs e histórico só dos próprios empreendimentos;
-cria e edita as próprias vistorias; cria estruturas próprias usando as da
-MapaBase como base; **não** exclui vistorias, **não** cria/exclui
-empreendimentos, **não** vê outros clientes, **não** altera configuração.
+### O que bloqueia
 
-**Monitoramentos:** cliente tem **somente `SELECT`** nas `mon_*`. Sem `INSERT`,
-`UPDATE` ou `DELETE`. Abas Importar e Padrões legais escondidas para não-admin.
+**As policies são `USING (true)` para `authenticated`**, em doze tabelas. Com um
+login só, é irrelevante. Com dois, o cliente A lê e apaga os dados do cliente B.
 
-**MapaBase (admin):** vê e edita tudo, cria clientes e logins, cria
-empreendimentos e vincula ao dono, exclui, administra acessos e senhas.
+Poligonal de ADA é dado mais sensível que resultado de laudo: é o desenho do ativo.
 
-Primeiro passo técnico: fundação de segurança (dono nos dados + RLS + papéis),
-testada à exaustão tentando "invadir" um cliente pelo outro, antes de qualquer
-tela nova.
+Pendências: `vistorias` referencia empreendimento por **nome**, não por FK; o
+`upsert` das `DEFAULT_ESTRUTURAS` no `iniciarApp()` faria cada cliente escrever na
+biblioteca-mãe; papel vai em `app_metadata` ou tabela `perfis`, **nunca em
+`user_metadata`**, que o próprio usuário edita via `updateUser()`.
 
-Pendências conhecidas para essa fase:
-- `vistorias` referencia empreendimento por **nome** (`empreendimento_nome`), não
-  por id. Isso precisa virar FK antes do RLS por cliente. O custo dessa migração
-  sobe a cada tela nova que leia o nome.
-- No `iniciarApp()` do `index.html`, todo login tenta `upsert` das
-  `DEFAULT_ESTRUTURAS`. Com multi-cliente, cada cliente tentaria escrever na
-  biblioteca-mãe da MapaBase. Item obrigatório da fase de segurança — é a mesma
-  violação da regra de ouro que já custou o expurgo da semeadura BIOAR.
-- Nas tabelas `mon_*`, o dono é derivável por join em `empreendimentos` — não
-  precisa de `cliente_id` próprio.
-- Policies a apertar: biblioteca com SELECT para todos os autenticados e
-  escrita só para admin; dados do cliente com join no dono.
-- **O papel vai em `app_metadata` ou em tabela `perfis` com RLS própria, nunca
-  em `user_metadata`** — este último o próprio usuário edita via `updateUser()`
-  e se promoveria a admin.
-- Esconder botão não é bloqueio: o cliente autenticado tem o mesmo `anon key` e
-  alcança a API direto. O bloqueio existe na policy; a UI é conveniência.
-- **Não liberar a aba de monitoramentos ao cliente enquanto a biblioteca não
-  cobrir as normas históricas.** Um leigo lê "SEM PADRÃO" como "não há norma que
-  se aplique a mim", ou como aprovação. É risco de responsabilidade técnica, não
-  bug de interface.
+Esconder botão não é bloqueio: o cliente autenticado tem o mesmo `anon key`.
 
 ---
 
-## 8. Pendências imediatas
+## 9. Pendências
 
-Ordem sugerida: 1 → 2 → 3 → 4 → 5 → 6.
+### Commit
+1. `index.html` — a versão publicada ainda tem o veredito dentro/fora e não tem
+   a seta com rumo
+2. `sw.js` — sem o cache de tiles
+3. `sql/03_migracoes_pos_seed.sql` — novo
+4. Este arquivo
 
-1. **Publicar no GitHub**: `index.html` (substituir), `monitoramento.html`
-   (novo), `sw.js` (substituir, v5), `PROMPT_EXTRACAO.md` (rev.02) e
-   `sql/mon_seed_conama_491_2018.sql` (novo).
-   Subir `monitoramento.html` junto ou antes do `index.html`.
-   *Nenhum desses arquivos mudou por causa da semeadura — a migração foi direto
-   no Supabase. A pendência continua sendo a publicação original.*
-2. **Testar o prompt rev.02 em chat limpo** com um laudo da Goiascal, e comparar
-   o JSON contra tabela-verdade montada à parte.
-3. **Subir as demais campanhas da Goiascal.** A base legal cobre 21/11/2018 a
-   08/07/2024 (491) e 09/07/2024 em diante (506). Laudo anterior a 21/11/2018
-   cairia na CONAMA 03/1990, que **não está na biblioteca** — voltaria a dar
-   `sem_padrao`.
-4. **Retrato antes de mexer na view.** Imediatamente antes da correção do item 5:
-   ```sql
-   create table mon_baseline_avaliacao as
-   select id, parametro_id, limite, limite_contexto, limite_base_legal,
-          percentual_do_limite, situacao, now() as capturado_em
-   from mon_resultados_avaliados;
-   ```
-   Depois, `join` por `id` para listar o que mudou. Toda mudança precisa de
-   explicação: view de conformidade que altera o histórico em silêncio é o pior
-   bug possível neste sistema.
-5. **Corrigir o `periodo_referencia` na view** (ver §4). Postergado de propósito
-   até haver campanhas suficientes para servir de teste de regressão.
-6. **Simplificar a interface**: a aba "Padrões legais" é de curadoria e polui o
-   uso diário. **Esconder, não remover** — via papel de admin ou query param
-   (`?curadoria=1`). Removida a tela, cadastrar padrão passaria a exigir SQL
-   direto no Supabase, perdendo validação no ponto mais sensível da biblioteca.
-7. **Leitura crítica textual**: substituir a leitura numérica por texto
-   interpretativo, sem categoria inventada (ver §6). Fato, fonte, resultado
-   binário, percentual, e o que falta. Exemplo do formato pretendido:
-   > PTS — 163,77 µg/m³ · limite 240 µg/m³ (CONAMA 491/2018, Anexo I, PF) ·
-   > **conforme** · 68% do limite
-   > *Incerteza não declarada no laudo — conformidade afirmada sem regra de decisão.*
-   > *Fonte ainda não conferida no DOU.*
-8. **Cartão de monitoramentos no Painel Geral** do `index.html`: ainda não feito.
-   Critério determinístico (maior razão valor/limite), nunca escolhido por IA.
-   Acumular com outras alterações de `index.html` e publicar em lote — cada
-   publicação é um download novo para o inspetor em 4G ruim.
+### Versionamento do banco
+O banco tem **22 migrações**; o repositório tem 3 arquivos SQL mais o
+consolidado. O caminho fiel é `supabase link --project-ref rbqrinldrtkwzxqopygv`
+e `supabase db pull`. Sem isso, o esquema só existe no Supabase.
 
-### Curadoria em aberto
+### Curadoria
+- **Conferir a 491/2018 e a 506/2024 no DOU** e registrar em Padrões legais.
+  Bloqueia uso em ofício, relatório de cliente e fiscalização. São ~15 números
+- SO2 24 h da 491: PI-3 (30 vs 40) e PF (20 vs 40) divergem da 506
+- A 506 na base pode estar sem as linhas anuais de SO2 e NO2
+- Cadastrar o **491/2018 Anexo III** — vigente por remissão da 506, art. 2º V
+- Etapa vigente em Goiás durante a 491: verificar ato da SEMAD/GO
+- **CONAMA 03/1990** para laudo anterior a 21/11/2018
 
-- **Conferir a 491/2018 no DOU** (`in.gov.br`) e rodar o UPDATE do bloco 4 do
-  arquivo SQL para virar `conferido = true` nas 48 linhas.
-- **SO2 24 h da 491**: PI-3 (30 vs 40) e PF (20 vs 40) divergem da 506. Conferir.
-- **Etapa vigente em Goiás**: verificar se a SEMAD/GO publicou ato migrando para
-  PI-2 durante a vigência da 491. Se sim, as linhas PI-2 passam a valer para o
-  período correspondente.
-- **A 506/2024 na base não tem linhas anuais de SO2 e NO2**, que a 491 tinha. Ou
-  a 506 as removeu, ou é lacuna de curadoria. Conferir no DOU.
-- **Guia Técnico do art. 7º da 506/2024**: se já publicado, define as faixas
-  N2–N5 do IQAr. Verificar no Conama.
-- **CONAMA 491/2018, Anexo III**: níveis de atenção/alerta/emergência ainda não
-  cadastrados (a semeadura de hoje cobriu só o Anexo I). Baixa prioridade: são
-  gatilho de episódio crítico, com valores uma ordem de grandeza acima dos
-  medidos. O art. 10 e o art. 11 da 491 remetem a eles.
-- **CONAMA 03/1990**: necessária se houver laudo anterior a 21/11/2018. Não lida.
-
-### Achado técnico da campanha de 2021 (Goiascal)
-
-Todos os 12 resultados conformes. P02 é o ponto crítico: MP10 a 90,4% do PI-1
-(108,48 de 120) e MP2,5 a 92,2% (55,29 de 60).
-
-Leitura consultiva que é pura aritmética entre duas normas conferidas: sob a
-**506/2024 PI-2**, vigente desde 01/01/2025 (MP10 24 h = 100, MP2,5 24 h = 50),
-esse mesmo P02 seria **excedente nos dois parâmetros**. Resultado que passava em
-2021 não passaria hoje.
+### Produto
+- Testar a aba Mapa com KML real. **Zero poligonais cadastradas** até agora
+- GPS na NC individual, para o plano de ação ganhar localização
+- Ofício de retificação à Bioar, com os 38 achados registrados
+- `mon_pontos.contexto` e checagem de unidade na view
+- Retrato `mon_baseline_avaliacao` antes de corrigir o `periodo_referencia`
+- Tabela `laboratorios` com `nomes_alternativos`: o nome varia entre campanhas
+  ("CONSULTORIA" em 2021, "SOLUÇÕES" depois) e quebra agrupamento
+- **Decisão de modelagem:** empreendimento é planta, pessoa jurídica ou grupo
+  econômico? São três níveis (Grupo Vitti / Goiasfiller + Goiascal / planta de
+  Indiara) e o catálogo mistura os três
+- **Cadastro de condicionantes de licença**, que hoje não existe. É o que daria
+  controle de prazo e resolveria opacidade sem criar matriz nova
 
 ---
 
-## 9. Como trabalhar comigo neste projeto
+## 10. Como trabalhar comigo neste projeto
 
-- Perfil: Engenharia Ambiental + desenvolvimento. Terminologia técnica correta,
-  direto ao ponto, consultivo.
-- Código longo vem em arquivo pronto para baixar e subir no GitHub, dividido em
-  partes se necessário.
-- Nunca cravar valor de norma de memória. Sempre fonte primária, e sempre
-  explicitar quando algo não foi conferido. Quando a fonte for reprodução
-  (repositório estadual, cópia), dizer isso e deixar `conferido = false`.
-- Mobile importa: o inspetor usa celular em campo, muitas vezes sem sinal.
+- Perfil: Engenharia Ambiental mais desenvolvimento. Terminologia correta, direto
+  ao ponto, consultivo
+- Código longo vem em arquivo pronto para baixar e subir no GitHub
+- **Nunca cravar valor de norma de memória.** Sempre fonte primária, e sempre
+  explicitar quando algo não foi conferido. Fonte que é reprodução se declara
+  como tal
+- Mobile importa: o inspetor usa celular em campo, muitas vezes sem sinal
+- **Discordar quando houver motivo.** Concordar com tudo não ajuda
+- Explicação pedida não significa explicação permanente na tela: tooltip,
+  glossário e bloco recolhido resolvem sem competir com o dado
+- Decisão de projeto mora em comentário no código, não em histórico de conversa.
+  Comentário sobrevive à troca de sessão; explicação em chat não
