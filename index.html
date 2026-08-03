@@ -1148,8 +1148,22 @@
       border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.16);
     }
     .mapa-cheio .mapa-bt { width: 44px; height: 44px; }
-    /* Em tela cheia os controles precisam sair de baixo do notch. */
-    .mapa-cheio > div[style*="right:8px"] { top: calc(8px + env(safe-area-inset-top, 0px)) !important; }
+    /* Alvos nomeados. A versão anterior casava por estilo inline
+       (div[style*="right:8px"]) e acertava também a atribuição, que tem
+       right:8px e bottom:8px. Forçar top nela sem tirar o bottom fazia o
+       elemento esticar de cima a baixo, e o fundo translúcido virava uma
+       faixa branca sobre o mapa. */
+    .mapa-cheio #mapa-ctrl {
+      top: calc(8px + env(safe-area-inset-top, 0px)) !important;
+      bottom: auto !important;
+      height: auto !important;
+    }
+    .mapa-cheio #mapa-atrib,
+    .mapa-cheio #mapa-escala {
+      top: auto !important;
+      height: auto !important;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    }
 
     /* Botão de baixar dentro da linha de camada. */
     .cam-baixar {
@@ -4039,7 +4053,7 @@ function viewMapa() {
       <div id="mapa-escala" style="position:absolute;left:10px;bottom:10px;font-size:10.5px;
            background:rgba(255,255,255,.86);padding:3px 7px;border-radius:5px;
            border:1px solid rgba(0,0,0,.12);font-variant-numeric:tabular-nums;"></div>
-      <div style="position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;z-index:3;">
+      <div id="mapa-ctrl" style="position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;z-index:3;">
         <button class="btn sm ghost mapa-bt" id="mapa-expandir" title="Abrir em tela cheia"
                 onclick="mapaTelaCheia()">&#9974;</button>
         <button class="btn sm ghost mapa-bt" id="mapa-zin">+</button>
@@ -4500,7 +4514,7 @@ window.mapaTelaCheia = function (ligar) {
   if (b) b.title = m.cheio ? 'Fechar tela cheia' : 'Abrir em tela cheia';
   // A tela mudou de tamanho: a grade precisa ser refeita para o novo palco.
   m.grade = null;
-  requestAnimationFrame(() => mapaLayout());
+  requestAnimationFrame(() => requestAnimationFrame(() => mapaLayout()));
 };
 
 /* ---------- baixar KML ----------
