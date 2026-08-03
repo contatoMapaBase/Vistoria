@@ -2775,7 +2775,9 @@ const state = {
   rankingModo: 'emp',
   evoAgrupamento: 'mes',
   evoEmps: [],
-  evoEsts: []
+  evoEsts: [],
+  poligonos: [],
+  mapa: mapaEstadoInicial()
 };
 
 const _PESO = { critica: 4, alta: 3, media: 2, baixa: 1 };
@@ -3554,7 +3556,694 @@ window.exigirInternet = function (ev) {
   return true;
 };
 
+/* ============================================================
+   NÚCLEO GEOGRÁFICO — sem dependência externa
+   ------------------------------------------------------------
+   Nada de Leaflet aqui de propósito: são ~150 KB que existem para
+   gerenciar tiles, e a camada vetorial não tem tile. Projeção,
+   recorte e desenho cabem em código próprio, e o app de campo
+   não ganha peso no CORE_ASSETS.
+   ============================================================ */
+
+/* ---------- KML -> geometrias ----------
+   Armadilha nº1 do KML: a ordem é longitude,latitude,altitude.
+   Invertida em relação ao hábito. É o bug que põe a ADA na China. */
+function kmlParaGeo(texto) {
+  const doc = new DOMParser().parseFromString(texto, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('XML inválido.');
+
+  const coords = el => (el.textContent || '').trim().split(/\s+/)
+    .map(t => t.split(',').map(Number))
+    .filter(c => c.length >= 2 && isFinite(c[0]) && isFinite(c[1]))
+    .map(c => [c[0], c[1]]);          // [lon, lat]
+
+  const geos = [];
+  // Percorre Placemark; um KML de licenciamento costuma ter vários,
+  // e MultiGeometry com mais de um Polygon dentro do mesmo Placemark.
+  doc.querySelectorAll('Placemark').forEach(pm => {
+    const nome = (pm.querySelector('name')?.textContent || '').trim();
+
+    pm.querySelectorAll('Polygon').forEach(pol => {
+      const externo = pol.querySelector('outerBoundaryIs LinearRing coordinates');
+      if (!externo) return;
+      const aneis = [coords(externo)];
+      // innerBoundaryIs = buraco. Área excluída dentro da poligonal.
+      // Ignorar isto faz o ponto-em-polígono acusar "dentro" num vazio.
+      pol.querySelectorAll('innerBoundaryIs LinearRing coordinates')
+        .forEach(i => { const a = coords(i); if (a.length > 2) aneis.push(a); });
+      if (aneis[0].length > 2) geos.push({ tipo: 'poligono', nome, aneis });
+    });
+
+    pm.querySelectorAll('LineString coordinates').forEach(ls => {
+      const a = coords(ls);
+      if (a.length > 1) geos.push({ tipo: 'linha', nome, aneis: [a] });
+    });
+
+    const pt = pm.querySelector('Point coordinates');
+    if (pt) { const a = coords(pt); if (a.length) geos.push({ tipo: 'ponto', nome, aneis: [a] }); }
+  });
+
+  if (!geos.length) throw new Error('Nenhuma geometria encontrada. Exporte como KML (não KMZ).');
+  return geos;
+}
+
+function bboxDe(geos) {
+  let o = 180, s = 90, l = -180, n = -90;
+  geos.forEach(g => g.aneis.forEach(a => a.forEach(([lon, lat]) => {
+    if (lon < o) o = lon; if (lon > l) l = lon;
+    if (lat < s) s = lat; if (lat > n) n = lat;
+  })));
+  return [o, s, l, n];
+}
+
+function contaVertices(geos) {
+  return geos.reduce((t, g) => t + g.aneis.reduce((u, a) => u + a.length, 0), 0);
+}
+
+/* ---------- Douglas-Peucker ----------
+   Poligonal de licenciamento vinda de GPS de campo pode ter milhares
+   de vértices. Em SVG isso trava o celular. Tolerância em graus. */
+function simplificar(pts, tol) {
+  if (pts.length < 3) return pts;
+  const dist2 = (p, a, b) => {
+    let [x, y] = p, [x1, y1] = a, [x2, y2] = b;
+    const dx = x2 - x1, dy = y2 - y1;
+    if (dx === 0 && dy === 0) return (x - x1) ** 2 + (y - y1) ** 2;
+    let t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t));
+    return (x - (x1 + t * dx)) ** 2 + (y - (y1 + t * dy)) ** 2;
+  };
+  const rec = (ini, fim) => {
+    let max = -1, idx = -1;
+    for (let i = ini + 1; i < fim; i++) {
+      const d = dist2(pts[i], pts[ini], pts[fim]);
+      if (d > max) { max = d; idx = i; }
+    }
+    if (max > tol * tol) return [...rec(ini, idx), ...rec(idx, fim).slice(1)];
+    return [pts[ini], pts[fim]];
+  };
+  return rec(0, pts.length - 1);
+}
+
+function simplificarGeos(geos, maxVertices) {
+  if (contaVertices(geos) <= maxVertices) return { geos, simplificado: false };
+  const [o, s, l, n] = bboxDe(geos);
+  let tol = Math.max(l - o, n - s) / 4000;   // ~ meio metro numa ADA de 2 km
+  let out = geos, i = 0;
+  while (contaVertices(out) > maxVertices && i++ < 12) {
+    out = geos.map(g => ({ ...g, aneis: g.aneis.map(a => a.length > 3 ? simplificar(a, tol) : a) }));
+    tol *= 1.8;
+  }
+  return { geos: out, simplificado: true };
+}
+
+/* ---------- Ponto em polígono, com buracos ----------
+   Ray casting. Anel externo conta como dentro; anel interno inverte. */
+function emAnel(lon, lat, anel) {
+  let dentro = false;
+  for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+    const [xi, yi] = anel[i], [xj, yj] = anel[j];
+    if (((yi > lat) !== (yj > lat)) &&
+        (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) dentro = !dentro;
+  }
+  return dentro;
+}
+
+function dentroDe(lon, lat, geos) {
+  for (const g of geos) {
+    if (g.tipo !== 'poligono') continue;
+    if (!emAnel(lon, lat, g.aneis[0])) continue;
+    let buraco = false;
+    for (let k = 1; k < g.aneis.length; k++) if (emAnel(lon, lat, g.aneis[k])) { buraco = true; break; }
+    if (!buraco) return g;
+  }
+  return null;
+}
+
+/* ---------- Distância ao limite, em metros ----------
+   Aproximação plana local: na escala de uma ADA (km) o erro é
+   centimétrico, e evita trigonometria esférica a cada frame. */
+function metrosPorGrau(lat) {
+  return { x: 111320 * Math.cos(lat * Math.PI / 180), y: 110540 };
+}
+
+function distanciaAoLimite(lon, lat, geos) {
+  const m = metrosPorGrau(lat);
+  let melhor = Infinity;
+  for (const g of geos) {
+    for (const anel of g.aneis) {
+      for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+        const ax = (anel[j][0] - lon) * m.x, ay = (anel[j][1] - lat) * m.y;
+        const bx = (anel[i][0] - lon) * m.x, by = (anel[i][1] - lat) * m.y;
+        const dx = bx - ax, dy = by - ay;
+        let t = (dx || dy) ? -(ax * dx + ay * dy) / (dx * dx + dy * dy) : 0;
+        t = Math.max(0, Math.min(1, t));
+        const px = ax + t * dx, py = ay + t * dy;
+        const d = Math.hypot(px, py);
+        if (d < melhor) melhor = d;
+      }
+    }
+  }
+  return melhor;
+}
+
+/* ---------- Situação com regra de decisão ----------
+   O GPS tem erro. Se a distância até o limite for menor que a
+   precisão do aparelho, o app não pode afirmar dentro nem fora:
+   o sensor não sustenta a afirmação. Devolve 'indeterminado'. */
+function situacaoNaArea(lon, lat, acc, geos) {
+  const alvo = geos.filter(g => g.tipo === 'poligono');
+  if (!alvo.length) return { estado: 'sem_poligono' };
+  const dist = distanciaAoLimite(lon, lat, alvo);
+  const g = dentroDe(lon, lat, alvo);
+  const precisao = (acc == null || !isFinite(acc)) ? null : acc;
+  if (precisao !== null && dist < precisao) {
+    return { estado: 'indeterminado', dist, precisao, dentro: !!g, area: g ? g.nome : null };
+  }
+  return { estado: g ? 'dentro' : 'fora', dist, precisao, area: g ? g.nome : null };
+}
+
+
+/* data curta para rótulos de licença */
+function fmtDataCurta(iso){ if(!iso) return ''; const d=new Date(String(iso).slice(0,10)+'T12:00:00'); return isNaN(d)?String(iso):d.toLocaleDateString('pt-BR'); }
+
+/* ============================================================
+   ABA MAPA — app de campo
+   ------------------------------------------------------------
+   Estrutura de mapa deslizante feita à mão: tiles como <img>
+   posicionados em pixels e vetor em SVG por cima, os dois na mesma
+   projeção Web Mercator. Sem Leaflet: ele existe para gerenciar
+   tiles, e aqui a camada que importa é a vetorial, que precisa
+   funcionar sem rede nenhuma.
+   ============================================================ */
+
+const CORES_POLIGONO = {
+  ada_licenciada:     { cor: '#d03b3b', rot: 'ADA licenciada' },
+  area_processo:      { cor: '#b8562f', rot: 'Área do processo' },
+  poligonal_dnpm:     { cor: '#8a5a2b', rot: 'Poligonal ANM/DNPM' },
+  car:                { cor: '#eda100', rot: 'CAR (autodeclarado)' },
+  reserva_legal:      { cor: '#1baf7a', rot: 'Reserva legal' },
+  app:                { cor: '#2a78d6', rot: 'APP' },
+  limite_propriedade: { cor: '#6b5ba8', rot: 'Limite da propriedade' },
+  outro:              { cor: '#7a7a7a', rot: 'Outro' }
+};
+
+const TILE = 256;
+
+/* ---------- projeção Web Mercator em pixels ----------
+   Zoom inteiro de propósito: o tile renderiza no tamanho nativo e a
+   imagem sai nítida. Escala fracionária embaça e não traz ganho. */
+function lonLatParaPx(lon, lat, z) {
+  const n = TILE * Math.pow(2, z);
+  const x = (lon + 180) / 360 * n;
+  const s = Math.sin(lat * Math.PI / 180);
+  const y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+  return [x, y];
+}
+function pxParaLonLat(x, y, z) {
+  const n = TILE * Math.pow(2, z);
+  const lon = x / n * 360 - 180;
+  const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
+  return [lon, lat];
+}
+
+function zoomParaCaber(bbox, larg, alt) {
+  const [o, s, l, n] = bbox;
+  for (let z = 19; z >= 3; z--) {
+    const [x1, y1] = lonLatParaPx(o, n, z);
+    const [x2, y2] = lonLatParaPx(l, s, z);
+    if ((x2 - x1) <= larg * 0.86 && (y2 - y1) <= alt * 0.86) return z;
+  }
+  return 3;
+}
+
+/* ---------- estado do mapa ---------- */
+function mapaEstadoInicial() {
+  return {
+    empId: '', poligonos: [], geos: [],
+    z: 15, cx: 0, cy: 0,            // centro em pixels do nível z
+    larg: 0, alt: 0,
+    satelite: false, reforcar: false,
+    gps: null, erroGps: null, watchId: null,
+    seguindo: true, carregando: false, aviso: ''
+  };
+}
+
+/* ---------- carga das poligonais ---------- */
+async function carregarPoligonos() {
+  const cache = await storageGet('poligonos');
+  if (cache) state.poligonos = cache;
+  if (_supabase && navigator.onLine) {
+    const { data, error } = await _supabase.from('empreendimento_poligonos')
+      .select('*').eq('ativo', true);
+    if (!error && data) {
+      state.poligonos = data;
+      await storageSet('poligonos', data);
+    }
+  }
+  state.poligonos = state.poligonos || [];
+}
+
+function poligonosDoEmp(empId) {
+  return (state.poligonos || []).filter(p => p.empreendimento_id === empId);
+}
+function empsComPoligono() {
+  return [...new Set((state.poligonos || []).map(p => p.empreendimento_id))];
+}
+
+/* ============================================================
+   TELA
+   ============================================================ */
+function viewMapa() {
+  const m = state.mapa;
+  const emps = state.empreendimentos.filter(e => poligonosDoEmp(e.id).length);
+
+  if (!emps.length) {
+    return `
+    <div class="view-head"><div><h2>Mapa</h2>
+      <p class="view-sub">Poligonais por empreendimento, com sua posição em campo.</p></div></div>
+    <div class="card" style="padding:34px 22px;text-align:center;">
+      <div style="font-size:32px;opacity:.5;margin-bottom:10px;">🗺️</div>
+      <p style="font-size:14px;margin:0 0 6px;"><strong>Nenhuma poligonal cadastrada.</strong></p>
+      <p style="font-size:13px;color:var(--ink-faint);max-width:52ch;margin:0 auto;">
+        Anexe o KML da ADA no cadastro do empreendimento, em
+        <strong>Empreendimentos → Editar</strong>. A aba passa a mostrar a área e
+        a sua posição, e funciona sem internet.
+      </p>
+    </div>`;
+  }
+
+  if (!m.empId || !emps.some(e => e.id === m.empId)) m.empId = emps[0].id;
+  const lista = poligonosDoEmp(m.empId);
+
+  return `
+  <div class="view-head">
+    <div><h2>Mapa</h2>
+      <p class="view-sub">Sua posição sobre as poligonais do empreendimento. O GPS funciona sem internet.</p></div>
+  </div>
+
+  <div class="card" style="padding:12px;margin-bottom:12px;">
+    <div class="field" style="margin:0;">
+      <label class="field-label">Empreendimento</label>
+      <select id="mapa-emp">
+        ${emps.map(e => `<option value="${esc(e.id)}" ${e.id === m.empId ? 'selected' : ''}>${esc(e.nome)}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div id="mapa-situacao"></div>
+
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+    <div id="mapa-palco" style="position:relative;width:100%;height:58vh;min-height:320px;
+         background:#e8eef4;touch-action:none;overflow:hidden;cursor:grab;">
+      <div id="mapa-tiles" style="position:absolute;inset:0;"></div>
+      <svg id="mapa-svg" style="position:absolute;inset:0;width:100%;height:100%;" aria-label="Mapa das poligonais"></svg>
+      <div id="mapa-escala" style="position:absolute;left:10px;bottom:10px;font-size:10.5px;
+           background:rgba(255,255,255,.86);padding:3px 7px;border-radius:5px;
+           border:1px solid rgba(0,0,0,.12);font-variant-numeric:tabular-nums;"></div>
+      <div style="position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;">
+        <button class="btn sm ghost" id="mapa-zin"  style="width:36px;padding:6px 0;background:#fff;">+</button>
+        <button class="btn sm ghost" id="mapa-zout" style="width:36px;padding:6px 0;background:#fff;">−</button>
+      </div>
+      <div id="mapa-atrib" style="position:absolute;right:8px;bottom:8px;font-size:9.5px;
+           background:rgba(255,255,255,.8);padding:2px 6px;border-radius:4px;color:#333;"></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="btn sm ghost" id="mapa-caber">Enquadrar área</button>
+    <button class="btn sm ${m.seguindo ? 'primary' : 'ghost'}" id="mapa-seguir">Centrar em mim</button>
+    <button class="btn sm ${m.satelite ? 'primary' : 'ghost'}" id="mapa-sat">Satélite</button>
+    <button class="btn sm ${m.reforcar ? 'primary' : 'ghost'}" id="mapa-fill">Reforçar área</button>
+  </div>
+
+  <div class="card" style="padding:12px 14px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+         color:var(--ink-faint);margin-bottom:8px;">Camadas</div>
+    ${lista.map(p => {
+      const c = CORES_POLIGONO[p.tipo] || CORES_POLIGONO.outro;
+      const proc = [p.licenca_numero ? 'Licença ' + esc(p.licenca_numero) : null,
+                    p.licenca_validade ? 'válida até ' + fmtDataCurta(p.licenca_validade) : null,
+                    p.fonte ? esc(p.fonte) : null].filter(Boolean).join(' · ');
+      return `<div style="display:flex;gap:9px;align-items:flex-start;padding:7px 0;
+                   border-bottom:1px solid var(--line);">
+        <span style="width:13px;height:13px;border-radius:3px;flex:none;margin-top:2px;
+              background:${c.cor}44;border:2px solid ${c.cor};"></span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;">${esc(p.nome)}</div>
+          <div style="font-size:11px;color:var(--ink-faint);">${esc(c.rot)}${p.n_vertices ? ' · ' + p.n_vertices + ' vértices' : ''}</div>
+          ${proc ? `<div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px;">${proc}</div>` : ''}
+          ${p.tipo === 'car' ? `<div style="font-size:10.5px;color:var(--media);margin-top:3px;">
+            CAR é autodeclarado pelo produtor. Não representa a poligonal licenciada.</div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+    <p style="font-size:11px;color:var(--ink-faint);margin:10px 0 0;">
+      A poligonal desenhada é a que foi anexada ao cadastro. Confira a licença vigente
+      antes de tratar a linha como limite autorizado.
+    </p>
+  </div>`;
+}
+
+/* ============================================================
+   DESENHO
+   ============================================================ */
+function mapaDesenhar() {
+  const m = state.mapa;
+  const palco = document.getElementById('mapa-palco');
+  if (!palco) return;
+  m.larg = palco.clientWidth; m.alt = palco.clientHeight;
+
+  const orX = m.cx - m.larg / 2, orY = m.cy - m.alt / 2;
+  const px = (lon, lat) => { const [x, y] = lonLatParaPx(lon, lat, m.z); return [x - orX, y - orY]; };
+
+  // ---- tiles: só quando a camada está ligada. Offline eles simplesmente
+  // não carregam e o vetor continua legível sobre o fundo neutro.
+  const divT = document.getElementById('mapa-tiles');
+  if (!m.satelite) { divT.innerHTML = ''; document.getElementById('mapa-atrib').textContent = ''; }
+  else {
+    const n = Math.pow(2, m.z);
+    const t0x = Math.floor(orX / TILE), t1x = Math.floor((orX + m.larg) / TILE);
+    const t0y = Math.floor(orY / TILE), t1y = Math.floor((orY + m.alt) / TILE);
+    let html = '';
+    for (let tx = t0x; tx <= t1x; tx++) {
+      for (let ty = t0y; ty <= t1y; ty++) {
+        if (ty < 0 || ty >= n) continue;
+        const wx = ((tx % n) + n) % n;
+        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${m.z}/${ty}/${wx}`;
+        html += `<img src="${url}" loading="lazy" draggable="false" alt=""
+                  style="position:absolute;width:${TILE}px;height:${TILE}px;
+                  left:${tx * TILE - orX}px;top:${ty * TILE - orY}px;">`;
+      }
+    }
+    divT.innerHTML = html;
+    document.getElementById('mapa-atrib').textContent = 'Imagens: Esri, Maxar';
+  }
+
+  // ---- vetor
+  // Opacidade responde a existir fundo desenhado, não a estar online:
+  // com tile em cache offline há imagem, e com tile lento online não há.
+  const comFundo = m.satelite;
+  const opac  = m.reforcar ? 0.45 : (comFundo ? 0.10 : 0.38);
+  const traco = comFundo ? 3 : 2;
+
+  let svg = '';
+  m.geos.forEach(g => {
+    const c = (CORES_POLIGONO[g._tipo] || CORES_POLIGONO.outro).cor;
+    if (g.tipo === 'poligono') {
+      // Anéis internos entram no mesmo path: fill-rule evenodd abre o buraco.
+      const d = g.aneis.map(a => 'M' + a.map(([lo, la]) => px(lo, la).map(v => v.toFixed(1)).join(',')).join('L') + 'Z').join(' ');
+      svg += `<path d="${d}" fill="${c}" fill-opacity="${opac}" fill-rule="evenodd"
+               stroke="${c}" stroke-width="${traco}" stroke-linejoin="round"/>`;
+    } else if (g.tipo === 'linha') {
+      svg += `<path d="M${g.aneis[0].map(([lo, la]) => px(lo, la).map(v => v.toFixed(1)).join(',')).join('L')}"
+               fill="none" stroke="${c}" stroke-width="${traco}" stroke-dasharray="7 4"/>`;
+    } else {
+      const [x, y] = px(g.aneis[0][0][0], g.aneis[0][0][1]);
+      svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${c}" stroke="#fff" stroke-width="1.5"/>`;
+    }
+  });
+
+  // ---- minha posição. Halo branco porque sobre preenchimento sólido
+  // um ponto sem contorno desaparece justamente quando você está dentro.
+  if (m.gps) {
+    const [x, y] = px(m.gps.lng, m.gps.lat);
+    const escPx = escalaPxPorMetro(m.gps.lat, m.z);
+    const rAcc = Math.min((m.gps.acc || 0) * escPx, Math.max(m.larg, m.alt));
+    if (rAcc > 6) svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rAcc.toFixed(1)}"
+                           fill="#2a78d6" fill-opacity="0.13" stroke="#2a78d6" stroke-opacity="0.4" stroke-width="1"/>`;
+    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="#fff"/>
+            <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="#2a78d6" stroke="#fff" stroke-width="2"/>`;
+  }
+  document.getElementById('mapa-svg').innerHTML = svg;
+
+  // ---- barra de escala
+  const mpp = 1 / escalaPxPorMetro(m.gps ? m.gps.lat : pxParaLonLat(m.cx, m.cy, m.z)[1], m.z);
+  const alvo = m.larg * 0.28 * mpp;
+  const passo = [1,2,5,10,20,50,100,200,500,1000,2000,5000].find(v => v >= alvo) || 5000;
+  const el = document.getElementById('mapa-escala');
+  if (el) el.innerHTML = `<span style="display:inline-block;border-bottom:2px solid #333;
+    width:${(passo / mpp).toFixed(0)}px;vertical-align:middle;margin-right:5px;"></span>${passo >= 1000 ? (passo/1000)+' km' : passo+' m'}`;
+
+  mapaPainelSituacao();
+}
+
+function escalaPxPorMetro(lat, z) {
+  const mppEq = 156543.03392 * Math.cos((lat || 0) * Math.PI / 180) / Math.pow(2, z);
+  return 1 / mppEq;
+}
+
+/* ---------- painel de situação ---------- */
+function mapaPainelSituacao() {
+  const m = state.mapa;
+  const alvo = document.getElementById('mapa-situacao');
+  if (!alvo) return;
+
+  if (m.erroGps) {
+    alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid var(--media);">
+      <strong style="font-size:13.5px;">GPS indisponível</strong>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">${esc(m.erroGps)}
+      As poligonais continuam visíveis; só a sua posição não aparece.</div></div>`;
+    return;
+  }
+  if (!m.gps) {
+    alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;">
+      <span style="font-size:13.5px;">Buscando satélites…</span>
+      <div style="font-size:12px;color:var(--ink-faint);margin-top:3px;">
+      Sem rede a primeira fixação demora mais, porque não há assistência de rede para acelerar.</div></div>`;
+    return;
+  }
+
+  const s = situacaoNaArea(m.gps.lng, m.gps.lat, m.gps.acc, m.geos);
+  const cor = { dentro: 'var(--conforme)', fora: 'var(--nc)', indeterminado: 'var(--media)' }[s.estado] || 'var(--line)';
+  let titulo, corpo;
+
+  if (s.estado === 'sem_poligono') {
+    titulo = 'Sem polígono para comparar';
+    corpo  = 'As camadas anexadas não incluem área fechada.';
+  } else if (s.estado === 'indeterminado') {
+    // Mesma lógica de qualquer medição: não se afirma além da precisão do sensor.
+    titulo = 'Não é possível afirmar dentro ou fora';
+    corpo  = `Você está a ${s.dist < 10 ? s.dist.toFixed(1) : s.dist.toFixed(0)} m do limite, e a precisão do GPS
+              agora é de ${s.precisao.toFixed(0)} m. A distância é menor que o erro do aparelho, então o
+              app não conclui. Aguarde a precisão melhorar ou afaste-se do limite.`;
+  } else if (s.estado === 'dentro') {
+    titulo = `Dentro de ${esc(s.area || 'área')}`;
+    corpo  = `${s.dist.toFixed(0)} m até o limite mais próximo. Precisão do GPS ${s.precisao ? s.precisao.toFixed(0) + ' m' : 'não informada'}.`;
+  } else {
+    titulo = 'Fora das áreas cadastradas';
+    corpo  = `${s.dist.toFixed(0)} m do limite mais próximo. Precisão do GPS ${s.precisao ? s.precisao.toFixed(0) + ' m' : 'não informada'}.`;
+  }
+
+  alvo.innerHTML = `<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:3px solid ${cor};">
+    <strong style="font-size:14px;">${titulo}</strong>
+    <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5;">${corpo}</div>
+    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:6px;font-variant-numeric:tabular-nums;">
+      ${m.gps.lat.toFixed(6)}, ${m.gps.lng.toFixed(6)}${m.gps.alt != null ? ' · alt ' + m.gps.alt.toFixed(0) + ' m' : ''}
+    </div></div>`;
+}
+
+/* ============================================================
+   EVENTOS
+   ============================================================ */
+function bindMapa() {
+  const m = state.mapa;
+  const palco = document.getElementById('mapa-palco');
+  if (!palco) return;
+
+  const sel = document.getElementById('mapa-emp');
+  if (sel) sel.onchange = () => { m.empId = sel.value; mapaTrocarEmp(); };
+
+  mapaPrepararGeos();
+  if (!m.cx && !m.cy) mapaEnquadrar();
+  mapaDesenhar();
+  mapaIniciarGps();
+
+  // ---- arrastar
+  let arr = null;
+  palco.onpointerdown = e => {
+    arr = { x: e.clientX, y: e.clientY, cx: m.cx, cy: m.cy };
+    palco.style.cursor = 'grabbing';
+    palco.setPointerCapture(e.pointerId);
+  };
+  palco.onpointermove = e => {
+    if (!arr) return;
+    m.cx = arr.cx - (e.clientX - arr.x);
+    m.cy = arr.cy - (e.clientY - arr.y);
+    m.seguindo = false;
+    mapaDesenhar();
+  };
+  palco.onpointerup = palco.onpointercancel = () => {
+    if (arr) { arr = null; palco.style.cursor = 'grab'; sincronizarBotoes(); }
+  };
+
+  // ---- roda e pinça
+  palco.onwheel = e => { e.preventDefault(); mapaZoom(e.deltaY < 0 ? 1 : -1); };
+  let dist0 = null;
+  palco.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) dist0 = toqueDist(e);
+  }, { passive: true });
+  palco.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2 || dist0 == null) return;
+    const d = toqueDist(e);
+    if (d / dist0 > 1.35) { mapaZoom(1); dist0 = d; }
+    else if (d / dist0 < 0.74) { mapaZoom(-1); dist0 = d; }
+  }, { passive: true });
+  palco.addEventListener('touchend', () => { dist0 = null; }, { passive: true });
+
+  document.getElementById('mapa-zin').onclick  = () => mapaZoom(1);
+  document.getElementById('mapa-zout').onclick = () => mapaZoom(-1);
+  document.getElementById('mapa-caber').onclick = () => { m.seguindo = false; mapaEnquadrar(); mapaDesenhar(); sincronizarBotoes(); };
+  document.getElementById('mapa-seguir').onclick = () => {
+    m.seguindo = !m.seguindo;
+    if (m.seguindo && m.gps) mapaCentrarEm(m.gps.lng, m.gps.lat);
+    mapaDesenhar(); sincronizarBotoes();
+  };
+  document.getElementById('mapa-sat').onclick  = () => { m.satelite = !m.satelite; mapaDesenhar(); sincronizarBotoes(); };
+  document.getElementById('mapa-fill').onclick = () => { m.reforcar = !m.reforcar; mapaDesenhar(); sincronizarBotoes(); };
+}
+
+function toqueDist(e) {
+  const [a, b] = e.touches;
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+function sincronizarBotoes() {
+  const m = state.mapa;
+  const par = [['mapa-seguir', m.seguindo], ['mapa-sat', m.satelite], ['mapa-fill', m.reforcar]];
+  par.forEach(([id, on]) => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.toggle('primary', !!on);
+    b.classList.toggle('ghost', !on);
+  });
+}
+
+function mapaZoom(d) {
+  const m = state.mapa;
+  const z = Math.max(10, Math.min(19, m.z + d));
+  if (z === m.z) return;
+  const [lon, lat] = pxParaLonLat(m.cx, m.cy, m.z);
+  m.z = z;
+  [m.cx, m.cy] = lonLatParaPx(lon, lat, z);
+  mapaDesenhar();
+}
+
+function mapaCentrarEm(lon, lat) {
+  const m = state.mapa;
+  [m.cx, m.cy] = lonLatParaPx(lon, lat, m.z);
+}
+
+function mapaEnquadrar() {
+  const m = state.mapa;
+  const palco = document.getElementById('mapa-palco');
+  const larg = palco ? palco.clientWidth : 360, alt = palco ? palco.clientHeight : 340;
+  if (!m.geos.length) return;
+  const bb = bboxDe(m.geos);
+  m.z = zoomParaCaber(bb, larg, alt);
+  mapaCentrarEm((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2);
+}
+
+function mapaPrepararGeos() {
+  const m = state.mapa;
+  const geos = [];
+  poligonosDoEmp(m.empId).forEach(p => {
+    (p.geojson || []).forEach(g => geos.push({ ...g, _tipo: p.tipo, _camada: p.nome }));
+  });
+  m.geos = geos;
+}
+
+function mapaTrocarEmp() {
+  const m = state.mapa;
+  mapaPrepararGeos();
+  mapaEnquadrar();
+  m.seguindo = false;
+  render();
+}
+
+/* ---------- GPS ----------
+   watchPosition funciona offline: é hardware, não rede. Sem sinal a
+   primeira fixação demora mais porque falta assistência de rede. */
+function mapaIniciarGps() {
+  const m = state.mapa;
+  if (m.watchId != null) return;
+  if (!navigator.geolocation) { m.erroGps = 'Este dispositivo não expõe geolocalização.'; mapaPainelSituacao(); return; }
+  m.watchId = navigator.geolocation.watchPosition(
+    pos => {
+      m.erroGps = null;
+      m.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude,
+                acc: pos.coords.accuracy, alt: pos.coords.altitude };
+      if (m.seguindo) mapaCentrarEm(m.gps.lng, m.gps.lat);
+      if (state.view === 'mapa') mapaDesenhar();
+    },
+    err => {
+      m.erroGps = err.code === 1 ? 'Permissão de localização negada no navegador.'
+                : err.code === 3 ? 'Tempo esgotado ao buscar posição.'
+                : 'Não foi possível obter a posição.';
+      if (state.view === 'mapa') mapaPainelSituacao();
+    },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
+  );
+}
+
+function mapaPararGps() {
+  const m = state.mapa;
+  if (m.watchId != null) { navigator.geolocation.clearWatch(m.watchId); m.watchId = null; }
+}
+
+/* ============================================================
+   ANEXAR KML NO CADASTRO DO EMPREENDIMENTO
+   ============================================================ */
+async function anexarKml(empId, arquivo, tipo, meta) {
+  const texto = await arquivo.text();
+  let geos = kmlParaGeo(texto);                    // lança se inválido
+  const antes = contaVertices(geos);
+  const r = simplificarGeos(geos, 1500);           // teto para não travar o SVG no celular
+  geos = r.geos;
+  const bb = bboxDe(geos);
+
+  const reg = {
+    id: 'pg' + uid(),
+    empreendimento_id: empId,
+    tipo,
+    nome: meta.nome || arquivo.name.replace(/\.kml$/i, ''),
+    geojson: geos,
+    bbox: bb,
+    n_vertices: contaVertices(geos),
+    fonte: meta.fonte || null,
+    licenca_numero: meta.licenca || null,
+    licenca_emissao: meta.emissao || null,
+    licenca_validade: meta.validade || null,
+    arquivo_original: arquivo.name,
+    observacao: r.simplificado
+      ? `Poligonal simplificada na importação: ${antes} vértices no arquivo, ${contaVertices(geos)} armazenados, para não travar o desenho em celular. O arquivo original permanece a referência.`
+      : null,
+    ativo: true,
+    criado_em: new Date().toISOString(),
+    criado_por: (state.usuarioEmail || null)
+  };
+
+  state.poligonos = (state.poligonos || []).concat([reg]);
+  await storageSet('poligonos', state.poligonos);
+  if (_supabase && navigator.onLine) {
+    const { error } = await _supabase.from('empreendimento_poligonos').insert(reg);
+    if (error) throw new Error('Salvo no aparelho, mas falhou na nuvem: ' + error.message);
+  }
+  return { reg, simplificado: r.simplificado, antes };
+}
+
+async function removerKml(id) {
+  state.poligonos = (state.poligonos || []).filter(p => p.id !== id);
+  await storageSet('poligonos', state.poligonos);
+  if (_supabase && navigator.onLine) {
+    await _supabase.from('empreendimento_poligonos').update({ ativo: false }).eq('id', id);
+  }
+}
+
+
 function setView(viewName) {
+  // O watchPosition consome bateria; em campo isso importa mais que a conveniência.
+  if (state.view === 'mapa' && viewName !== 'mapa') mapaPararGps();
   state.view = viewName;
   closeModal();
   render();
@@ -3567,6 +4256,7 @@ function render() {
 
   const nav = document.getElementById('mainnav');
   const svgIc = {
+    'mapa': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 5.5v15L9 18l6 2.5 6-2.5v-15L15 5.5 9 3Z"/><path d="M9 3v15M15 5.5v15"/></svg>',
     dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
     ranking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v1.5a3 3 0 0 0 3 3"/><path d="M17 6h3v1.5a3 3 0 0 1-3 3"/></svg>',
     vistorias: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M8 12h8"/><path d="M8 16h6"/></svg>',
@@ -3584,6 +4274,8 @@ function render() {
     { id: 'empreendimentos', label: 'Empreendimentos' },
     { id: 'estruturas', label: 'Estruturas' }
   ];
+  // Aba Mapa só existe se houver KML anexado a algum empreendimento.
+  if (empsComPoligono().length) menu.splice(5, 0, { id: 'mapa', label: 'Mapa' });
   
   nav.innerHTML = menu.map(m => `
     <button class="navbtn ${state.view === m.id ? 'active' : ''}" onclick="setView('${m.id}')">
@@ -3603,6 +4295,7 @@ function render() {
     'vistoria-detalhe': { html: () => viewVistoriaDetalhe(), bind: bindVistoriaDetalhe },
     'ncs': { html: viewNcs, bind: bindNcs },
     'evolucao': { html: viewEvolucao, bind: bindEvolucao },
+    'mapa': { html: viewMapa, bind: bindMapa },
     'empreendimentos': { html: viewEmpreendimentos, bind: bindEmpreendimentos },
     'estruturas': { html: viewEstruturas, bind: bindEstruturas },
     'nova': { html: viewNovaVistoria, bind: bindNovaVistoria }
@@ -3989,6 +4682,23 @@ function comprimirLogo(file) {
   });
 }
 
+function listaKmlHtml(empId) {
+  const lista = poligonosDoEmp(empId);
+  if (!lista.length) return '<p style="font-size:12.5px;color:var(--ink-faint);margin:0;">Nenhuma poligonal anexada.</p>';
+  return lista.map(p => {
+    const c = CORES_POLIGONO[p.tipo] || CORES_POLIGONO.outro;
+    return `<div style="display:flex;gap:9px;align-items:flex-start;padding:6px 0;">
+      <span style="width:12px;height:12px;border-radius:3px;flex:none;margin-top:3px;
+            background:${c.cor}44;border:2px solid ${c.cor};"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;">${esc(p.nome)}</div>
+        <div style="font-size:11px;color:var(--ink-faint);">${esc(c.rot)}${p.n_vertices ? ' · ' + p.n_vertices + ' vértices' : ''}${p.licenca_numero ? ' · ' + esc(p.licenca_numero) : ''}</div>
+      </div>
+      <button type="button" class="btn ghost sm danger" data-kml-rm="${esc(p.id)}" style="flex:none;">Remover</button>
+    </div>`;
+  }).join('');
+}
+
 function abrirModalEmpreendimento(empExistente = null) {
   const isEdit = !!empExistente;
   const id = isEdit ? empExistente.id : uid();
@@ -4031,6 +4741,50 @@ function abrirModalEmpreendimento(empExistente = null) {
           </div>
           <p style="font-size:11.5px;color:var(--ink-faint);margin:6px 0 0;">A imagem é reduzida e guardada no cadastro; aparece no card do empreendimento.</p>
         </div>
+
+        <div class="field">
+          <label class="field-label">Poligonais em KML (opcional)</label>
+          <div style="border:1px solid var(--line);border-radius:10px;padding:12px;">
+            <div id="emp-kml-lista">${listaKmlHtml(id)}</div>
+
+            <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:11px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div>
+                  <label class="field-label" style="font-size:11px;">O que é este polígono</label>
+                  <select id="emp-kml-tipo">
+                    <option value="ada_licenciada">ADA licenciada</option>
+                    <option value="area_processo">Área do processo</option>
+                    <option value="poligonal_dnpm">Poligonal ANM/DNPM</option>
+                    <option value="car">CAR (autodeclarado)</option>
+                    <option value="reserva_legal">Reserva legal</option>
+                    <option value="app">APP</option>
+                    <option value="limite_propriedade">Limite da propriedade</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" style="font-size:11px;">Nº da licença</label>
+                  <input type="text" id="emp-kml-lic" placeholder="ex.: LO 1234/2024">
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div><label class="field-label" style="font-size:11px;">Emissão</label>
+                  <input type="date" id="emp-kml-emissao"></div>
+                <div><label class="field-label" style="font-size:11px;">Validade</label>
+                  <input type="date" id="emp-kml-validade"></div>
+              </div>
+              <label class="btn ghost sm" style="cursor:pointer;">Anexar arquivo .kml
+                <input type="file" id="emp-kml-file" accept=".kml,application/vnd.google-earth.kml+xml" style="display:none;">
+              </label>
+              <div id="emp-kml-msg" style="font-size:11.5px;color:var(--ink-faint);margin-top:8px;line-height:1.5;">
+                Exporte como <strong>KML</strong> no Google Earth Pro, não KMZ. O arquivo é lido no
+                aparelho e fica disponível offline. Identifique o tipo corretamente:
+                <strong>só a ADA licenciada representa limite de operação autorizado</strong> — CAR é
+                autodeclarado e serve a reserva legal e APP.
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="field">
           <label class="field-label">Vincular Estruturas Existentes na Biblioteca</label>
           <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fafbf9;">
@@ -4067,6 +4821,45 @@ function abrirModalEmpreendimento(empExistente = null) {
     document.getElementById('emp-logo-remover').style.display = 'none';
   });
   
+  function ligarKml() {
+    document.querySelectorAll('[data-kml-rm]').forEach(b => {
+      b.onclick = async () => {
+        if (!confirm('Remover esta poligonal? Ela deixa de aparecer no mapa.')) return;
+        await removerKml(b.getAttribute('data-kml-rm'));
+        document.getElementById('emp-kml-lista').innerHTML = listaKmlHtml(id);
+        ligarKml();
+        showToast('Poligonal removida.');
+      };
+    });
+  }
+  ligarKml();
+
+  document.getElementById('emp-kml-file')?.addEventListener('change', async (ev) => {
+    const arq = ev.target.files[0];
+    if (!arq) return;
+    const msg = document.getElementById('emp-kml-msg');
+    msg.textContent = 'Lendo arquivo…';
+    try {
+      const r = await anexarKml(id, arq, document.getElementById('emp-kml-tipo').value, {
+        licenca:  document.getElementById('emp-kml-lic').value.trim() || null,
+        emissao:  document.getElementById('emp-kml-emissao').value || null,
+        validade: document.getElementById('emp-kml-validade').value || null
+      });
+      document.getElementById('emp-kml-lista').innerHTML = listaKmlHtml(id);
+      ligarKml();
+      const bb = r.reg.bbox;
+      const km = (Math.abs(bb[2]-bb[0]) * 111.32 * Math.cos(bb[1]*Math.PI/180)).toFixed(2);
+      const kmY = (Math.abs(bb[3]-bb[1]) * 111.32).toFixed(2);
+      msg.innerHTML = `<strong style="color:var(--conforme);">Anexado.</strong> ${r.reg.n_vertices} vértices,
+        extensão aproximada de ${km} × ${kmY} km.` +
+        (r.simplificado ? ` O arquivo tinha ${r.antes} vértices e foi simplificado para não travar o desenho no celular.` : '');
+      ev.target.value = '';
+    } catch (e) {
+      msg.innerHTML = `<strong style="color:var(--nc);">Não foi possível ler:</strong> ${esc(e.message)}`;
+      ev.target.value = '';
+    }
+  });
+
   document.getElementById('btn-save-emp').addEventListener('click', async () => {
     const novoNome = document.getElementById('mod-emp-nome').value.trim();
     const novoTipo = document.getElementById('mod-emp-tipo').value;
@@ -6315,6 +7108,8 @@ async function iniciarApp() {
 
   // categorias já conhecidas (para sugestões ao adicionar/editar itens)
   try { state.categoriasConhecidas = (await storageGet('categorias:conhecidas')) || []; } catch(e) { state.categoriasConhecidas = []; }
+
+  try { await carregarPoligonos(); } catch(e) { console.warn('poligonais:', e); }
 
   state.ready = true;
   render();
