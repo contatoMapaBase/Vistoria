@@ -1175,6 +1175,71 @@
     }
     .cam-baixar:hover { border-color: var(--brand, #2E4159); background: var(--surface-2, #f7f8fa); }
     .cam-baixar:active { transform: scale(.94); }
+
+    /* ==================================================================
+       Filtro de lista. Alvo de toque de 44px porque em campo se usa com
+       uma mão; type=search para o teclado do celular trazer o botão de
+       busca em vez de "enviar".
+       ================================================================== */
+    .filtro-box { margin: 0 0 16px; }
+
+    .filtro-campo { position: relative; display: flex; align-items: center; }
+    .filtro-campo > svg {
+      position: absolute; left: 12px; color: var(--ink-faint); pointer-events: none;
+    }
+    .filtro-campo > input {
+      width: 100%; height: 44px; padding: 0 40px 0 36px; font-size: 15px;
+      border: 1px solid var(--line); border-radius: 11px; background: #fff;
+      color: var(--ink); font-family: inherit; appearance: none; -webkit-appearance: none;
+    }
+    .filtro-campo > input:focus {
+      outline: none; border-color: var(--brand, #2E4159);
+      box-shadow: 0 0 0 3px rgba(46,65,89,.12);
+    }
+    .filtro-campo > input::-webkit-search-cancel-button { display: none; }
+    .filtro-limpar {
+      position: absolute; right: 6px; width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: none; background: transparent; color: var(--ink-faint);
+      font-size: 14px; cursor: pointer; border-radius: 8px;
+    }
+    .filtro-limpar:hover { background: var(--surface-2, #f2f4f7); color: var(--ink); }
+
+    .filtro-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px; }
+    .chip {
+      min-height: 34px; padding: 0 13px; font-size: 13px; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+      border: 1px solid var(--line); border-radius: 999px; background: #fff;
+      color: var(--ink-soft); transition: background .12s, border-color .12s, color .12s;
+    }
+    .chip:hover { border-color: #BFC9D6; }
+    .chip.on { background: var(--brand, #2E4159); border-color: var(--brand, #2E4159); color: #fff; }
+    .chip-n { font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+    .chip.on .chip-n { opacity: .85; }
+
+    .filtro-conta {
+      font-size: 12px; color: var(--ink-faint); margin-top: 9px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Lista de vínculo no modal do empreendimento. */
+    .vinc-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 8px;
+      border-radius: 8px; font-size: 14px; cursor: pointer;
+      transition: background .12s;
+    }
+    .vinc-item:hover { background: #fff; }
+    .vinc-item > input { width: 18px; height: 18px; flex: none; margin: 0; accent-color: var(--brand, #2E4159); }
+    .vinc-txt { flex: 1; min-width: 0; }
+    .vinc-setor {
+      flex: none; font-size: 10.5px; color: var(--ink-faint);
+      border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; background: #fff;
+    }
+
+    @media (max-width: 560px) {
+      .filtro-chips { gap: 6px; }
+      .chip { min-height: 32px; padding: 0 11px; font-size: 12.5px; }
+    }
 </style>
 </head>
 <body>
@@ -5107,6 +5172,103 @@ async function saveVistoria(v) {
   /* ============================================================
    TELAS: EMPREENDIMENTOS E BIBLIOTECA
    ============================================================ */
+/* ============================================================
+   FILTRO DE LISTA — padrão reaproveitável
+   ------------------------------------------------------------
+   Filtra no DOM, sem re-renderizar a tela. Isso não é detalhe: re-render a
+   cada tecla faz o campo perder o foco e o teclado do celular fechar. Aqui
+   os cartões já estão na página e só somem ou aparecem.
+
+   Cada item ganha data-filtro (escopo), data-busca (texto normalizado) e
+   data-grupo (setor ou tipo). Cabeçalho de seção vazia se esconde sozinho.
+   ============================================================ */
+function normalizar(t) {
+  return String(t == null ? '' : t).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/* Busca sem acento nos dois lados: em campo, com uma mão e sol na tela,
+   ninguém digita "mineração" com til. */
+function casaBusca(termo, ...campos) {
+  const q = normalizar(termo).trim();
+  if (!q) return true;
+  const alvo = normalizar(campos.filter(Boolean).join(' '));
+  return q.split(/\s+/).every(parte => alvo.includes(parte));
+}
+
+function caixaFiltro(escopo, dica, grupos, total) {
+  return `
+  <div class="filtro-box">
+    <div class="filtro-campo">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="${escopo}-busca" placeholder="${esc(dica)}"
+             autocomplete="off" oninput="filtroAplicar('${escopo}')">
+      <button type="button" class="filtro-limpar" id="${escopo}-limpar"
+              onclick="filtroLimpar('${escopo}')" title="Limpar busca" hidden>&#10005;</button>
+    </div>
+    ${grupos && grupos.length ? `
+      <div class="filtro-chips">
+        <button type="button" class="chip on" data-filtro-grupo="${escopo}" data-valor=""
+                onclick="filtroGrupo('${escopo}', this)">Todos</button>
+        ${grupos.map(g => `
+          <button type="button" class="chip" data-filtro-grupo="${escopo}" data-valor="${esc(g.valor)}"
+                  onclick="filtroGrupo('${escopo}', this)">${esc(g.rot)}${g.n != null ? ` <span class="chip-n">${g.n}</span>` : ''}</button>`).join('')}
+      </div>` : ''}
+    <div class="filtro-conta" id="${escopo}-conta">${total} ${total === 1 ? 'item' : 'itens'}</div>
+  </div>`;
+}
+
+window.filtroGrupo = function (escopo, bt) {
+  document.querySelectorAll(`[data-filtro-grupo="${escopo}"]`).forEach(b => b.classList.remove('on'));
+  bt.classList.add('on');
+  filtroAplicar(escopo);
+};
+
+window.filtroLimpar = function (escopo) {
+  const cx = document.getElementById(escopo + '-busca');
+  if (cx) { cx.value = ''; cx.focus(); }
+  filtroAplicar(escopo);
+};
+
+window.filtroAplicar = function (escopo) {
+  const cx = document.getElementById(escopo + '-busca');
+  const q = cx ? cx.value : '';
+  const bt = document.getElementById(escopo + '-limpar');
+  if (bt) bt.hidden = !q;
+
+  const sel = document.querySelector(`[data-filtro-grupo="${escopo}"].on`);
+  const grupo = sel ? sel.getAttribute('data-valor') : '';
+
+  let n = 0;
+  document.querySelectorAll(`[data-filtro="${escopo}"]`).forEach(el => {
+    const okQ = casaBusca(q, el.getAttribute('data-busca'));
+    const okG = !grupo || (el.getAttribute('data-grupo') || '') === grupo;
+    const on = okQ && okG;
+    el.style.display = on ? '' : 'none';
+    if (on) n++;
+  });
+
+  // Seção sem nenhum item visível desaparece junto do cabeçalho.
+  document.querySelectorAll(`[data-secao="${escopo}"]`).forEach(sec => {
+    const v = sec.getAttribute('data-valor');
+    const vis = Array.from(document.querySelectorAll(`[data-filtro="${escopo}"][data-grupo="${v}"]`))
+      .filter(el => el.style.display !== 'none').length;
+    sec.style.display = vis ? '' : 'none';
+  });
+  document.querySelectorAll(`[data-grade="${escopo}"]`).forEach(gr => {
+    const v = gr.getAttribute('data-valor');
+    const vis = Array.from(gr.querySelectorAll(`[data-filtro="${escopo}"]`))
+      .filter(el => el.style.display !== 'none').length;
+    gr.style.display = vis ? '' : 'none';
+  });
+
+  const c = document.getElementById(escopo + '-conta');
+  if (c) c.textContent = n === 0 ? 'nada encontrado' : `${n} ${n === 1 ? 'item' : 'itens'}`;
+  const vz = document.getElementById(escopo + '-vazio');
+  if (vz) vz.style.display = n === 0 ? '' : 'none';
+};
+
 function viewEmpreendimentos() {
   return `
   <div class="view-head">
@@ -5116,6 +5278,12 @@ function viewEmpreendimentos() {
     </div>
     <button class="btn primary" id="btn-add-emp">+ Novo Empreendimento</button>
   </div>
+  ${state.empreendimentos.length ? caixaFiltro('emp', 'Buscar empreendimento...',
+      [...new Set(state.empreendimentos.map(e => e.tipo || 'Geral'))].sort()
+        .map(t => ({ valor: t, rot: t, n: state.empreendimentos.filter(e => (e.tipo || 'Geral') === t).length })),
+      state.empreendimentos.length) : ''}
+  <div class="empty card" id="emp-vazio" style="display:none;">
+    <div class="ic">&#128269;</div>Nenhum empreendimento corresponde à busca.</div>
   ${state.empreendimentos.length === 0 ? `
     <div class="empty card">
       <div class="ic">🏢</div>Nenhum empreendimento cadastrado.
@@ -5125,7 +5293,8 @@ function viewEmpreendimentos() {
     ${state.empreendimentos.map((e) => {
       const visual = getSetorVisual(e.tipo);
       return `
-      <div class="visual-card visual-card-large">
+      <div class="visual-card visual-card-large" data-filtro="emp" data-grupo="${esc(e.tipo || 'Geral')}"
+           data-busca="${esc(e.nome + ' ' + (e.tipo || 'Geral'))}">
         <div class="visual-card-cover ${e.logo ? 'cover-logo' : visual.class}">
           ${e.logo ? `<img class="emp-logo" src="${e.logo}" alt="${esc(e.nome)}">` : `<span class="cover-setor-ic">${visual.icon}</span>`}
         </div>
@@ -5335,13 +5504,24 @@ function abrirModalEmpreendimento(empExistente = null) {
 
         <div class="field">
           <label class="field-label">Vincular Estruturas Existentes na Biblioteca</label>
-          <div style="max-height:200px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:12px; background:#fafbf9;">
+          <div class="filtro-campo" style="margin-bottom:8px;">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" id="vinc-busca" placeholder="Buscar entre ${state.estruturas.length} estruturas..."
+                   autocomplete="off" oninput="filtroAplicar('vinc')">
+            <button type="button" class="filtro-limpar" id="vinc-limpar" onclick="filtroLimpar('vinc')" hidden>&#10005;</button>
+          </div>
+          <div style="max-height:230px; overflow-y:auto; border:1px solid var(--line); border-radius:10px; padding:6px; background:#fafbf9;">
             ${state.estruturas.map(est => `
-              <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:14px; cursor:pointer; padding:4px; border-radius:4px; transition:background 0.2s;">
-                <input type="checkbox" class="mod-emp-est" value="${esc(est.id)}" ${(vinculadas.includes(est.id) || vinculadas.includes(est.nome)) ? 'checked' : ''} style="width:auto;"> ${esc(est.nome)}
+              <label class="vinc-item" data-filtro="vinc"
+                     data-busca="${esc(est.nome + ' ' + (est.setor || 'Geral'))}">
+                <input type="checkbox" class="mod-emp-est" value="${esc(est.id)}" ${(vinculadas.includes(est.id) || vinculadas.includes(est.nome)) ? 'checked' : ''}>
+                <span class="vinc-txt">${esc(est.nome)}</span>
+                <span class="vinc-setor">${esc(est.setor || 'Geral')}</span>
               </label>
             `).join('')}
           </div>
+          <div style="font-size:11.5px;color:var(--ink-faint);margin-top:6px;" id="vinc-conta"></div>
         </div>
       </div>
       <div class="modal-foot">
@@ -5640,6 +5820,13 @@ function viewEstruturas() {
     <button class="btn primary" id="btn-add-est">+ Nova Estrutura</button>
   </div>`;
 
+  const contaSetor = id => state.estruturas.filter(e => (e.setor || 'Geral') === id).length;
+  html += caixaFiltro('est', 'Buscar estrutura, item ou setor...',
+    setoresDef.filter(x => contaSetor(x.id)).map(x => ({ valor: x.id, rot: x.id, n: contaSetor(x.id) })),
+    state.estruturas.length);
+  html += `<div class="empty card" id="est-vazio" style="display:none;">
+    <div class="ic">&#128269;</div>Nenhuma estrutura corresponde à busca.</div>`;
+
   if(state.estruturas.length === 0) {
     return html + `
       <div class="empty card">
@@ -5651,13 +5838,14 @@ function viewEstruturas() {
     const ests = state.estruturas.filter(e => (e.setor || 'Geral') === setor.id);
     if(ests.length > 0) {
       html += `
-      <div class="sector-header">
+      <div class="sector-header" data-secao="est" data-valor="${esc(setor.id)}">
         <div class="sector-icon">${iconeSetor(setor.id)}</div>
         <h2 class="sector-title">${setor.title}</h2>
       </div>
-      <div class="grid cols-3">
+      <div class="grid cols-3" data-grade="est" data-valor="${esc(setor.id)}">
         ${ests.map(e => `
-          <div class="visual-card">
+          <div class="visual-card" data-filtro="est" data-grupo="${esc(setor.id)}"
+               data-busca="${esc(e.nome + ' ' + (setor.id) + ' ' + (e.itens || []).map(i => i.nome || i.item || '').join(' '))}">
             <div class="visual-card-body">
               <h3 class="visual-card-title">${esc(e.nome)}</h3>
               <div class="visual-card-desc" style="margin-top: 8px;">
@@ -5967,9 +6155,15 @@ function viewNovaVistoria() {
         <label class="field-label">Empreendimento Inspecionado</label>
         <select id="nv-emp" ${isEdit ? 'disabled' : ''}>
           <option value="">-- Selecione --</option>
-          ${state.empreendimentos.map(e => `
-            <option value="${e.nome}" ${nv.emp === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>
-          `).join('')}
+          ${(() => {
+            const tipos = [...new Set(state.empreendimentos.map(e => e.tipo || 'Geral'))].sort();
+            if (tipos.length < 2) return state.empreendimentos.map(e =>
+              `<option value="${esc(e.nome)}" ${nv.emp === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>`).join('');
+            return tipos.map(t => `<optgroup label="${esc(t)}">` +
+              state.empreendimentos.filter(e => (e.tipo || 'Geral') === t).map(e =>
+                `<option value="${esc(e.nome)}" ${nv.emp === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>`).join('') +
+              '</optgroup>').join('');
+          })()}
         </select>
       </div>
       
@@ -5984,9 +6178,20 @@ function viewNovaVistoria() {
         </div>
         <select id="nv-est" ${(!nv.emp) ? 'disabled' : ''}>
           <option value="">${nv.emp ? '-- Selecione a Estrutura --' : '-- Primeiro selecione o Empreendimento --'}</option>
-          ${estruturasExibidas.map(e => `
-            <option value="${e.nome}" ${nv.est === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>
-          `).join('')}
+          ${(() => {
+            // Agrupado por setor. Numa lista de 27, a roda nativa do celular
+            // obriga a rolar tudo; com grupos, o setor vira âncora visual.
+            const ordem = ['Mineração', 'Agro', 'Indústrias', 'Geral'];
+            const setores = [...new Set(estruturasExibidas.map(e => e.setor || 'Geral'))]
+              .sort((a, b) => (ordem.indexOf(a) + 1 || 99) - (ordem.indexOf(b) + 1 || 99));
+            if (setores.length < 2) return estruturasExibidas.map(e =>
+              `<option value="${esc(e.nome)}" ${nv.est === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>`).join('');
+            return setores.map(sx => {
+              const itens = estruturasExibidas.filter(e => (e.setor || 'Geral') === sx);
+              return `<optgroup label="${esc(sx)}">` + itens.map(e =>
+                `<option value="${esc(e.nome)}" ${nv.est === e.nome ? 'selected' : ''}>${esc(e.nome)}</option>`).join('') + '</optgroup>';
+            }).join('');
+          })()}
         </select>
         ${isEdit ? `<div class="hint" style="font-size:12px; color:var(--ink-soft); margin-top:4px;">Trocar a estrutura corrige a qual estrutura este check-list pertence. Os itens e respostas já preenchidos são mantidos.</div>` : ''}
         ${possuiVinculo && !nv.mostrarTodasEstruturas && !isEdit ? `
