@@ -5945,7 +5945,14 @@ function abrirModalEmpreendimento(empExistente = null) {
 
     await storageSet('empreendimentos', state.empreendimentos);
     if(_supabase && navigator.onLine) {
-      await _supabase.from('empreendimentos').upsert(obj);
+      const { error: errEmp } = await _supabase.from('empreendimentos').upsert(obj);
+      if (errEmp) {
+        // Sem esta checagem o app dizia "salvo com sucesso" mesmo quando a
+        // nuvem recusava, e cadastro e vistorias divergiam em silêncio.
+        console.error('Erro ao salvar empreendimento:', errEmp);
+        showToast('Salvo no aparelho, mas a nuvem recusou: ' + errEmp.message);
+        closeModal(); render(); return;
+      }
     }
 
     /* O nome exibido nas vistorias já muda sozinho, porque é resolvido pelo id
@@ -5977,7 +5984,8 @@ window.excluirEmpreendimento = async function(id) {
     await storageSet('empreendimentos', state.empreendimentos);
     
     if(_supabase && navigator.onLine) {
-      await _supabase.from('empreendimentos').delete().eq('id', id);
+      const { error: errDel } = await _supabase.from('empreendimentos').delete().eq('id', id);
+      if (errDel) { console.error(errDel); showToast('Removido no aparelho, mas a nuvem recusou: ' + errDel.message); }
     }
     
     render();
@@ -6082,7 +6090,7 @@ window.duplicarEstrutura = async function(id) {
     await storageSet('estruturas', state.estruturas);
     
     if(_supabase && navigator.onLine) {
-      await _supabase.from('estruturas').upsert({
+      const { error: errDup } = await _supabase.from('estruturas').upsert({
         id: clone.id,
         nome: clone.nome,
         setor: clone.setor,
@@ -6090,6 +6098,7 @@ window.duplicarEstrutura = async function(id) {
         criado_em: clone.criadoEm,
         criado_por: clone.criadoPor
       });
+      if (errDup) { console.error(errDup); showToast('Duplicada no aparelho, mas a nuvem recusou: ' + errDup.message); }
     }
     
     render(); 
@@ -6103,7 +6112,8 @@ window.excluirEstrutura = async function(id) {
     await storageSet('estruturas', state.estruturas);
     
     if(_supabase && navigator.onLine) {
-      await _supabase.from('estruturas').delete().eq('id', id);
+      const { error: errDelEst } = await _supabase.from('estruturas').delete().eq('id', id);
+      if (errDelEst) { console.error(errDelEst); showToast('Removida no aparelho, mas a nuvem recusou: ' + errDelEst.message); }
     }
     
     render();
@@ -7528,19 +7538,34 @@ function bindVistorias() {
 // embutidas (base64) entram naturalmente.
 window.exportarBackup = async function() {
   try {
-    const idx = state.vistoriasIndex || [];
+    /* Inclui a lixeira: ela é justamente o que um backup precisa proteger.
+       Sem isto, restaurar um backup esvaziava a lixeira em silêncio — perda de
+       dado dentro do recurso criado para evitar perda de dado. */
+    const idx = (state.vistoriasIndex || []).concat(state.lixeira || []);
     const vistorias = [];
     for (let i = 0; i < idx.length; i++) {
       showToast(`Preparando backup... ${i + 1}/${idx.length}`);
       const v = await loadVistoria(idx[i].id);
-      if (v) vistorias.push(v);
+      if (v) {
+        // Preserva o marcador de lixeira no arquivo.
+        const marca = idx[i];
+        if (marca.excluidaEm) {
+          v.excluidaEm = marca.excluidaEm;
+          v.excluidoPor = marca.excluidoPor || null;
+          v.motivoExclusao = marca.motivoExclusao || null;
+        }
+        vistorias.push(v);
+      }
     }
     const backup = {
       formato: 'mapabase-backup',
-      versao: 1,
+      versao: 2,
       geradoEm: new Date().toISOString(),
       empreendimentos: state.empreendimentos || [],
       estruturas: state.estruturas || [],
+      // Poligonais das ADAs: sem elas, restaurar um backup offline deixava o
+      // mapa vazio e os KMLs anexados perdidos.
+      poligonos: state.poligonos || [],
       vistorias
     };
     const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
@@ -7550,7 +7575,10 @@ window.exportarBackup = async function() {
     a.download = `mapabase-backup-${new Date().toISOString().slice(0,10)}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-    showToast(`Backup gerado: ${vistorias.length} check-lists, ${(state.empreendimentos||[]).length} empreend., ${(state.estruturas||[]).length} estrut.`);
+    const nLix = (state.lixeira || []).length;
+    showToast(`Backup: ${vistorias.length} check-lists${nLix ? ` (${nLix} na lixeira)` : ''}, `
+      + `${(state.empreendimentos||[]).length} empreend., ${(state.estruturas||[]).length} estrut., `
+      + `${(state.poligonos||[]).length} poligonal(is).`);
   } catch (e) {
     console.error('Erro no backup:', e);
     showToast('Erro ao gerar o backup.');
@@ -7572,9 +7600,14 @@ window.restaurarBackup = async function(file) {
   const qEmp = (dados.empreendimentos || []).length;
   const qEst = (dados.estruturas || []).length;
   const qVist = dados.vistorias.length;
+  const qPol = (dados.poligonos || []).length;
+  const qLix = dados.vistorias.filter(v => v.excluidaEm).length;
   const quando = dados.geradoEm ? new Date(dados.geradoEm).toLocaleString('pt-BR') : '';
 
-  if (!confirm(`Restaurar backup${quando ? ' de ' + quando : ''}?\n\nConteúdo: ${qEmp} empreendimentos, ${qEst} estruturas, ${qVist} check-lists.\n\nMODO JUNTAR: o que já existe é mantido como está; só o que estiver faltando é recuperado. Nada é apagado.`)) return;
+  if (!confirm(`Restaurar backup${quando ? ' de ' + quando : ''}?\n\n`
+    + `Conteúdo: ${qEmp} empreendimentos, ${qEst} estruturas, ${qVist} check-lists`
+    + `${qLix ? ` (sendo ${qLix} na lixeira)` : ''}${qPol ? `, ${qPol} poligonal(is)` : ''}.\n\n`
+    + `MODO JUNTAR: o que já existe é mantido como está; só o que estiver faltando é recuperado. Nada é apagado.`)) return;
 
   showToast('Restaurando...');
   let addEmp = 0, addEst = 0, addVist = 0;
@@ -7595,21 +7628,50 @@ window.restaurarBackup = async function(file) {
       state.estruturas.push(s);
       addEst++;
       if (_supabase && navigator.onLine) {
-        try { await _supabase.from('estruturas').upsert({ id: s.id, nome: s.nome, setor: s.setor, itens: { setor: s.setor, list: s.itens || [] }, criado_em: s.criadoEm || null, criado_por: s.criadoPor || null, atualizado_em: s.atualizadoEm || null, atualizado_por: s.atualizadoPor || null }); } catch (err) { console.warn(err); }
+        try { await _supabase.from('estruturas').upsert({ id: s.id, nome: s.nome, setor: s.setor, itens: { setor: s.setor, list: s.itens || [] }, historico: s.historico || [], criado_em: s.criadoEm || null, criado_por: s.criadoPor || null, atualizado_em: s.atualizadoEm || null, atualizado_por: s.atualizadoPor || null }); } catch (err) { console.warn(err); }
       }
     }
   }
   if (addEst) await storageSet('estruturas', state.estruturas);
 
-  for (const v of dados.vistorias) {
-    if (!state.vistoriasIndex.some(x => x.id === v.id)) {
-      await saveVistoria(v);
-      addVist++;
+  // Poligonais das ADAs. Sem isto, restaurar um backup deixava o mapa vazio.
+  let addPol = 0;
+  for (const pg of (dados.poligonos || [])) {
+    if (!(state.poligonos || []).some(x => x.id === pg.id)) {
+      state.poligonos = (state.poligonos || []).concat([pg]);
+      addPol++;
+      if (_supabase && navigator.onLine) {
+        try { await _supabase.from('empreendimento_poligonos').upsert(pg); } catch (err) { console.warn(err); }
+      }
     }
   }
+  if (addPol) await storageSet('poligonos', state.poligonos);
+
+  let addLix = 0;
+  for (const v of dados.vistorias) {
+    const jaExiste = state.vistoriasIndex.some(x => x.id === v.id)
+                  || (state.lixeira || []).some(x => x.id === v.id);
+    if (jaExiste) continue;
+    await saveVistoria(v);
+    addVist++;
+    // Restaura na lixeira o que estava na lixeira: sem isto, o check-list
+    // excluído voltaria ao histórico ativo e ao IGD do cliente.
+    if (v.excluidaEm) {
+      const ent = state.vistoriasIndex.find(x => x.id === v.id);
+      if (ent) {
+        Object.assign(ent, { excluidaEm: v.excluidaEm, excluidoPor: v.excluidoPor || null,
+                             motivoExclusao: v.motivoExclusao || null });
+        state.vistoriasIndex = state.vistoriasIndex.filter(x => x.id !== v.id);
+        state.lixeira = (state.lixeira || []).concat([ent]);
+        addLix++; addVist--;
+      }
+    }
+  }
+  if (addLix) await salvarIndice();
 
   render();
-  showToast(`Restaurado: +${addEmp} empreend., +${addEst} estrut., +${addVist} check-lists.`);
+  showToast(`Restaurado: +${addEmp} empreend., +${addEst} estrut., +${addVist} check-lists`
+    + `${addLix ? `, +${addLix} na lixeira` : ''}${addPol ? `, +${addPol} poligonal(is)` : ''}.`);
 };
 
 window.abrirVistoria = async function(id) {
