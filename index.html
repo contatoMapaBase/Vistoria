@@ -4938,6 +4938,8 @@ async function syncGlobalNuvem() {
         criadoPor: d.criado_por || null,
         atualizadoEm: d.atualizado_em || null,
         atualizadoPor: d.atualizado_por || null,
+        municipio: d.municipio || null,
+        uf: d.uf || null,
         historico: d.historico || []
       }));
       await storageSet('empreendimentos', state.empreendimentos);
@@ -5293,6 +5295,9 @@ function carimboCadastro(criadoEm, atualizadoEm, criadoPor, atualizadoPor, histo
   return `<div class="carimbo">${partes.join('')}</div>`;
 }
 
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+             'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
 function normalizar(t) {
   return String(t == null ? '' : t).toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -5405,7 +5410,7 @@ function viewEmpreendimentos() {
       const visual = getSetorVisual(e.tipo);
       return `
       <div class="visual-card visual-card-large" data-filtro="emp" data-grupo="${esc(e.tipo || 'Geral')}"
-           data-busca="${esc(e.nome + ' ' + (e.tipo || 'Geral'))}">
+           data-busca="${esc([e.nome, e.tipo || 'Geral', e.municipio, e.uf].filter(Boolean).join(' '))}">
         <div class="visual-card-cover ${e.logo ? 'cover-logo' : visual.class}">
           ${e.logo ? `<img class="emp-logo" src="${e.logo}" alt="${esc(e.nome)}">` : `<span class="cover-setor-ic">${visual.icon}</span>`}
         </div>
@@ -5413,6 +5418,7 @@ function viewEmpreendimentos() {
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <h3 class="visual-card-title">${esc(e.nome)}</h3>
             <span class="badge na">${esc(e.tipo || 'Geral')}</span>
+            ${(e.municipio || e.uf) ? `<span class="badge na" title="Município e estado do empreendimento">📍 ${esc([e.municipio, e.uf].filter(Boolean).join(', '))}</span>` : ''}
           </div>
           <div class="visual-card-desc" style="margin-top:12px;">
             <strong style="display:block; margin-bottom:6px; color:var(--ink);">Estruturas Vinculadas:</strong>
@@ -5545,6 +5551,26 @@ function abrirModalEmpreendimento(empExistente = null) {
             <option value="Indústrias" ${tipo === 'Indústrias' ? 'selected' : ''}>Indústrias</option>
           </select>
         </div>
+        <div class="field">
+          <label class="field-label">Localização</label>
+          <div class="kml-grid">
+            <div class="kml-campo">
+              <label for="mod-emp-municipio">Município</label>
+              <input type="text" id="mod-emp-municipio" placeholder="ex.: Indiara"
+                     value="${isEdit ? esc(empExistente.municipio || '') : ''}">
+            </div>
+            <div class="kml-campo">
+              <label for="mod-emp-uf">Estado</label>
+              <select id="mod-emp-uf">
+                <option value="">—</option>
+                ${UFS.map(u => `<option value="${u}" ${isEdit && empExistente.uf === u ? 'selected' : ''}>${u}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <p class="hint">O estado não é só cadastro: define qual norma estadual se aplica.
+          O VRQ de solo, por exemplo, é estabelecido por cada estado, não pela União.</p>
+        </div>
+
         <div class="field">
           <label class="field-label">Logo do empreendimento (opcional)</label>
           <div style="display:flex; align-items:center; gap:12px;">
@@ -5875,13 +5901,25 @@ function abrirModalEmpreendimento(empExistente = null) {
 
     /* Renomeação é fato datado. Fica registrada uma vez, aqui, em vez de
        deixar o nome antigo espalhado pelas vistorias. */
+    const novoMunicipio = document.getElementById('mod-emp-municipio').value.trim() || null;
+    const novaUf = document.getElementById('mod-emp-uf').value || null;
+
     const nomeAntigo = isEdit ? (empExistente.nome || '') : '';
     const renomeou = isEdit && nomeAntigo && nomeAntigo !== novoNome;
     const histNovo = (isEdit && Array.isArray(empExistente.historico) ? empExistente.historico.slice() : []);
+    const agora = new Date().toISOString();
     if (renomeou) histNovo.push({
-      em: new Date().toISOString(), por: state.usuarioEmail || null,
+      em: agora, por: state.usuarioEmail || null,
       campo: 'nome', antes: nomeAntigo, depois: novoNome
     });
+    // Mudança de município ou UF também é fato datado: uma planta muda de
+    // endereço, e a UF decide qual norma estadual se aplica ao histórico.
+    if (isEdit && (empExistente.municipio || null) !== novoMunicipio) histNovo.push({
+      em: agora, por: state.usuarioEmail || null,
+      campo: 'municipio', antes: empExistente.municipio || null, depois: novoMunicipio });
+    if (isEdit && (empExistente.uf || null) !== novaUf) histNovo.push({
+      em: agora, por: state.usuarioEmail || null,
+      campo: 'uf', antes: empExistente.uf || null, depois: novaUf });
     
     const obj = { 
       id, 
@@ -5889,6 +5927,8 @@ function abrirModalEmpreendimento(empExistente = null) {
       tipo: novoTipo, 
       estruturas: novasVinculadas, 
       logo: logoAtual || null,
+      municipio: novoMunicipio,
+      uf: novaUf,
       historico: histNovo,
       criado_em: isEdit ? (empExistente.criadoEm || empExistente.criado_em || null) : new Date().toISOString(),
       criado_por: isEdit ? (empExistente.criadoPor || null) : (state.usuarioEmail || null),
@@ -7544,7 +7584,7 @@ window.restaurarBackup = async function(file) {
       state.empreendimentos.push(e);
       addEmp++;
       if (_supabase && navigator.onLine) {
-        try { await _supabase.from('empreendimentos').upsert({ id: e.id, nome: e.nome, tipo: e.tipo, estruturas: e.estruturas, logo: e.logo || null, criado_em: e.criadoEm || e.criado_em || null, criado_por: e.criadoPor || null, atualizado_em: e.atualizadoEm || null, atualizado_por: e.atualizadoPor || null }); } catch (err) { console.warn(err); }
+        try { await _supabase.from('empreendimentos').upsert({ id: e.id, nome: e.nome, tipo: e.tipo, estruturas: e.estruturas, logo: e.logo || null, municipio: e.municipio || null, uf: e.uf || null, historico: e.historico || [], criado_em: e.criadoEm || e.criado_em || null, criado_por: e.criadoPor || null, atualizado_em: e.atualizadoEm || null, atualizado_por: e.atualizadoPor || null }); } catch (err) { console.warn(err); }
       }
     }
   }
