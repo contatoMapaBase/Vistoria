@@ -1258,6 +1258,43 @@
       background: var(--surface, #fff); z-index: 1;
     }
     .ms-ano:first-child { padding-top: 3px; }
+
+    /* ==================================================================
+       Cartão de empreendimento no celular. Na captura de 04/08 a etiqueta de
+       local quebrava em duas linhas ao lado do setor, o título disputava
+       espaço com ela, e as estruturas vinculadas empilhavam em duas colunas
+       estreitas cortando o nome.
+       ================================================================== */
+    @media (max-width: 620px) {
+      /* Título em cima, etiquetas embaixo: com três elementos na mesma linha
+         num cartão de 340px, o nome do empreendimento é o que perde. */
+      .visual-card-large .visual-card-head,
+      .visual-card-large .visual-card-title-row {
+        flex-direction: column; align-items: flex-start; gap: 8px;
+      }
+      .visual-card-large .visual-card-title { font-size: 19px; line-height: 1.25; }
+
+      .card-etiquetas {
+        display: flex; flex-wrap: wrap; gap: 6px; width: 100%;
+      }
+      .card-etiquetas .badge {
+        white-space: nowrap; font-size: 11px; padding: 4px 10px; border-radius: 999px;
+      }
+
+      /* Estruturas vinculadas: uma coluna, nome inteiro visível. */
+      .est-list-chip {
+        display: block; width: 100%; box-sizing: border-box;
+        white-space: normal; overflow-wrap: anywhere;
+        font-size: 12.5px; padding: 7px 10px; margin: 0;
+      }
+      .est-chips-wrap { display: flex; flex-direction: column; gap: 5px; }
+
+      .carimbo { font-size: 11px; }
+      .view-title { font-size: 24px; line-height: 1.15; }
+    }
+
+    /* A etiqueta de local nunca quebra no meio da sigla do estado. */
+    .badge-local { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -5490,23 +5527,32 @@ function viewEmpreendimentos() {
           ${e.logo ? `<img class="emp-logo" src="${e.logo}" alt="${esc(e.nome)}">` : `<span class="cover-setor-ic">${visual.icon}</span>`}
         </div>
         <div class="visual-card-body">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <h3 class="visual-card-title">${esc(e.nome)}</h3>
-            <span class="badge na">${esc(e.tipo || 'Geral')}</span>
-            ${(e.municipio || e.uf) ? `<span class="badge na" title="Município e estado do empreendimento">📍 ${esc([e.municipio, e.uf].filter(Boolean).join(', '))}</span>` : ''}
+          <div class="visual-card-title-row" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <h3 class="visual-card-title" style="min-width:0;">${esc(e.nome)}</h3>
+            <div class="card-etiquetas" style="flex:none;">
+              <span class="badge na">${esc(e.tipo || 'Geral')}</span>
+              ${(e.municipio || e.uf)
+                ? `<span class="badge na badge-local" title="Município e estado do empreendimento">📍 ${esc([e.municipio, e.uf].filter(Boolean).join(', '))}</span>`
+                : `<span class="badge na" style="opacity:.6;" title="Preencha município e estado no cadastro: o estado define qual norma estadual se aplica.">sem local</span>`}
+            </div>
           </div>
           <div class="visual-card-desc" style="margin-top:12px;">
             <strong style="display:block; margin-bottom:6px; color:var(--ink);">Estruturas Vinculadas:</strong>
-            ${(e.estruturas || []).length > 0 ? 
+            <div class="est-chips-wrap">${(e.estruturas || []).length > 0 ? 
               e.estruturas.map(estRef => {
                 const strObj = state.estruturas.find(s => s.id === estRef || s.nome === estRef);
                 if (!strObj) {
-                  return `<span class="est-list-chip" style="color:var(--nc);" title="Precisa ser atualizada">⚠️ Desconhecida</span>`;
+                  // Distingue "biblioteca não carregou" de "vínculo quebrado":
+                  // o primeiro se resolve reconectando, o segundo exige editar.
+                  const semBiblioteca = !state.estruturas || state.estruturas.length === 0;
+                  return semBiblioteca
+                    ? `<span class="est-list-chip" style="color:var(--media);" title="A biblioteca de estruturas não foi carregada. Reconecte e recarregue.">⏳ Não carregada</span>`
+                    : `<span class="est-list-chip" style="color:var(--nc);" title="Vínculo aponta para estrutura que não existe mais na biblioteca. Edite o empreendimento para corrigir.">⚠️ Removida da biblioteca</span>`;
                 }
                 return `<span class="est-list-chip">${esc(strObj.nome)}</span>`;
               }).join('') : 
               '<span class="hint">Nenhuma estrutura vinculada.</span>'
-            }
+            }</div>
           </div>
           ${carimboCadastro(e.criadoEm, e.atualizadoEm, e.criadoPor, e.atualizadoPor, e.historico)}
         </div>
@@ -8552,11 +8598,15 @@ async function iniciarApp() {
   showToast('Carregando dados da nuvem...');
   const syncOk = await syncGlobalNuvem();
   
+  // "Sabemos o que existe?" é diferente de "está vazio". Se a nuvem falhou E o
+  // cache está vazio, a biblioteca é DESCONHECIDA, não inexistente.
+  let bibliotecaConhecida = syncOk;
   if(!syncOk) {
     const emp = await storageGet('empreendimentos');
     const est = await storageGet('estruturas');
     state.empreendimentos = emp || [];
     state.estruturas = est || [];
+    bibliotecaConhecida = Array.isArray(est) && est.length > 0;
     await loadVistoriasNuvem();
   }
 
@@ -8564,8 +8614,20 @@ async function iniciarApp() {
   /* Semeadura da biblioteca padrão. O upsert era disparado sem await: erro
      ficava invisível e a gravação corria em paralelo com o resto da inicialização.
      Agora é sequencial, com erro registrado, e leva o carimbo de criação. */
-  for (const def of DEFAULT_ESTRUTURAS) {
-    if (!state.estruturas.some(e => e.nome === def.nome || e.id === def.id)) {
+  /* Só semeia quando sabemos o que já existe. Sem esta guarda, uma falha de
+     rede fazia o app recriar a biblioteca inteira com ids próprios, duplicando
+     por nome as estruturas do usuário — e como as dele ficavam fora do estado,
+     os vínculos dos empreendimentos apareciam como "Desconhecida". Foi assim
+     que a base chegou a 61 estruturas com 26 nomes repetidos.
+     Mesmo erro do dia em outra roupa: tratar "não sei" como "não existe". */
+  if (!bibliotecaConhecida && !syncOk) {
+    console.warn('Semeadura da biblioteca padrão ignorada: a carga falhou e o cache está vazio, então não se sabe o que já existe.');
+    showToast('Sem conexão e sem cache: biblioteca não carregada. Reconecte antes de cadastrar.');
+  }
+  for (const def of (bibliotecaConhecida ? DEFAULT_ESTRUTURAS : [])) {
+    // Casa por nome normalizado: antes, diferença de acento ou caixa criava
+    // duas estruturas com o mesmo nome para o olho humano.
+    if (!state.estruturas.some(e => normalizar(e.nome) === normalizar(def.nome) || e.id === def.id)) {
       const novo = Object.assign({}, def, {
         criadoEm: new Date().toISOString(),
         criadoPor: state.usuarioEmail || 'semeadura da biblioteca padrão'
