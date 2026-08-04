@@ -1477,7 +1477,9 @@ const state = {
   charts: {},
   fabricas: {},
   chartZoom: null,
-  chartZoom2: null
+  chartZoom2: null,
+  _txt: '',
+  chart: null
 };
 
 /* ---------- utilitários ---------- */
@@ -1510,6 +1512,13 @@ function mesesDesde(iso) {
   if (isNaN(d)) return null;
   return Math.max(0, Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
 }
+/* Normaliza para casar nome sem depender de acento ou caixa: em campo e em
+   extração automática, "Goianesia" e "Goianésia" precisam ser a mesma coisa. */
+function norm(t) {
+  return String(t == null ? '' : t).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function nomeEmp(id) {
   const e = state.empreendimentos.find(x => x.id === id);
   return e ? e.nome : '(empreendimento removido)';
@@ -1526,7 +1535,7 @@ function paramPorSigla(sigla, matriz) {
    ============================================================ */
 async function carregarTudo() {
   const [emp, par, pad, camp, pts, ach] = await Promise.all([
-    _supabase.from('empreendimentos').select('id,nome,tipo').order('nome'),
+    _supabase.from('empreendimentos').select('id,nome,tipo,historico,municipio,uf').order('nome'),
     _supabase.from('mon_parametros').select('*').eq('ativo', true).order('ordem'),
     _supabase.from('mon_padroes_legais').select('*'),
     _supabase.from('mon_campanhas').select('*').order('data_inicio', { ascending: false }),
@@ -1574,13 +1583,38 @@ function validarPacote(txt) {
   }
 
   const c = j.campanha || {};
-  const emp = state.empreendimentos.find(e =>
-    (e.nome || '').trim().toLowerCase() === String(c.empreendimento || '').trim().toLowerCase()
-  );
+  const alvo = norm(c.empreendimento);
+
+  /* O monitoramento nunca guarda o nome do empreendimento: tudo é resolvido por
+     nomeEmp(id) a partir do cadastro, então renomear já atualiza todas as telas
+     sozinho. O atrito ficava aqui: um JSON gerado antes da renomeação deixava de
+     casar e a importação era recusada.
+
+     Agora o casamento também aceita qualquer nome ANTERIOR registrado no
+     histórico do cadastro. O aviso deixa claro que casou pelo nome antigo, para
+     não parecer que o JSON está certo quando está desatualizado. */
+  let emp = state.empreendimentos.find(e => norm(e.nome) === alvo);
+  let casouPorNomeAntigo = null;
+  if (!emp && alvo) {
+    for (const e of state.empreendimentos) {
+      const antigos = (e.historico || [])
+        .filter(h => h.campo === 'nome' && h.antes)
+        .map(h => norm(h.antes));
+      if (antigos.includes(alvo)) { emp = e; casouPorNomeAntigo = c.empreendimento; break; }
+    }
+  }
+  if (casouPorNomeAntigo) {
+    d.avisos.push([
+      'JSON usa nome anterior do empreendimento',
+      `O JSON traz "${esc(casouPorNomeAntigo)}", que é um nome anterior de ` +
+      `"${esc(emp.nome)}". A importação segue, vinculada ao cadastro atual pelo id. ` +
+      `Atualize o nome no PROMPT_EXTRACAO para as próximas extrações.`
+    ]);
+  }
   if (!emp) {
     d.erros.push([
       'Empreendimento não cadastrado',
-      `"${esc(c.empreendimento || '(vazio)')}" não existe. Cadastrados: ` +
+      `"${esc(c.empreendimento || '(vazio)')}" não existe, nem como nome anterior. Cadastrados: ` +
       (state.empreendimentos.map(e => e.nome).join(' · ') || 'nenhum') +
       '. Cadastre no app de inspeções ou corrija o nome no JSON.'
     ]);
