@@ -4928,6 +4928,20 @@ async function syncGlobalNuvem() {
     ]);
     
     if(empReq.data && empReq.data.length > 0) {
+      /* Guarda contra reversão silenciosa. A carga da nuvem sobrescrevia o
+         estado local sem comparar nada: se uma gravação tivesse falhado, o
+         reload desfazia a edição do usuário sem aviso — foi exatamente o que
+         aconteceu com a renomeação recusada por coluna ausente.
+         Agora, edição local mais recente que a da nuvem é preservada e
+         reenviada. */
+      const locaisEmp = (await storageGet('empreendimentos')) || [];
+      const maisNovoLocal = (d) => {
+        const l = locaisEmp.find(x => x.id === d.id);
+        if (!l || !l.atualizadoEm) return null;
+        const tNuv = d.atualizado_em ? new Date(d.atualizado_em).getTime() : 0;
+        return new Date(l.atualizadoEm).getTime() > tNuv ? l : null;
+      };
+
       state.empreendimentos = empReq.data.map(d => ({
         id: d.id, 
         nome: d.nome, 
@@ -4942,6 +4956,26 @@ async function syncGlobalNuvem() {
         uf: d.uf || null,
         historico: d.historico || []
       }));
+
+      // Reaplica o que é local e mais recente, e tenta subir de novo.
+      let reenviar = [];
+      state.empreendimentos = state.empreendimentos.map(d0 => {
+        const l = maisNovoLocal({ id: d0.id, atualizado_em: d0.atualizadoEm });
+        if (l) { reenviar.push(l); return l; }
+        return d0;
+      });
+      for (const l of reenviar) {
+        const { error } = await _supabase.from('empreendimentos').upsert({
+          id: l.id, nome: l.nome, tipo: l.tipo, estruturas: l.estruturas,
+          logo: l.logo || null, municipio: l.municipio || null, uf: l.uf || null,
+          historico: l.historico || [], criado_em: l.criadoEm || null,
+          criado_por: l.criadoPor || null, atualizado_em: l.atualizadoEm || null,
+          atualizado_por: l.atualizadoPor || null
+        });
+        if (error) console.warn('Reenvio de empreendimento falhou:', l.nome, error.message);
+      }
+      if (reenviar.length) showToast(`${reenviar.length} edição(ões) local(is) reenviada(s).`);
+
       await storageSet('empreendimentos', state.empreendimentos);
     }
     
