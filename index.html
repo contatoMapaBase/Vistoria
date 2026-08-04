@@ -1314,6 +1314,8 @@
       <input type="password" id="login-pass" placeholder="Digite a senha">
     </div>
     <button class="btn primary" id="btn-entrar" style="width:100%;justify-content:center;margin-top:8px; padding:12px;">Entrar na Plataforma</button>
+    <p id="login-aviso-offline" style="display:none;font-size:12.5px;line-height:1.55;color:#b35c00;
+       background:#fff1e0;border-radius:10px;padding:11px 13px;margin:12px 0 0;"></p>
   </div>
 </div>
 
@@ -1869,16 +1871,35 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state.mapa && state.mapa.cheio) mapaTelaCheia(false);
 });
 
-window.addEventListener('online', () => {
+window.addEventListener('online', async () => {
   const statusEl = document.getElementById('status-sync');
   if(statusEl) statusEl.textContent = '🟢 Online (Nuvem)';
-  
+
+  // Se estava em modo offline, a sessão precisa ser confirmada antes de subir
+  // qualquer coisa. Sem sessão, o upsert falharia com 401 e o pendente ficaria
+  // marcado como enviado sem ter sido.
+  if (state.modoOffline) {
+    const ok = await revalidarSessao();
+    render();
+    if (!ok) return;
+  }
+
   const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
   if (pendentes.length > 0 && state.ready) {
     showToast('Conexão restabelecida. Sincronizando dados...');
     sincronizarPendentes();
   }
 });
+
+// Mostra o modo offline no rodapé da lateral, para o inspetor saber em que
+// estado está trabalhando sem precisar deduzir.
+function atualizarStatusSync() {
+  const el = document.getElementById('status-sync');
+  if (!el) return;
+  el.textContent = !navigator.onLine
+    ? (state.modoOffline ? '🔴 Offline (sessão expirada — dados no aparelho)' : '🔴 Sem conexão')
+    : (state.modoOffline ? '🟡 Online, sessão expirada — entre para sincronizar' : '🟢 Online (Nuvem)');
+}
 
 window.addEventListener('offline', () => {
   const statusEl = document.getElementById('status-sync');
@@ -3124,6 +3145,7 @@ const state = {
   evoEsts: [],
   poligonos: [],
   usuarioEmail: null,
+  modoOffline: false,
   verLixeira: false,
   lixeira: [],
   evoCategoria: '',
@@ -4970,7 +4992,7 @@ function render() {
       <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v5.5L5.5 17A2.5 2.5 0 0 0 7.8 21h8.4a2.5 2.5 0 0 0 2.3-4L14 8.5V3"/><path d="M7.5 14h9"/></svg></span><span class="nav-longo">Monitoramentos</span><span class="nav-curto">Monitor.</span>
     </a>`;
 
-  document.getElementById('status-sync').textContent = navigator.onLine ? '🟢 Online (Nuvem)' : '🔴 Offline (Local)';
+  atualizarStatusSync();
 
   const views = {
     'dashboard': { html: viewDashboard, bind: bindDashboard },
@@ -5245,6 +5267,10 @@ async function loadVistoria(id) {
 window.sincronizarPendentes = async function() {
   if(_sincronizandoPendentes) return; // evita execuções simultâneas
   if(!navigator.onLine) { showToast('Sem conexão!'); return; }
+  if(state.modoOffline && !(await revalidarSessao())) {
+    showToast('Sessão expirada. Entre novamente para sincronizar — nada foi perdido.');
+    return;
+  }
   const pendentes = state.vistoriasIndex.filter(v => v.syncStatus === 'pending');
   if(pendentes.length === 0) { showToast('Nenhum check-list pendente.'); return; }
   
@@ -8678,6 +8704,39 @@ async function iniciarApp() {
   } catch (e) { /* rascunho é best-effort */ }
 }
 
+/* ============================================================
+   ACESSO OFFLINE
+   ------------------------------------------------------------
+   O token do Supabase vence em pouco tempo e a renovação precisa de rede.
+   Sem tratamento, o inspetor que fechasse o app em campo caía na tela de
+   login e ficava sem trabalhar, com as vistorias do dia presas no aparelho.
+
+   A liberação offline não reduz segurança de verdade: os dados já estão em
+   IndexedDB legível no aparelho, então a tela de login sem rede impedia o
+   inspetor de trabalhar sem impedir ninguém de ler. Era cadeado de teatro.
+
+   O que ela NÃO faz: gravar na nuvem. Toda chamada ao Supabase já é guardada
+   por conexão, e ao reconectar o app exige sessão válida antes de sincronizar
+   — para nunca subir dado com identidade duvidosa.
+   ============================================================ */
+const JANELA_OFFLINE_DIAS = 30;
+
+async function marcarAcessoValido(email) {
+  state.usuarioEmail = email || null;
+  try {
+    await storageSet('auth:ultimo', { email: email || null, em: new Date().toISOString() });
+  } catch (e) { console.warn('Não foi possível registrar o último acesso:', e); }
+}
+
+async function podeEntrarOffline() {
+  try {
+    const m = await storageGet('auth:ultimo');
+    if (!m || !m.em) return null;
+    const dias = (Date.now() - new Date(m.em).getTime()) / 864e5;
+    return dias <= JANELA_OFFLINE_DIAS ? m : null;
+  } catch (e) { return null; }
+}
+
 async function checkAuth() {
   const loginScreen = document.getElementById('login-screen');
   
@@ -8686,31 +8745,79 @@ async function checkAuth() {
     return;
   }
   
-  const { data: { session } } = await _supabase.auth.getSession();
+  let session = null;
+  try {
+    const r = await _supabase.auth.getSession();
+    session = r && r.data ? r.data.session : null;
+  } catch (e) {
+    // Sem rede, a tentativa de renovar o token pode lançar. Não é motivo
+    // para barrar o acesso: o caminho offline resolve abaixo.
+    console.warn('getSession falhou (provavelmente sem rede):', e);
+  }
   
   if (session) {
-    // Sem isto, todo campo "quem fez" grava null: criado_por das poligonais,
-    // por dos achados, e agora excluido_por das vistorias.
-    state.usuarioEmail = (session.user && session.user.email) || null;
+    await marcarAcessoValido(session.user && session.user.email);
+    state.modoOffline = false;
     loginScreen.style.display = 'none';
     iniciarApp(); 
     return;
   }
 
+  // Sem sessão E sem rede: entra em modo offline se houve acesso recente.
+  if (!navigator.onLine) {
+    const m = await podeEntrarOffline();
+    if (m) {
+      state.usuarioEmail = m.email;
+      state.modoOffline = true;
+      loginScreen.style.display = 'none';
+      showToast('Sem conexão. Trabalhando offline — os dados ficam no aparelho até reconectar.');
+      iniciarApp();
+      return;
+    }
+    // Nunca autenticou neste aparelho, ou passou da janela: não há o que liberar.
+    const aviso = document.getElementById('login-aviso-offline');
+    if (aviso) {
+      aviso.style.display = '';
+      aviso.textContent = 'Sem conexão e sem acesso recente neste aparelho. '
+        + 'É preciso entrar uma vez com internet antes de ir a campo.';
+    }
+  }
+
   document.getElementById('btn-entrar').onclick = async () => {
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
+
+    if (!navigator.onLine) { alert('Sem conexão. O primeiro acesso neste aparelho precisa de internet.'); return; }
     
     const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
     
     if (error) {
       alert('Falha no login. Verifique as credenciais.');
     } else { 
-      state.usuarioEmail = email || null;
+      await marcarAcessoValido(email);
+      state.modoOffline = false;
       loginScreen.style.display = 'none'; 
       iniciarApp(); 
     }
   };
+}
+
+/* Ao reconectar em modo offline, confirma a sessão ANTES de sincronizar.
+   Subir dado sem identidade válida seria pior que atrasar a sincronização. */
+async function revalidarSessao() {
+  if (!_supabase || !navigator.onLine) return false;
+  try {
+    const { data } = await _supabase.auth.getSession();
+    if (data && data.session) {
+      await marcarAcessoValido(data.session.user && data.session.user.email);
+      state.modoOffline = false;
+      return true;
+    }
+  } catch (e) { console.warn('Revalidação falhou:', e); }
+  if (state.modoOffline) {
+    showToast('Conexão voltou, mas a sessão expirou. Entre novamente para sincronizar — nada foi perdido.');
+  }
+  return false;
 }
 
 document.getElementById('btn-logout').onclick = async () => {
