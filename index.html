@@ -1249,6 +1249,15 @@
       font-size: 11.5px; line-height: 1.4; color: var(--ink-faint);
       font-variant-numeric: tabular-nums;
     }
+
+    /* Cabeçalho de ano dentro do seletor de meses. Sem ele, uma série de dois
+       anos vira uma lista de 24 itens sem âncora. */
+    .ms-ano {
+      font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--ink-faint); padding: 9px 6px 4px; position: sticky; top: 0;
+      background: var(--surface, #fff); z-index: 1;
+    }
+    .ms-ano:first-child { padding-top: 3px; }
 </style>
 </head>
 <body>
@@ -1687,8 +1696,15 @@ function formatMesIsoParaExtenso(iso) {
 // prefix = 'dash' | 'nc' | 'rank'. lista = check-lists já filtrados (para o intervalo real).
 function descricaoPeriodo(prefix, lista) {
   const f = state.filtros[prefix] || {};
-  // Se um mês específico foi escolhido, mostra-o.
-  if (f.mes) return 'Período: ' + formatMesIsoParaExtenso(f.mes);
+  // Meses escolhidos entram no cabeçalho: um relatório sem escopo declarado é
+  // um relatório que não se sabe do que fala.
+  const ms = f.meses || [];
+  if (ms.length === 1) return 'Período: ' + formatMesIsoParaExtenso(ms[0]);
+  if (ms.length > 1) {
+    const ord = [...ms].sort();
+    return 'Período: ' + ord.map(formatMesIsoParaExtenso).join(' · ')
+      + ` (${ord.length} meses selecionados, não necessariamente consecutivos)`;
+  }
   // Senão, deriva o intervalo real a partir das datas dos check-lists filtrados.
   const datas = (lista || []).map(v => new Date(v.dataHora)).filter(d => !isNaN(d)).sort((a,b)=>a-b);
   if (datas.length === 0) return 'Período: sem dados';
@@ -1841,7 +1857,7 @@ if (_supabase) {
 }
 
 function limparFiltros(prefix) {
-  state.filtros[prefix] = { emp: [], est: [], mes: '', equipe: '' };
+  state.filtros[prefix] = { emp: [], est: [], meses: [], equipe: '' };
   render();
 }
 
@@ -1851,9 +1867,9 @@ function aplicarFiltros(lista, prefix) {
     if(f.emp && f.emp.length > 0 && !f.emp.includes(v.empreendimentoNome)) return false;
     if(f.est && f.est.length > 0 && !f.est.includes(v.estruturaNome)) return false;
     if(f.equipe && v.equipe !== f.equipe) return false;
-    if(f.mes && f.mes !== '') {
+    if(f.meses && f.meses.length > 0) {
       const d = new Date(v.dataHora || v.data);
-      if(isNaN(d) || d.toISOString().slice(0,7) !== f.mes) return false;
+      if(isNaN(d) || !f.meses.includes(d.toISOString().slice(0,7))) return false;
     }
     return true;
   });
@@ -1862,7 +1878,7 @@ function aplicarFiltros(lista, prefix) {
 function renderFilterBar(prefix) {
   const currEmpArr = state.filtros[prefix].emp || [];
   const currEstArr = state.filtros[prefix].est || [];
-  let currMes = state.filtros[prefix].mes || '';
+  let currMeses = state.filtros[prefix].meses || [];
   const currEquipe = state.filtros[prefix].equipe || '';
 
   const emps = [...new Set(state.vistoriasIndex.map(v => v.empreendimentoNome).filter(Boolean))].sort();
@@ -1879,13 +1895,19 @@ function renderFilterBar(prefix) {
   });
   const meses = [...mesesSet].sort().reverse();
   
-  if (currMes && !meses.includes(currMes)) {
-    state.filtros[prefix].mes = '';
-    currMes = '';
+  // Mês que deixou de existir na seleção atual sai sozinho, senão o filtro
+  // esconde tudo sem explicação.
+  const validos = currMeses.filter(m => meses.includes(m));
+  if (validos.length !== currMeses.length) {
+    state.filtros[prefix].meses = validos;
+    currMeses = validos;
   }
 
   const empLabel = currEmpArr.length === 0 ? 'Todos os Empreendimentos' : (currEmpArr.length === 1 ? currEmpArr[0] : `${currEmpArr.length} selecionados`);
   const estLabel = currEstArr.length === 0 ? 'Todas as Estruturas' : (currEstArr.length === 1 ? currEstArr[0] : `${currEstArr.length} selecionadas`);
+  const mesLabel = currMeses.length === 0 ? 'Todos os Meses'
+    : (currMeses.length === 1 ? formatMesIsoParaExtenso(currMeses[0])
+       : `${currMeses.length} meses`);
 
   return `
     <div class="filter-bar no-print">
@@ -1926,11 +1948,25 @@ function renderFilterBar(prefix) {
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Período (Mês)</label>
-        <select id="filter-${prefix}-mes">
-          <option value="">Todos os Meses</option>
-          ${meses.map(m => `<option value="${m}" ${currMes===m?'selected':''}>${formatMesIsoParaExtenso(m)}</option>`).join('')}
-        </select>
+        <label class="field-label">Período (Meses)</label>
+        <details class="multi-select-details" id="det-mes-${prefix}">
+          <summary class="multi-select-summary">${esc(mesLabel)}</summary>
+          <div class="multi-select-dropdown">
+            ${(() => {
+              // Agrupado por ano: numa série de dois anos a lista fica longa e
+              // o ano vira âncora para achar o mês.
+              const anos = [...new Set(meses.map(m => m.slice(0,4)))].sort().reverse();
+              return anos.map(a => `
+                <div class="ms-ano">${a}</div>
+                ${meses.filter(m => m.startsWith(a)).map(m => `
+                  <label>
+                    <input type="checkbox" class="cb-mes-${prefix}" value="${m}" ${currMeses.includes(m)?'checked':''}>
+                    ${esc(formatMesIsoParaExtenso(m).replace(' de ' + a, ''))}
+                  </label>`).join('')}`).join('');
+            })()}
+            ${!meses.length ? '<p style="font-size:12.5px;color:var(--ink-faint);padding:8px 4px;margin:0;">Nenhum mês na seleção atual.</p>' : ''}
+          </div>
+        </details>
       </div>
       <button class="btn ghost" onclick="limparFiltros('${prefix}')" style="height:42px;">Limpar</button>
     </div>
@@ -1942,18 +1978,16 @@ function bindFilterBar(prefix) {
     const empChecked = Array.from(document.querySelectorAll(`.cb-emp-${prefix}:checked`)).map(cb => cb.value);
     const estChecked = Array.from(document.querySelectorAll(`.cb-est-${prefix}:checked`)).map(cb => cb.value);
     
+    const mesChecked = Array.from(document.querySelectorAll(`.cb-mes-${prefix}:checked`)).map(cb => cb.value);
     state.filtros[prefix].emp = empChecked;
     state.filtros[prefix].est = estChecked;
+    state.filtros[prefix].meses = mesChecked;
     render();
   };
 
   document.querySelectorAll(`.cb-emp-${prefix}`).forEach(cb => cb.addEventListener('change', updateFiltros));
   document.querySelectorAll(`.cb-est-${prefix}`).forEach(cb => cb.addEventListener('change', updateFiltros));
-  
-  document.getElementById(`filter-${prefix}-mes`)?.addEventListener('change', e => { 
-    state.filtros[prefix].mes = e.target.value; 
-    render(); 
-  });
+  document.querySelectorAll(`.cb-mes-${prefix}`).forEach(cb => cb.addEventListener('change', updateFiltros));
 
   document.addEventListener('click', (e) => {
     document.querySelectorAll('.multi-select-details').forEach(det => {
@@ -3038,11 +3072,14 @@ const state = {
   vistoriaAberta: null,
   estruturaEditando: null,
   filtros: {
-    dash: { emp: [], est: [], mes: '', equipe: '' },
-    hist: { emp: [], est: [], mes: '', equipe: '' },
-    nc:   { emp: [], est: [], mes: '', equipe: '' },
-    rank: { emp: [], est: [], mes: '', equipe: '' },
-    evo:  { emp: [], est: [], mes: '', equipe: '' }
+    // meses é array pelo mesmo motivo de emp e est: selecionar junho E julho é
+    // pergunta comum, e um select único obrigava a olhar um mês por vez.
+    // Vazio = todos, igual aos outros filtros.
+    dash: { emp: [], est: [], meses: [], equipe: '' },
+    hist: { emp: [], est: [], meses: [], equipe: '' },
+    nc:   { emp: [], est: [], meses: [], equipe: '' },
+    rank: { emp: [], est: [], meses: [], equipe: '' },
+    evo:  { emp: [], est: [], meses: [], equipe: '' }
   },
   rankingModo: 'emp',
   evoAgrupamento: 'mes',
@@ -3682,7 +3719,11 @@ async function bindRanking() {
   // === TENDÊNCIA POR PERÍODO (Opção B) ===
   // Usa o HISTÓRICO COMPLETO (state.vistoriasIndex), não o filtrado, para poder
   // comparar o período atual com o anterior. Respeita o mês selecionado no filtro.
-  const mesFiltrado = (state.filtros.rank && state.filtros.rank.mes) ? state.filtros.rank.mes : '';
+  /* A tendência compara um período com o anterior. Com vários meses marcados,
+     "anterior" é ambíguo, então ancora no mais recente da seleção — e a tela
+     avisa que a comparação usa esse mês, não o conjunto. */
+  const msRank = (state.filtros.rank && state.filtros.rank.meses) || [];
+  const mesFiltrado = msRank.length ? [...msRank].sort().slice(-1)[0] : '';
   linhas.forEach(l => {
     let grupoCompleto;
     if (state.rankingModo === 'est') {
