@@ -1348,7 +1348,30 @@
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
-const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+/* Opções de autenticação declaradas, em vez de confiar no padrão da
+   biblioteca. Num app de campo o comportamento da sessão é crítico, e padrão
+   silencioso muda entre versões do supabase-js.
+
+   persistSession + autoRefreshToken: a sessão sobrevive a fechar o app e o
+   token se renova sozinho quando há rede. São os padrões, ficam explícitos.
+
+   detectSessionInUrl: false — não há fluxo OAuth aqui, então não faz sentido
+   varrer a URL a cada abertura.
+
+   Observação de robustez: o marcador de último acesso válido fica em
+   IndexedDB (auth:ultimo), não em localStorage. Se a biblioteca limpar a
+   sessão do localStorage depois de falhar a renovação sem rede, a entrada
+   offline continua funcionando. */
+const _supabase = (window.supabase && SUPABASE_URL)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storageKey: 'mapabase-auth'
+      }
+    })
+  : null;
   const idb = {
   db: null,
   async init() {
