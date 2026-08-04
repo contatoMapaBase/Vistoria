@@ -4937,7 +4937,8 @@ async function syncGlobalNuvem() {
         criadoEm: d.criado_em || null,
         criadoPor: d.criado_por || null,
         atualizadoEm: d.atualizado_em || null,
-        atualizadoPor: d.atualizado_por || null
+        atualizadoPor: d.atualizado_por || null,
+        historico: d.historico || []
       }));
       await storageSet('empreendimentos', state.empreendimentos);
     }
@@ -4971,7 +4972,8 @@ async function syncGlobalNuvem() {
           criadoEm: d.criado_em || null,
           criadoPor: d.criado_por || null,
           atualizadoEm: d.atualizado_em || null,
-          atualizadoPor: d.atualizado_por || null
+          atualizadoPor: d.atualizado_por || null,
+          historico: d.historico || []
         };
       });
       await storageSet('estruturas', state.estruturas);
@@ -5007,7 +5009,7 @@ async function loadVistoriasNuvem() {
       // excluida_em/excluido_por/motivo_exclusao são obrigatórios aqui: sem
       // eles o carregamento da nuvem apaga o marcador de lixeira e a vistoria
       // excluída reaparece no histórico na sincronização seguinte.
-      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, atualizado_em, total_itens, total_nc, criticidade_max, criticidades_map, excluida_em, excluido_por, motivo_exclusao');
+      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, atualizado_em, total_itens, total_nc, criticidade_max, criticidades_map, excluida_em, excluido_por, motivo_exclusao, empreendimento_id, estrutura_id');
       
       if(data) {
         const cloudMap = {};
@@ -5018,8 +5020,11 @@ async function loadVistoriasNuvem() {
 
           cloudMap[d.id] = {
             id: d.id, 
-            empreendimentoNome: d.empreendimento_nome, 
-            estruturaNome: d.estrutura_nome,
+            empreendimentoId: d.empreendimento_id || null,
+            estruturaId: d.estrutura_id || null,
+            // Nome de exibição vem do cadastro atual quando há id.
+            empreendimentoNome: nomeAtualEmp(d.empreendimento_id, d.empreendimento_nome),
+            estruturaNome: nomeAtualEst(d.estrutura_id, d.estrutura_nome),
             equipe: d.equipe || '',
             responsavel: d.responsavel, 
             dataHora: d.data_hora, 
@@ -5056,6 +5061,7 @@ async function loadVistoriasNuvem() {
         // Depois de separar, não antes: na primeira carga o estado ainda estava
         // vazio e a exclusão feita sem sinal ficava sem envio por um ciclo.
         await sincronizarLixeira();
+        await reconciliarNomes();
         await salvarIndice();
       }
     } catch(e) {
@@ -5090,8 +5096,10 @@ async function loadVistoria(id) {
         
         const v = {
           id: data.id, 
-          empreendimentoNome: data.empreendimento_nome, 
-          estruturaNome: data.estrutura_nome,
+          empreendimentoId: data.empreendimento_id || null,
+          estruturaId: data.estrutura_id || null,
+          empreendimentoNome: nomeAtualEmp(data.empreendimento_id, data.empreendimento_nome),
+          estruturaNome: nomeAtualEst(data.estrutura_id, data.estrutura_nome),
           equipe: data.equipe || '',
           responsavel: data.responsavel, 
           dataHora: data.data_hora, 
@@ -5143,6 +5151,8 @@ window.sincronizarPendentes = async function() {
         id: v.id, 
         empreendimento_nome: v.empreendimentoNome, 
         estrutura_nome: v.estruturaNome,
+        empreendimento_id: v.empreendimentoId || idDoEmpPorNome(v.empreendimentoNome),
+        estrutura_id: v.estruturaId || idDaEstPorNome(v.estruturaNome),
         equipe: v.equipe || '',
         responsavel: v.responsavel, 
         data_hora: v.dataHora, 
@@ -5202,6 +5212,8 @@ async function saveVistoria(v) {
     id: v.id, 
     empreendimentoNome: v.empreendimentoNome, 
     estruturaNome: v.estruturaNome,
+    empreendimentoId: v.empreendimentoId || idDoEmpPorNome(v.empreendimentoNome),
+    estruturaId: v.estruturaId || idDaEstPorNome(v.estruturaNome),
     equipe: v.equipe || '',
     responsavel: v.responsavel, 
     dataHora: v.dataHora,
@@ -5251,7 +5263,7 @@ async function saveVistoria(v) {
    escondida: as 35 estruturas anteriores a 04/08/2026 não têm data real, e
    preencher com "hoje" mostraria "criado hoje" para algo semeado semanas
    atrás. Melhor dizer que não há registro. */
-function carimboCadastro(criadoEm, atualizadoEm, criadoPor, atualizadoPor) {
+function carimboCadastro(criadoEm, atualizadoEm, criadoPor, atualizadoPor, historico) {
   const linha = (ic, rot, iso, quem) => `
     <div style="display:flex;gap:6px;align-items:baseline;">
       <span style="opacity:.6;flex:none;">${ic}</span>
@@ -5268,6 +5280,16 @@ function carimboCadastro(criadoEm, atualizadoEm, criadoPor, atualizadoPor) {
       <span title="Registro anterior ao carimbo de data. A data real é desconhecida e não foi inventada.">Data não registrada</span>
     </div>`);
 
+  const renomes = (historico || []).filter(h => h.campo === 'nome');
+  if (renomes.length) {
+    const ult = renomes[renomes.length - 1];
+    partes.push(`
+      <div style="display:flex;gap:6px;align-items:baseline;"
+           title="A renomeação não desliga o histórico: as vistorias são ligadas por id, não por nome.">
+        <span style="opacity:.6;flex:none;">&#8644;</span>
+        <span>Antes: <em>${esc(ult.antes)}</em>${renomes.length > 1 ? ` · ${renomes.length} renomeações` : ''}</span>
+      </div>`);
+  }
   return `<div class="carimbo">${partes.join('')}</div>`;
 }
 
@@ -5405,7 +5427,7 @@ function viewEmpreendimentos() {
               '<span class="hint">Nenhuma estrutura vinculada.</span>'
             }
           </div>
-          ${carimboCadastro(e.criadoEm, e.atualizadoEm, e.criadoPor, e.atualizadoPor)}
+          ${carimboCadastro(e.criadoEm, e.atualizadoEm, e.criadoPor, e.atualizadoPor, e.historico)}
         </div>
         <div class="visual-card-foot">
           <button class="btn ghost sm" onclick="editarEmpreendimento('${e.id}')">✏️ Editar</button>
@@ -5850,6 +5872,16 @@ function abrirModalEmpreendimento(empExistente = null) {
     if(!novoNome) {
       return showToast('O Nome é obrigatório');
     }
+
+    /* Renomeação é fato datado. Fica registrada uma vez, aqui, em vez de
+       deixar o nome antigo espalhado pelas vistorias. */
+    const nomeAntigo = isEdit ? (empExistente.nome || '') : '';
+    const renomeou = isEdit && nomeAntigo && nomeAntigo !== novoNome;
+    const histNovo = (isEdit && Array.isArray(empExistente.historico) ? empExistente.historico.slice() : []);
+    if (renomeou) histNovo.push({
+      em: new Date().toISOString(), por: state.usuarioEmail || null,
+      campo: 'nome', antes: nomeAntigo, depois: novoNome
+    });
     
     const obj = { 
       id, 
@@ -5857,6 +5889,7 @@ function abrirModalEmpreendimento(empExistente = null) {
       tipo: novoTipo, 
       estruturas: novasVinculadas, 
       logo: logoAtual || null,
+      historico: histNovo,
       criado_em: isEdit ? (empExistente.criadoEm || empExistente.criado_em || null) : new Date().toISOString(),
       criado_por: isEdit ? (empExistente.criadoPor || null) : (state.usuarioEmail || null),
       atualizado_em: isEdit ? new Date().toISOString() : null,
@@ -5874,10 +5907,27 @@ function abrirModalEmpreendimento(empExistente = null) {
     if(_supabase && navigator.onLine) {
       await _supabase.from('empreendimentos').upsert(obj);
     }
+
+    /* O nome exibido nas vistorias já muda sozinho, porque é resolvido pelo id
+       na leitura. Isto propaga para a coluna do banco, para consulta SQL e
+       exportação verem o mesmo que a tela. Offline não faz nada: a próxima
+       sincronização reconcilia. */
+    let acompanharam = 0;
+    if (renomeou) {
+      (state.vistoriasIndex || []).concat(state.lixeira || []).forEach(v => {
+        if (v.empreendimentoId === id) { v.empreendimentoNome = novoNome; acompanharam++; }
+      });
+      await salvarIndice();
+      if (_supabase && navigator.onLine) await reconciliarNomes();
+    }
     
     closeModal(); 
     render(); 
-    showToast('Empreendimento salvo com sucesso!');
+    showToast(renomeou
+      ? (acompanharam
+          ? `Renomeado. ${acompanharam} vistoria(s) acompanharam.`
+          : 'Renomeado. Nenhuma vistoria vinculada.')
+      : 'Empreendimento salvo com sucesso!');
   });
 }
 
@@ -5944,7 +5994,7 @@ function viewEstruturas() {
               <div class="visual-card-desc" style="margin-top: 8px;">
                 ${(e.itens || []).length} itens de verificação no checklist.
               </div>
-              ${carimboCadastro(e.criadoEm, e.atualizadoEm, e.criadoPor, e.atualizadoPor)}
+              ${carimboCadastro(e.criadoEm, e.atualizadoEm, e.criadoPor, e.atualizadoPor, e.historico)}
             </div>
             <div class="visual-card-foot">
               <button class="btn ghost sm" onclick="editarEstrutura('${e.id}')">✏️ Editar</button>
@@ -6119,13 +6169,25 @@ function bindEditorEstrutura() {
       return showToast('Nome obrigatório!');
     }
     
+    let estRenomeada = false;
     const idx = state.estruturas.findIndex(x => x.id === est.id);
     if(idx >= 0) {
       // Preserva a criação original e carimba a edição.
-      est.criadoEm  = state.estruturas[idx].criadoEm || null;
-      est.criadoPor = state.estruturas[idx].criadoPor || null;
+      const antesEst = state.estruturas[idx];
+      est.criadoEm  = antesEst.criadoEm || null;
+      est.criadoPor = antesEst.criadoPor || null;
       est.atualizadoEm  = new Date().toISOString();
       est.atualizadoPor = state.usuarioEmail || null;
+      est.historico = Array.isArray(antesEst.historico) ? antesEst.historico.slice() : [];
+      if (antesEst.nome && antesEst.nome !== est.nome) {
+        est.historico.push({ em: est.atualizadoEm, por: est.atualizadoPor,
+                             campo: 'nome', antes: antesEst.nome, depois: est.nome });
+        (state.vistoriasIndex || []).concat(state.lixeira || []).forEach(v => {
+          if (v.estruturaId === est.id) v.estruturaNome = est.nome;
+        });
+        await salvarIndice();
+        estRenomeada = true;
+      }
       state.estruturas[idx] = est;
     } else {
       est.criadoEm  = new Date().toISOString();
@@ -6141,11 +6203,13 @@ function bindEditorEstrutura() {
         nome: est.nome,
         setor: est.setor,
         itens: { setor: est.setor, list: est.itens },
+        historico: est.historico || [],
         criado_em: est.criadoEm || null,
         criado_por: est.criadoPor || null,
         atualizado_em: est.atualizadoEm || null,
         atualizado_por: est.atualizadoPor || null
       });
+      if (!error && estRenomeada) await reconciliarNomes();
       if(error) {
         console.error('Erro ao salvar no Supabase:', error);
         showToast('Salvo localmente! Aviso: erro de sincro com nuvem.');
@@ -6605,6 +6669,8 @@ function bindNovaVistoria() {
         id: idFinal,
         empreendimentoNome: nv.emp,
         estruturaNome: nv.est,
+        empreendimentoId: idDoEmpPorNome(nv.emp),
+        estruturaId: idDaEstPorNome(nv.est),
         equipe: nv.equipe,
         responsavel: nv.resp,
         dataHora: nv.dataHora,
@@ -7201,6 +7267,56 @@ function bindDashboard() {
    direto — painel, ranking, IGD, NCs, evolução — e filtrar em cada um seria
    frágil. Separando na fonte, uma vistoria na lixeira sai de todo cálculo sem
    nenhuma alteração nesses pontos. */
+/* O nome guardado na vistoria é registro histórico do que foi digitado. O
+   vínculo real é o id. Resolvendo o nome pelo id na leitura, renomear o
+   cadastro deixa de orfanar histórico — foi o que desligou 43 vistorias e
+   118 NCs do cliente até 04/08/2026. */
+function nomeAtualEmp(id, nomeGuardado) {
+  if (!id) return nomeGuardado || '';
+  const e = (state.empreendimentos || []).find(x => x.id === id);
+  return e ? e.nome : (nomeGuardado || '');
+}
+function nomeAtualEst(id, nomeGuardado) {
+  if (!id) return nomeGuardado || '';
+  const s2 = (state.estruturas || []).find(x => x.id === id);
+  return s2 ? s2.nome : (nomeGuardado || '');
+}
+function idDoEmpPorNome(nome) {
+  const e = (state.empreendimentos || []).find(x => x.nome === nome);
+  return e ? e.id : null;
+}
+function idDaEstPorNome(nome) {
+  const s2 = (state.estruturas || []).find(x => x.nome === nome);
+  return s2 ? s2.id : null;
+}
+
+/* Propaga o nome atual do cadastro para as vistorias no banco.
+   É reconciliação, não fila de tarefas: um UPDATE por cadastro onde o id casa
+   e o nome difere. Idempotente, então roda a cada sincronização e conserta
+   qualquer defasagem — inclusive renomeação feita sem sinal, que não precisa
+   ficar marcada como pendente em lugar nenhum.
+
+   A exibição no app já vem certa antes disto, porque o nome é resolvido pelo
+   id na leitura. Aqui o objetivo é o banco não guardar nome defasado, para que
+   consulta SQL e exportação vejam o mesmo que a tela. */
+async function reconciliarNomes() {
+  if (!_supabase || !navigator.onLine) return 0;
+  let n = 0;
+  for (const e of (state.empreendimentos || [])) {
+    const { data, error } = await _supabase.from('vistorias')
+      .update({ empreendimento_nome: e.nome })
+      .eq('empreendimento_id', e.id).neq('empreendimento_nome', e.nome).select('id');
+    if (!error && data) n += data.length;
+  }
+  for (const st of (state.estruturas || [])) {
+    const { data, error } = await _supabase.from('vistorias')
+      .update({ estrutura_nome: st.nome })
+      .eq('estrutura_id', st.id).neq('estrutura_nome', st.nome).select('id');
+    if (!error && data) n += data.length;
+  }
+  return n;
+}
+
 function separarLixeira() {
   const todas = state.vistoriasIndex || [];
   state.lixeira = todas.filter(v => v.excluidaEm);
@@ -7599,6 +7715,8 @@ window.duplicarVistoria = async function(id) {
     id: uid(),
     empreendimentoNome: origem.empreendimentoNome,
     estruturaNome: origem.estruturaNome,
+    empreendimentoId: origem.empreendimentoId || idDoEmpPorNome(origem.empreendimentoNome),
+    estruturaId: origem.estruturaId || idDaEstPorNome(origem.estruturaNome),
     equipe: origem.equipe || '',
     responsavel: origem.responsavel || '',
     dataHora: new Date().toISOString(),
