@@ -3052,6 +3052,7 @@ const state = {
   usuarioEmail: null,
   verLixeira: false,
   lixeira: [],
+  evoCategoria: '',
   mapa: mapaEstadoInicial()
 };
 
@@ -4054,14 +4055,26 @@ function mapaEstadoInicial() {
 
 /* ---------- carga das poligonais ---------- */
 async function carregarPoligonos() {
-  const cache = await storageGet('poligonos');
-  if (cache) state.poligonos = cache;
+  const cache = (await storageGet('poligonos')) || [];
+  state.poligonos = cache;
+
   if (_supabase && navigator.onLine) {
     const { data, error } = await _supabase.from('empreendimento_poligonos')
       .select('*').eq('ativo', true);
     if (!error && data) {
-      state.poligonos = data;
-      await storageSet('poligonos', data);
+      /* Mescla, não substitui. Antes trocava a lista pela da nuvem, e uma
+         poligonal anexada sem sinal — que existe só no aparelho — era apagada
+         na primeira carga online. Perda de dado silenciosa. */
+      const naNuvem = new Set(data.map(p => p.id));
+      const soLocais = cache.filter(p => !naNuvem.has(p.id));
+      state.poligonos = data.concat(soLocais);
+      await storageSet('poligonos', state.poligonos);
+
+      // Sobe as que ainda não chegaram lá.
+      for (const p of soLocais) {
+        const { error: e2 } = await _supabase.from('empreendimento_poligonos').insert(p);
+        if (e2) console.warn('Poligonal pendente não subiu:', p.nome, e2.message);
+      }
     }
   }
   state.poligonos = state.poligonos || [];
@@ -4971,12 +4984,30 @@ async function syncGlobalNuvem() {
   }
 }
 
+/* Envia exclusões e restaurações feitas sem sinal. Roda antes de ler a nuvem,
+   para que a leitura já encontre o estado correto. */
+async function sincronizarLixeira() {
+  if (!_supabase || !navigator.onLine) return;
+  const todas = [...(state.vistoriasIndex || []), ...(state.lixeira || [])];
+  for (const v of todas.filter(x => x.exclusaoPendente || x.restauracaoPendente)) {
+    const patch = v.exclusaoPendente
+      ? { excluida_em: v.excluidaEm, excluido_por: v.excluidoPor, motivo_exclusao: v.motivoExclusao }
+      : { excluida_em: null, excluido_por: null, motivo_exclusao: null };
+    const { error } = await _supabase.from('vistorias').update(patch).eq('id', v.id);
+    if (!error) { delete v.exclusaoPendente; delete v.restauracaoPendente; }
+  }
+  await salvarIndice();
+}
+
 async function loadVistoriasNuvem() {
   let localIndex = (await storageGet('vistorias:index')) || [];
   
   if(_supabase && navigator.onLine) {
     try {
-      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, atualizado_em, total_itens, total_nc, criticidade_max, criticidades_map');
+      // excluida_em/excluido_por/motivo_exclusao são obrigatórios aqui: sem
+      // eles o carregamento da nuvem apaga o marcador de lixeira e a vistoria
+      // excluída reaparece no histórico na sincronização seguinte.
+      const { data } = await _supabase.from('vistorias').select('id, empreendimento_nome, estrutura_nome, equipe, responsavel, data_hora, atualizado_em, total_itens, total_nc, criticidade_max, criticidades_map, excluida_em, excluido_por, motivo_exclusao');
       
       if(data) {
         const cloudMap = {};
@@ -5000,11 +5031,21 @@ async function loadVistoriasNuvem() {
             criticidadeMax: d.criticidade_max, 
             syncStatus: 'synced',
             criticidades: pureCrit,
-            categorias: _categorias || {} 
+            categorias: _categorias || {},
+            excluidaEm: d.excluida_em || null,
+            excluidoPor: d.excluido_por || null,
+            motivoExclusao: d.motivo_exclusao || null
           };
         });
         
         localIndex.forEach(lv => { 
+          // Intenção local de exclusão ou restauração que ainda não subiu vence
+          // o que veio da nuvem: senão a sincronização desfaz o que o usuário
+          // acabou de fazer sem sinal.
+          if (lv.exclusaoPendente || lv.restauracaoPendente) {
+            cloudMap[lv.id] = lv;
+            return;
+          }
           if(lv.syncStatus === 'pending') {
             cloudMap[lv.id] = lv; 
           }
@@ -5012,6 +5053,9 @@ async function loadVistoriasNuvem() {
         
         state.vistoriasIndex = Object.values(cloudMap);
         separarLixeira();
+        // Depois de separar, não antes: na primeira carga o estado ainda estava
+        // vazio e a exclusão feita sem sinal ficava sem envio por um ciclo.
+        await sincronizarLixeira();
         await salvarIndice();
       }
     } catch(e) {
@@ -7596,10 +7640,17 @@ window.deletarVistoriaAtual = async function() {
 
   await salvarIndice();
   await storageSet('vistoria:' + id, aberta);
+  let enviado = false;
   if (_supabase && navigator.onLine) {
-    await _supabase.from('vistorias')
+    const { error } = await _supabase.from('vistorias')
       .update({ excluida_em: quando, excluido_por: quem, motivo_exclusao: motivo.trim() }).eq('id', id);
+    enviado = !error;
   }
+  // Sem sinal, a exclusão fica pendente de envio. Sem esta marca, o merge da
+  // nuvem devolveria a vistoria ao histórico na sincronização seguinte.
+  if (idx && !enviado) idx.exclusaoPendente = true;
+  await salvarIndice();
+
   state.vistoriaAberta = null;
   setView('vistorias');
   showToast('Enviado para a lixeira. Pode ser restaurado no histórico.');
@@ -7615,10 +7666,14 @@ window.restaurarVistoria = async function(id) {
   if (paga) { delete paga.excluidaEm; delete paga.excluidoPor; delete paga.motivoExclusao;
               await storageSet('vistoria:' + id, paga); }
   await salvarIndice();
+  let ok = false;
   if (_supabase && navigator.onLine) {
-    await _supabase.from('vistorias')
+    const { error } = await _supabase.from('vistorias')
       .update({ excluida_em: null, excluido_por: null, motivo_exclusao: null }).eq('id', id);
+    ok = !error;
   }
+  if (ok) delete idx.exclusaoPendente; else idx.restauracaoPendente = true;
+  await salvarIndice();
   render();
   showToast('Check-list restaurado.');
 };
@@ -7636,13 +7691,19 @@ window.apagarDefinitivo = async function(id) {
   const paths = [];
   ((paga && paga.itens) || []).forEach(it => (it.fotos || []).forEach(f => { if (ehFotoRemota(f)) paths.push(caminhoFoto(f)); }));
 
+  if (!navigator.onLine || !_supabase) {
+    // Sem isto, o registro sairia do aparelho e continuaria na nuvem — e a
+    // próxima sincronização o traria de volta, dando a impressão de que o
+    // apagamento não funcionou.
+    return showToast('Sem conexão. Para apagar definitivamente é preciso estar online.');
+  }
+  const { error } = await _supabase.from('vistorias').delete().eq('id', id);
+  if (error) return showToast('Não foi possível apagar na nuvem: ' + error.message);
+  if (paths.length) { try { await _supabase.storage.from(FOTOS_BUCKET).remove(paths); } catch(e) { console.warn('Fotos não removidas:', e); } }
+
   state.lixeira = state.lixeira.filter(v => v.id !== id);
   await salvarIndice();
   await storageRemove('vistoria:' + id);
-  if (_supabase && navigator.onLine) {
-    await _supabase.from('vistorias').delete().eq('id', id);
-    if (paths.length) { try { await _supabase.storage.from(FOTOS_BUCKET).remove(paths); } catch(e) { console.warn('Fotos não removidas:', e); } }
-  }
   render();
   showToast('Apagado definitivamente.');
 };
@@ -8205,15 +8266,27 @@ async function iniciarApp() {
   }
 
   let adicionouNova = false;
-  DEFAULT_ESTRUTURAS.forEach(def => {
+  /* Semeadura da biblioteca padrão. O upsert era disparado sem await: erro
+     ficava invisível e a gravação corria em paralelo com o resto da inicialização.
+     Agora é sequencial, com erro registrado, e leva o carimbo de criação. */
+  for (const def of DEFAULT_ESTRUTURAS) {
     if (!state.estruturas.some(e => e.nome === def.nome || e.id === def.id)) {
-      state.estruturas.push(def);
+      const novo = Object.assign({}, def, {
+        criadoEm: new Date().toISOString(),
+        criadoPor: state.usuarioEmail || 'semeadura da biblioteca padrão'
+      });
+      state.estruturas.push(novo);
       if (_supabase && navigator.onLine) {
-        _supabase.from('estruturas').upsert({ id: def.id, nome: def.nome, setor: def.setor, itens: { setor: def.setor, list: def.itens } });
+        const { error } = await _supabase.from('estruturas').upsert({
+          id: novo.id, nome: novo.nome, setor: novo.setor,
+          itens: { setor: novo.setor, list: novo.itens },
+          criado_em: novo.criadoEm, criado_por: novo.criadoPor
+        });
+        if (error) console.warn('Semeadura de estrutura falhou:', novo.nome, error.message);
       }
       adicionouNova = true;
     }
-  });
+  }
   
   if (adicionouNova) {
     await storageSet('estruturas', state.estruturas);
