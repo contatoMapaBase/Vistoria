@@ -1921,6 +1921,61 @@ window.addEventListener('online', async () => {
    vermelho acima de uma semana. Sem isto o inspetor não tinha como saber se
    o checklist no aparelho é o atual — e a equipe edita itens no escritório
    enquanto a equipe de campo já está sem sinal. */
+/* Cartão de sincronização, no Painel Geral.
+   Motivo de estar aqui e não só na lateral: .sidebar-foot tem display:none no
+   celular, então os indicadores do rodapé são invisíveis justamente para a
+   equipe de campo. O Painel é a primeira tela e aparece nos dois formatos.
+
+   Mostra as DUAS direções, que respondem perguntas diferentes:
+     descida  ->  o checklist no aparelho é o atual?
+     subida   ->  o meu trabalho chegou na nuvem? */
+function idadeRotulo(iso) {
+  if (!iso) return { cor: '#B35C00', txt: 'sem registro', dica: 'Nunca aconteceu neste aparelho, ou o registro foi perdido.' };
+  const d = new Date(iso), hoje = new Date();
+  const dias = Math.floor((hoje - d) / 864e5);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === hoje.toDateString())
+    return { cor: '#1B7F4C', txt: 'hoje às ' + hora, dica: '' };
+  if (dias <= 7)
+    return { cor: '#B35C00', txt: d.toLocaleDateString('pt-BR') + ' às ' + hora, dica: 'Há ' + dias + ' dia(s).' };
+  return { cor: '#C0392B', txt: d.toLocaleDateString('pt-BR') + ' às ' + hora, dica: 'Há ' + dias + ' dias.' };
+}
+
+function cartaoSincronizacao() {
+  const pend = (state.vistoriasIndex || []).filter(v => v.syncStatus === 'pending').length;
+  const bib = idadeRotulo(state.bibliotecaSincronizadaEm);
+  const env = idadeRotulo(state.ultimoEnvioEm);
+  const online = navigator.onLine;
+
+  const linha = (rot, val, dica, extra) => `
+    <div style="flex:1 1 190px;min-width:0;">
+      <div style="font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);">${rot}</div>
+      <div style="font-size:13.5px;color:${val.cor};margin-top:3px;line-height:1.35;"
+           ${(dica || val.dica) ? 'title="' + esc((dica ? dica + ' ' : '') + val.dica) + '"' : ''}>${esc(val.txt)}${extra || ''}</div>
+    </div>`;
+
+  return `
+  <div class="card card-pad no-print" style="margin-bottom:16px;border-left:3px solid ${
+    !online ? '#C0392B' : (pend ? '#B35C00' : '#1B7F4C')};">
+    <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+      ${linha('Conexão',
+        { cor: online ? '#1B7F4C' : '#C0392B',
+          txt: online ? (state.modoOffline ? 'online, sessão expirada' : 'online') : 'sem conexão', dica: '' },
+        state.modoOffline ? 'Entre novamente para sincronizar. Nada foi perdido.' : '')}
+      ${linha('Enviado à nuvem', env,
+        'Última vez que check-lists deste aparelho subiram com sucesso.',
+        pend ? ' <span class="badge pending" style="margin-left:4px;">' + pend + ' pendente(s)</span>' : '')}
+      ${linha('Biblioteca recebida', bib,
+        'Última vez que empreendimentos e estruturas vieram da nuvem. Se a equipe alterou itens depois disso, o checklist neste aparelho está atrasado.')}
+    </div>
+    ${(pend && online) ? `<div style="margin-top:12px;">
+      <button class="btn ghost sm" onclick="sincronizarPendentes()">Sincronizar ${pend} pendente(s) agora</button>
+    </div>` : ''}
+    ${(!online && pend) ? `<p style="font-size:12px;color:var(--ink-faint);margin:10px 0 0;line-height:1.5;">
+      ${pend} check-list(s) guardados no aparelho. Sobem sozinhos quando a conexão voltar — não é preciso fazer nada.</p>` : ''}
+  </div>`;
+}
+
 function atualizarStatusBiblioteca() {
   const el = document.getElementById('status-biblioteca');
   if (!el) return;
@@ -3207,6 +3262,7 @@ const state = {
   usuarioEmail: null,
   modoOffline: false,
   bibliotecaSincronizadaEm: null,
+  ultimoEnvioEm: null,
   verLixeira: false,
   lixeira: [],
   evoCategoria: '',
@@ -5400,6 +5456,13 @@ window.sincronizarPendentes = async function() {
       }
     }
   }
+  if (successCount > 0) {
+    // Registra a SUBIDA. A idade da biblioteca é a descida; são perguntas
+    // diferentes, e para a equipe de campo a que importa é "meu trabalho
+    // chegou na nuvem?".
+    state.ultimoEnvioEm = new Date().toISOString();
+    try { await storageSet('sync:ultimoEnvio', state.ultimoEnvioEm); } catch (e) {}
+  }
   await salvarIndice();
   render();
   showToast(`${successCount} sincronizados!`);
@@ -7186,6 +7249,8 @@ function viewDashboard() {
       <button class="btn primary" onclick="novoCheckList()">+ Novo Check-list</button>    
     </div>  
   </div>  
+
+  ${cartaoSincronizacao()}
   
   <div class="print-only-title" style="display:none;text-align:center;margin-bottom:20px;">    
     <h1 style="font-family:var(--font-display);font-size:32px;margin:0;">Relatório do Painel de Inspeções</h1>  
@@ -8752,6 +8817,10 @@ async function iniciarApp() {
   // categorias já conhecidas (para sugestões ao adicionar/editar itens)
   try { state.categoriasConhecidas = (await storageGet('categorias:conhecidas')) || []; } catch(e) { state.categoriasConhecidas = []; }
 
+  try { state.ultimoEnvioEm = (await storageGet('sync:ultimoEnvio')) || null; } catch (e) {}
+  if (!state.bibliotecaSincronizadaEm) {
+    try { state.bibliotecaSincronizadaEm = (await storageGet('biblioteca:sync')) || null; } catch (e) {}
+  }
   try { await carregarPoligonos(); } catch(e) { console.warn('poligonais:', e); }
 
   state.ready = true;
