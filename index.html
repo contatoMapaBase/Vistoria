@@ -1330,6 +1330,7 @@
     <nav class="mainnav" id="mainnav"></nav>
     <div class="sidebar-foot">
       <div id="status-sync">Verificando...</div>
+      <div id="status-biblioteca" style="font-size:11px;line-height:1.4;margin-top:5px;"></div>
       <button class="btn ghost sm" id="btn-logout" style="margin-top:12px; width:100%; color: var(--ink-soft); border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
     </div>
   </aside>
@@ -1916,6 +1917,42 @@ window.addEventListener('online', async () => {
 
 // Mostra o modo offline no rodapé da lateral, para o inspetor saber em que
 // estado está trabalhando sem precisar deduzir.
+/* Indicador da idade da biblioteca. Verde para hoje, âmbar para outro dia,
+   vermelho acima de uma semana. Sem isto o inspetor não tinha como saber se
+   o checklist no aparelho é o atual — e a equipe edita itens no escritório
+   enquanto a equipe de campo já está sem sinal. */
+function atualizarStatusBiblioteca() {
+  const el = document.getElementById('status-biblioteca');
+  if (!el) return;
+  const iso = state.bibliotecaSincronizadaEm;
+
+  if (!iso) {
+    el.innerHTML = `<span style="color:#E8801A;" title="A biblioteca de estruturas nunca foi sincronizada neste aparelho, ou o registro foi perdido. Abra o app com internet antes de ir a campo.">⚠ Biblioteca sem registro de sincronização</span>`;
+    return;
+  }
+
+  const d = new Date(iso);
+  const hoje = new Date();
+  const mesmoDia = d.toDateString() === hoje.toDateString();
+  const dias = Math.floor((hoje - d) / 864e5);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  let cor, texto, dica;
+  if (mesmoDia) {
+    cor = '#8FBF6A'; texto = `Biblioteca de hoje, ${hora}`;
+    dica = 'O checklist no aparelho é o mesmo da nuvem.';
+  } else if (dias <= 7) {
+    cor = '#E8801A';
+    texto = `Biblioteca de ${d.toLocaleDateString('pt-BR')}, ${hora}`;
+    dica = `Sincronizada há ${dias} dia(s). Se a equipe alterou itens depois disso, o checklist no aparelho está atrasado. Abra o app com internet para atualizar.`;
+  } else {
+    cor = '#E05A5A';
+    texto = `Biblioteca de ${d.toLocaleDateString('pt-BR')} — ${dias} dias atrás`;
+    dica = 'Muito tempo sem sincronizar. O checklist provavelmente está desatualizado.';
+  }
+  el.innerHTML = `<span style="color:${cor};cursor:help;" title="${esc(dica)}">${esc(texto)}</span>`;
+}
+
 function atualizarStatusSync() {
   const el = document.getElementById('status-sync');
   if (!el) return;
@@ -3169,6 +3206,7 @@ const state = {
   poligonos: [],
   usuarioEmail: null,
   modoOffline: false,
+  bibliotecaSincronizadaEm: null,
   verLixeira: false,
   lixeira: [],
   evoCategoria: '',
@@ -5016,6 +5054,7 @@ function render() {
     </a>`;
 
   atualizarStatusSync();
+  atualizarStatusBiblioteca();
 
   const views = {
     'dashboard': { html: viewDashboard, bind: bindDashboard },
@@ -5102,6 +5141,14 @@ async function syncGlobalNuvem() {
       await storageSet('empreendimentos', state.empreendimentos);
     }
     
+    // Marca quando a biblioteca veio da nuvem. O inspetor precisa saber se
+    // está com o checklist de hoje ou de ontem — e é justamente quando ele
+    // está offline que essa pergunta importa.
+    if ((empReq.data && empReq.data.length) || (estReq.data && estReq.data.length)) {
+      state.bibliotecaSincronizadaEm = new Date().toISOString();
+      try { await storageSet('biblioteca:sync', state.bibliotecaSincronizadaEm); } catch (e) {}
+    }
+
     if(estReq.data && estReq.data.length > 0) {
       state.estruturas = estReq.data.map(d => {
         let listItens = [];
@@ -8656,6 +8703,7 @@ async function iniciarApp() {
     state.empreendimentos = emp || [];
     state.estruturas = est || [];
     bibliotecaConhecida = Array.isArray(est) && est.length > 0;
+    try { state.bibliotecaSincronizadaEm = (await storageGet('biblioteca:sync')) || null; } catch (e) {}
     await loadVistoriasNuvem();
   }
 
