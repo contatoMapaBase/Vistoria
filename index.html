@@ -1311,13 +1311,16 @@
     /* Uma peça só, na mesma pílula dos chips de filtro — controle pequeno no
        app é redondo, não retangular. O número é o herói (mono, tabular, cor de
        marca) e o total recua para denominador: a fração é a leitura honesta de
-       "posição N de M" e ocupa menos espaço que escrever "de 12". */
+       "posição N de M" e ocupa menos espaço que escrever "de 12".
+       É um <label>: tocar em qualquer ponto da pílula põe o cursor no número,
+       o que dá um alvo de toque de 34px de altura em vez de só o dígito. */
     .ed-pos {
-      display: inline-flex; align-items: center; gap: 9px;
+      display: inline-flex; align-items: stretch; gap: 9px;
       min-height: 34px; padding: 0 13px;
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 999px;
+      cursor: text;
       transition: border-color .12s, box-shadow .12s;
     }
     .ed-pos:hover { border-color: #BFC9D6; }
@@ -1325,6 +1328,7 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(120,180,72,.16);
     }
+    .ed-pos > * { align-self: center; }
 
     .ed-pos-label {
       font-family: var(--font-display);
@@ -1334,20 +1338,35 @@
       user-select: none;
     }
 
-    .ed-item-pos {
-      padding: 0; border: 0; background: transparent;
+    /* Especificidade deliberada (classe + elemento + escopo): a folha tem uma
+       regra `input[type=number]` global com padding de 14px e borda. Um seletor
+       de classe sozinho perde para ela, e o padding herdado esmagava a largura
+       do campo a zero — número invisível e impossível de digitar. */
+    .ed-pos input.ed-item-pos {
+      /* largura pelo nº de dígitos do total, via --dig vindo do template */
+      width: calc(var(--dig, 2) * 1ch + 0.7ch);
+      min-width: 2.2ch;
+      align-self: stretch;
+      margin: 0; padding: 0;
+      border: 0; border-radius: 0;
+      background: transparent;
+      box-shadow: none;
       font-family: var(--font-mono);
       font-size: 15px; font-weight: 600;
       font-variant-numeric: tabular-nums;
       color: var(--brand);
       text-align: center;
+      -moz-appearance: textfield; appearance: textfield;
     }
-    .ed-item-pos:focus { outline: none; }
+    .ed-pos input.ed-item-pos:focus {
+      outline: none; border: 0; box-shadow: none;
+    }
     /* As setas nativas competem com os botões ▲▼ e mudam de forma em cada
        navegador. O campo é para digitar — as setas do teclado seguem valendo. */
-    .ed-item-pos::-webkit-outer-spin-button,
-    .ed-item-pos::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .ed-item-pos { -moz-appearance: textfield; appearance: textfield; }
+    .ed-pos input.ed-item-pos::-webkit-outer-spin-button,
+    .ed-pos input.ed-item-pos::-webkit-inner-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
 
     /* Hairline inclinada: a barra da fração, sem ser um caractere de texto que
        herdaria peso e cor do número. */
@@ -1432,8 +1451,12 @@
 /* ============================================================
    CONFIGURAÇÃO DO BANCO DE DADOS SUPABASE E INDEXEDDB
    ============================================================ */
-const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
+/* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
+   código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
+   Trocar a cada entrega. Aparece no cartão do Painel Geral. */
+const APP_VERSION = '2026.08.06-b';
+
+const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
 /* Opções de autenticação declaradas, em vez de confiar no padrão da
    biblioteca. Num app de campo o comportamento da sessão é crítico, e padrão
@@ -2059,7 +2082,36 @@ function cartaoSincronizacao() {
     </div>` : ''}
     ${(!online && pend) ? `<p style="font-size:12px;color:var(--ink-faint);margin:10px 0 0;line-height:1.5;">
       ${pend} check-list(s) guardados no aparelho. Sobem sozinhos quando a conexão voltar — não é preciso fazer nada.</p>` : ''}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--surface-2);
+                display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint);">
+        versão ${APP_VERSION}</span>
+      <button class="btn ghost sm" onclick="recarregarAppDaNuvem()"
+              title="Busca o app na internet ignorando a cópia guardada no aparelho.">
+        Buscar versão nova</button>
+    </div>
   </div>`;
+}
+
+/* Recarrega o app da rede, contornando a cópia offline. Existe porque este é
+   um app de página única: trocar de tela não busca HTML novo, então uma aba
+   aberta desde ontem segue rodando o código de ontem por tempo indeterminado.
+   Só isto explica "publiquei e o aparelho não mudou" na maioria dos casos. */
+window.recarregarAppDaNuvem = async function() {
+  const pend = (state.vistoriasIndex || []).filter(v => v.syncStatus === 'pending').length;
+  if (pend && !confirm('Há ' + pend + ' check-list(s) ainda não enviados. Eles ficam guardados no aparelho e sobem depois, mas o ideal é sincronizar antes. Recarregar mesmo assim?')) return;
+
+  try {
+    if (navigator.serviceWorker) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update();
+    }
+  } catch (e) { /* sem service worker: o reload puro já resolve */ }
+
+  // O parâmetro descarta qualquer cópia intermediária (navegador ou CDN).
+  const u = new URL(location.href);
+  u.searchParams.set('v', Date.now());
+  location.replace(u.toString());
 }
 
 function atualizarStatusBiblioteca() {
@@ -6526,16 +6578,15 @@ function viewEditorEstrutura() {
     ${est.itens.map((it, i) => `
       <div class="card card-pad" id="ed-item-${esc(it.id)}" style="margin-bottom:16px; border:1px solid var(--line); background:var(--surface);">
         <div class="ed-item-head">
-          <div class="ed-pos">
+          <label class="ed-pos" style="--dig:${String(est.itens.length).length}">
             <span class="ed-pos-label">Item</span>
             <input type="number" class="ed-item-pos" data-idx="${i}"
                    value="${i+1}" min="1" max="${est.itens.length}" step="1"
                    inputmode="numeric" aria-label="Posição do item na lista"
-                   style="width:${String(est.itens.length).length + 0.8}ch"
                    title="Digite o número da posição desejada e pressione Enter">
             <span class="ed-pos-sep" aria-hidden="true"></span>
             <span class="ed-pos-total">${est.itens.length}</span>
-          </div>
+          </label>
           <div class="rowflex ed-item-acoes" style="gap:6px;">
             <button class="btn ghost sm" onclick="moverItemEst(${i}, -1)" title="Mover para cima" ${i === 0 ? 'disabled' : ''}>▲ Subir</button>
             <button class="btn ghost sm" onclick="moverItemEst(${i}, 1)" title="Mover para baixo" ${i === est.itens.length - 1 ? 'disabled' : ''}>▼ Descer</button>
