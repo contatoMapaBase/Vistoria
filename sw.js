@@ -23,7 +23,7 @@
    você não mexe em nada aqui.
    ============================================================ */
 
-const CACHE_VERSION = 'mapabase-v5';
+const CACHE_VERSION = 'mapabase-v6';
 
 /* Cache de tiles de satélite da aba Mapa. Deliberadamente SEM versão no nome:
    ele precisa sobreviver às publicações. Se os tiles ficassem no cache
@@ -123,8 +123,13 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(req, { cache: 'reload' })
         .then(resp => {
-          // Só o app de campo alimenta a cópia offline.
-          if (ehAppDeCampo(url)) {
+          /* Só o app de campo alimenta a cópia offline — e SÓ se a resposta for
+             realmente boa. Antes, qualquer resposta era gravada: um 404 ou 500
+             durante a janela de publicação virava a "cópia offline", e o app
+             passava a servir a página de erro (ou a versão anterior) em cada
+             recarga, sem nenhum aviso. Era o laço que prendia o aparelho numa
+             versão velha por tempo indeterminado. */
+          if (ehAppDeCampo(url) && resp && resp.ok && resp.status === 200) {
             const copia = resp.clone();
             caches.open(CACHE_VERSION).then(c => c.put('./index.html', copia)).catch(() => {});
           }
