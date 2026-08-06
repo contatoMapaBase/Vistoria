@@ -978,6 +978,12 @@
       table { min-width: 100%; }
       * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
       canvas { max-width: 100% !important; height: auto !important; }
+      /* Na tela o gráfico tem 260px, o que basta ali. No papel fica apertado —
+         mais ainda agora que os rótulos ocupam até três linhas — e a área de
+         plotagem some. No PDF ele ganha altura, e o resize disparado no
+         beforeprint faz o Chart.js redesenhar já na medida nova. */
+      .grafico-box { height: 420px !important; break-inside: avoid; page-break-inside: avoid; }
+      .grafico-box canvas { height: 100% !important; }
       .relatorio-gerencial { display: block; background: white; padding: 2cm; }
       .multi-select-details[open] .multi-select-dropdown { display: none !important; }
     }
@@ -1454,7 +1460,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.06-b';
+const APP_VERSION = '2026.08.06-c';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -3413,6 +3419,95 @@ function _taxaConf(v) {
   return v.totalItens ? (v.totalItens - v.totalNC) / v.totalItens * 100 : 100; 
 }
 
+/* ============================================================
+   RÓTULOS LONGOS NO EIXO X DOS GRÁFICOS
+   Os rótulos vêm de estruturaNome, sem limite de tamanho
+   ("Lavador de Veículos e Máquinas" tem 29 caracteres). Girados a
+   45°, rótulos assim ocupam muito espaço na diagonal; o Chart.js
+   reserva uma altura máxima e RECORTA o excesso — daí o rótulo
+   aparecer começando no meio da palavra.
+   A solução é quebrar em linhas e deixar o texto na horizontal:
+   altura previsível, nada de recorte, e leitura melhor no papel.
+   O Chart.js renderiza nativamente um array de strings como
+   várias linhas.
+   ============================================================ */
+const ROTULO_LARGURA = 16;   // caracteres por linha
+const ROTULO_MAX_LINHAS = 3; // acima disso, abrevia — senão o rótulo come o gráfico
+
+function quebrarRotulo(txt) {
+  const s = String(txt == null ? '' : txt).trim();
+  if (!s) return '';
+  if (s.length <= ROTULO_LARGURA) return s;
+
+  const linhas = [];
+  let atual = '';
+  for (const palavra of s.split(/\s+/)) {
+    // Palavra maior que a linha inteira entra sozinha, sem estourar as demais.
+    if (palavra.length > ROTULO_LARGURA) {
+      if (atual) { linhas.push(atual); atual = ''; }
+      linhas.push(palavra.slice(0, ROTULO_LARGURA - 1) + '…');
+      continue;
+    }
+    if (!atual) atual = palavra;
+    else if ((atual + ' ' + palavra).length <= ROTULO_LARGURA) atual += ' ' + palavra;
+    else { linhas.push(atual); atual = palavra; }
+  }
+  if (atual) linhas.push(atual);
+
+  if (linhas.length > ROTULO_MAX_LINHAS) {
+    const cortadas = linhas.slice(0, ROTULO_MAX_LINHAS);
+    cortadas[ROTULO_MAX_LINHAS - 1] += '…';
+    return cortadas;
+  }
+  return linhas;
+}
+
+/* Eixo x compartilhado pelos dois gráficos de evolução (o embutido no painel e
+   o ampliado). A configuração estava duplicada, o que obrigava a corrigir duas
+   vezes — foi assim que o maxRotation:45 acabou nos dois lugares. */
+function eixoXRotulos() {
+  return {
+    ticks: {
+      autoSkip: true,
+      autoSkipPadding: 12,
+      maxRotation: 0,          // horizontal: com quebra em linhas, girar não ajuda
+      minRotation: 0,
+      callback: function(valor) {
+        // Em eixo de categoria o callback recebe o índice, não o texto.
+        const bruto = this.getLabelForValue ? this.getLabelForValue(valor) : valor;
+        return quebrarRotulo(bruto);
+      }
+    }
+  };
+}
+
+/* ============================================================
+   GRÁFICOS NA IMPRESSÃO / PDF
+   O Chart.js desenha num canvas de bitmap dimensionado no momento
+   da criação. Ao imprimir, o layout muda (a coluna fica mais larga,
+   o contêiner mais alto pelo print CSS) mas o canvas NÃO é
+   redesenhado sozinho: o navegador só escala o bitmap antigo, o que
+   produz gráfico esticado e texto borrado no PDF.
+   Redesenhar no beforeprint resolve — e o afterprint devolve o
+   tamanho de tela, senão o gráfico fica deformado depois.
+   ============================================================ */
+const _INSTANCIAS_CHART = [
+  'dashEvoChartInstance', 'dashCatChartInstance', 'dashDonutChartInstance',
+  'evoChartInstance', 'evoChartFullInstance', 'evoChartAbaFullInstance'
+];
+
+function redesenharGraficos() {
+  for (const nome of _INSTANCIAS_CHART) {
+    const c = window[nome];
+    if (c && typeof c.resize === 'function') {
+      try { c.resize(); } catch (e) { /* instância já destruída: ignora */ }
+    }
+  }
+}
+
+window.addEventListener('beforeprint', redesenharGraficos);
+window.addEventListener('afterprint', redesenharGraficos);
+
 function serieEvolucaoIdx(index) {
   const vs = [...index].sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
   return {
@@ -3775,6 +3870,7 @@ window.abrirGraficoEvolucao = function() {
         options: { 
           responsive: true, 
           maintainAspectRatio: false, 
+          devicePixelRatio: Math.max(2, window.devicePixelRatio || 1), 
           interaction: { mode: 'index', intersect: false },
           scales: { 
             y: { 
@@ -3783,7 +3879,7 @@ window.abrirGraficoEvolucao = function() {
               title: { display: true, text: 'Quantidade de itens' } 
             },
             x: { 
-              ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } 
+              ...eixoXRotulos() 
             }
           },
           plugins: { 
@@ -7581,7 +7677,7 @@ function viewDashboard() {
           <button class="btn ghost sm" onclick="baixarGraficoEvolucao('dashEvoChartInstance')">⬇️ Baixar PNG</button>
         </div>
       </div>      
-      <div style="height:260px;position:relative;">        
+      <div class="grafico-box" style="height:260px;position:relative;">        
         <canvas id="dashEvoChart"></canvas>        
         ${k.inspecoes === 0 ? '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-weight:600;">Sem Dados</div>' : ''}      
       </div>    
@@ -7780,6 +7876,8 @@ function bindDashboard() {
       options: { 
         responsive: true, 
         maintainAspectRatio: false, 
+        // 2x dá texto nítido no PDF; o padrão segue a tela e sai borrado no papel.
+        devicePixelRatio: Math.max(2, window.devicePixelRatio || 1), 
         interaction: { mode: 'index', intersect: false },
         scales: { 
           y: { 
@@ -7788,7 +7886,7 @@ function bindDashboard() {
             title: { display: true, text: 'Quantidade de itens' } 
           },
           x: { 
-            ticks: { autoSkip: true, maxRotation: 45, minRotation: 45 } 
+            ...eixoXRotulos() 
           }
         },
         plugins: { 
