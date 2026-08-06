@@ -1304,28 +1304,63 @@
     .ed-item-head {
       display: flex; align-items: center; justify-content: space-between;
       flex-wrap: wrap; gap: 10px;
-      margin-bottom: 12px; padding-bottom: 8px;
+      margin-bottom: 14px; padding-bottom: 10px;
       border-bottom: 1px solid var(--surface-2);
     }
-    .ed-pos-wrap {
-      display: flex; align-items: center; gap: 6px;
-      font-size: 12px; color: var(--ink-soft);
+
+    /* Uma peça só, na mesma pílula dos chips de filtro — controle pequeno no
+       app é redondo, não retangular. O número é o herói (mono, tabular, cor de
+       marca) e o total recua para denominador: a fração é a leitura honesta de
+       "posição N de M" e ocupa menos espaço que escrever "de 12". */
+    .ed-pos {
+      display: inline-flex; align-items: center; gap: 9px;
+      min-height: 34px; padding: 0 13px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      transition: border-color .12s, box-shadow .12s;
     }
+    .ed-pos:hover { border-color: #BFC9D6; }
+    .ed-pos:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(120,180,72,.16);
+    }
+
     .ed-pos-label {
-      font-family: var(--font-display); text-transform: uppercase;
-      letter-spacing: .06em; font-size: 12.5px; color: var(--ink-faint);
+      font-family: var(--font-display);
+      text-transform: uppercase; letter-spacing: .1em;
+      font-size: 11.5px; font-weight: 600;
+      color: var(--ink-faint);
+      user-select: none;
     }
+
     .ed-item-pos {
-      width: 58px; text-align: center;
-      font-family: var(--font-mono); font-size: 14px; font-weight: 600;
-      color: var(--ink); background: var(--surface);
-      padding: 6px 4px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 0; border: 0; background: transparent;
+      font-family: var(--font-mono);
+      font-size: 15px; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--brand);
+      text-align: center;
     }
-    .ed-item-pos:focus {
-      outline: none; border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(120,180,72,.18);
+    .ed-item-pos:focus { outline: none; }
+    /* As setas nativas competem com os botões ▲▼ e mudam de forma em cada
+       navegador. O campo é para digitar — as setas do teclado seguem valendo. */
+    .ed-item-pos::-webkit-outer-spin-button,
+    .ed-item-pos::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .ed-item-pos { -moz-appearance: textfield; appearance: textfield; }
+
+    /* Hairline inclinada: a barra da fração, sem ser um caractere de texto que
+       herdaria peso e cor do número. */
+    .ed-pos-sep {
+      width: 1px; height: 16px; background: var(--line);
+      transform: rotate(15deg); flex: 0 0 auto;
     }
-    .ed-item-total { color: var(--ink-faint); }
+    .ed-pos-total {
+      font-family: var(--font-mono);
+      font-size: 13px; font-variant-numeric: tabular-nums;
+      color: var(--ink-faint);
+      user-select: none;
+    }
 
     /* Depois de mover, a lista é redesenhada e é fácil perder o item de vista.
        O realce responde "para onde ele foi", sem precisar procurar. */
@@ -1334,12 +1369,16 @@
       100% { background: var(--surface);    border-color: var(--line); }
     }
     .ed-item-foco { animation: edFoco 1.6s ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      .ed-item-foco { animation: none; box-shadow: inset 0 0 0 2px var(--accent); }
+    }
 
     /* Em tela de celular os controles ficam em linha própria, ocupando a
-       largura toda: alvo de toque maior e sem apertar o campo de posição. */
+       largura toda: alvo de toque maior. A pílula não estica — controle
+       redondo esticado perde a forma. */
     @media (max-width: 720px) {
-      .ed-item-head { flex-direction: column; align-items: stretch; }
-      .ed-item-acoes { display: flex; gap: 6px; }
+      .ed-item-head { flex-direction: column; align-items: flex-start; }
+      .ed-item-acoes { display: flex; gap: 6px; width: 100%; }
       .ed-item-acoes .btn { flex: 1 1 0; min-width: 0; }
     }
 </style>
@@ -6487,13 +6526,15 @@ function viewEditorEstrutura() {
     ${est.itens.map((it, i) => `
       <div class="card card-pad" id="ed-item-${esc(it.id)}" style="margin-bottom:16px; border:1px solid var(--line); background:var(--surface);">
         <div class="ed-item-head">
-          <div class="ed-pos-wrap">
+          <div class="ed-pos">
             <span class="ed-pos-label">Item</span>
             <input type="number" class="ed-item-pos" data-idx="${i}"
                    value="${i+1}" min="1" max="${est.itens.length}" step="1"
-                   inputmode="numeric"
+                   inputmode="numeric" aria-label="Posição do item na lista"
+                   style="width:${String(est.itens.length).length + 0.8}ch"
                    title="Digite o número da posição desejada e pressione Enter">
-            <span class="ed-item-total">de ${est.itens.length}</span>
+            <span class="ed-pos-sep" aria-hidden="true"></span>
+            <span class="ed-pos-total">${est.itens.length}</span>
           </div>
           <div class="rowflex ed-item-acoes" style="gap:6px;">
             <button class="btn ghost sm" onclick="moverItemEst(${i}, -1)" title="Mover para cima" ${i === 0 ? 'disabled' : ''}>▲ Subir</button>
