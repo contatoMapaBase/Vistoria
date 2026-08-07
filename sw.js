@@ -112,9 +112,21 @@ self.addEventListener('fetch', event => {
   // Dados ao vivo do Supabase sempre vão para a rede.
   if (ehSupabase(url)) return;
 
-  // Páginas de escritório: rede direta, sem cache. Offline, o navegador mostra
-  // a própria tela de "sem conexão" — o que é honesto, porque essas telas
-  // dependem do Supabase de qualquer forma.
+  /* Páginas de escritório: rede direta, sem cache. Com uma distinção:
+     - portal.html OFFLINE cai na cópia guardada das INSPEÇÕES — quem salvou o
+       portal nos favoritos e abre sem sinal precisa trabalhar, não ver erro.
+       Com internet, o portal continua vindo sempre fresco da rede.
+     - monitoramento.html offline mantém a tela de erro do navegador, que é
+       honesta: essa página depende do banco de qualquer forma. */
+  if (url.pathname.endsWith('/portal.html')) {
+    if (req.mode === 'navigate') {
+      event.respondWith(
+        fetch(req, { cache: 'reload' })
+          .catch(() => caches.match('./index.html').then(r => r || caches.match('./')))
+      );
+    }
+    return;
+  }
   if (ehPaginaEscritorio(url)) return;
 
   // Navegação (o próprio HTML): rede primeiro, ignorando o cache do navegador
