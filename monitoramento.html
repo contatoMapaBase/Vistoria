@@ -1458,7 +1458,19 @@ const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClie
 
 const SCHEMA_ACEITO = 'mapabase.monitoramento.v1';
 
+/* Perfil de acesso (Fase 3). O RLS já recusa escrita ao cliente; isto evita
+   oferecer a ele as abas de curadoria, que só produziriam erro. */
+async function carregarPerfilMon() {
+  if (!_supabase || !navigator.onLine) return;
+  try {
+    const { data, error } = await _supabase.from('perfis').select('papel').maybeSingle();
+    if (!error && data) state.papel = data.papel || null;
+  } catch (e) { /* sem perfil ou offline: trata como equipe */ }
+}
+const ehClienteMon = () => state.papel === 'cliente';
+
 const state = {
+  papel: null,
   view: 'painel',
   ready: false,
   empreendimentos: [],
@@ -1545,6 +1557,8 @@ function paramPorSigla(sigla, matriz) {
    CARGA INICIAL
    ============================================================ */
 async function carregarTudo() {
+  // Perfil antes de tudo: o menu depende dele.
+  await carregarPerfilMon();
   const [emp, par, pad, camp, pts, ach] = await Promise.all([
     _supabase.from('empreendimentos').select('id,nome,tipo,historico,municipio,uf').order('nome'),
     _supabase.from('mon_parametros').select('*').eq('ativo', true).order('ordem'),
@@ -4552,8 +4566,10 @@ function render() {
   const NAV_GRUPOS = [
     { titulo: 'Análise',             abas: ['painel', 'serie', 'mapa'] },
     { titulo: 'Registros',           abas: ['campanhas', 'pontos'] },
-    { titulo: 'Entrada e curadoria', abas: ['importar', 'biblioteca'] }
-  ];
+    // Importar laudo e curar a biblioteca legal são atos da consultoria:
+    // a escrita em mon_* é restrita a admin no banco desde 07/08/2026.
+    { titulo: 'Entrada e curadoria', abas: ['importar', 'biblioteca'], equipe: true }
+  ].filter(g => !g.equipe || !ehClienteMon());
   const btn = k => VIEWS[k] && VIEWS[k].label
     ? `<button class="navbtn ${state.view === k ? 'active' : ''}" onclick="setView('${k}')">
          <span class="ic">${ic[k] || ''}</span> ${VIEWS[k].label}</button>`

@@ -1496,7 +1496,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-h';
+const APP_VERSION = '2026.08.07-i';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -3459,6 +3459,11 @@ const state = {
   buscaLixeira: '',
   notificacoes: [],
   usuarioId: null,
+  /* Perfil de acesso, carregado do banco após o login. Enquanto for null,
+     a interface se comporta como equipe — mas o RLS é quem decide de fato:
+     esconder é usabilidade, a policy é que é segurança. */
+  papel: null,
+  clienteId: null,
   lixeira: [],
   evoCategoria: '',
   mapa: mapaEstadoInicial()
@@ -5341,7 +5346,15 @@ async function removerKml(id) {
 }
 
 
+/* Views que só a equipe MapaBase acessa. O RLS já recusa os dados, mas sem
+   esta guarda o cliente abriria telas vazias com botões inúteis. */
+const VIEWS_SO_EQUIPE = ['empreendimentos', 'estruturas'];
+
 function setView(viewName) {
+  if (VIEWS_SO_EQUIPE.includes(viewName) && ehCliente()) {
+    showToast('Esta área é da equipe técnica da MapaBase.');
+    return;
+  }
   // O watchPosition consome bateria; em campo isso importa mais que a conveniência.
   if (state.view === 'mapa' && viewName !== 'mapa') {
     if (state.mapa.cheio) mapaTelaCheia(false);
@@ -5380,10 +5393,10 @@ function render() {
     { id: 'vistorias',       label: 'Histórico',          curto: 'Histórico' },
     { id: 'ncs',             label: 'Não Conformidades',  curto: 'NCs' },
     { id: 'evolucao',        label: 'Evolução',           curto: 'Evolução' },
-    { id: 'empreendimentos', label: 'Empreendimentos',    curto: 'Empreend.' },
-    { id: 'estruturas',      label: 'Estruturas',         curto: 'Estruturas' },
+    { id: 'empreendimentos', label: 'Empreendimentos',    curto: 'Empreend.', equipe: true },
+    { id: 'estruturas',      label: 'Estruturas',         curto: 'Estruturas', equipe: true },
     { id: 'notificacoes',    label: 'Notifica\u00e7\u00f5es',       curto: 'Avisos' }
-  ];
+  ].filter(m => !m.equipe || ehEquipe());
   // Aba Mapa só existe se houver KML anexado a algum empreendimento.
   if (empsComPoligono().length) menu.splice(5, 0, { id: 'mapa', label: 'Mapa', curto: 'Mapa' });
   
@@ -5413,6 +5426,9 @@ function render() {
     'mapa': { html: viewMapa, bind: bindMapa },
     'empreendimentos': { html: viewEmpreendimentos, bind: bindEmpreendimentos },
     'estruturas': { html: viewEstruturas, bind: bindEstruturas },
+    /* Views restritas à equipe. A guarda em setView() impede a navegação; isto
+       aqui é a segunda linha, para o caso de a view ser aberta por outro
+       caminho. */
     'nova': { html: viewNovaVistoria, bind: bindNovaVistoria }
   };
 
@@ -5592,7 +5608,12 @@ async function loadVistoriasNuvem() {
             categorias: _categorias || {},
             excluidaEm: d.excluida_em || null,
             excluidoPor: d.excluido_por || null,
-            motivoExclusao: d.motivo_exclusao || null
+            motivoExclusao: d.motivo_exclusao || null,
+            /* Autoria gravada pelo banco (trigger trg_marcar_autoria). Usada
+               pela interface para não oferecer "Editar" ao cliente numa
+               vistoria da MapaBase — o RLS recusaria de qualquer forma. */
+            origem: d.origem || null,
+            criadoPorUid: d.criado_por_uid || null
           };
         });
         
@@ -5660,6 +5681,8 @@ async function loadVistoria(id) {
           itens: Array.isArray(itensParsed) ? itensParsed : [], 
           observacaoGeral: (data.observacao_geral != null && data.observacao_geral !== '') ? data.observacao_geral : ((critMap && critMap._obsGeral) ? critMap._obsGeral : ''), 
           atualizadoEm: data.atualizado_em || null,
+          origem: data.origem || null,
+          criadoPorUid: data.criado_por_uid || null,
           syncStatus: 'synced'
         };
         
@@ -8453,8 +8476,8 @@ function viewVistoriaDetalhe(vistoriaParam) {
     </div>
     <div class="rowflex">
       <button class="btn ghost" onclick="setView('vistorias')">← Voltar</button>
-      <button class="btn ghost" onclick="editarVistoriaAtual()">✏️ Editar</button>
-      <button class="btn ghost danger" onclick="deletarVistoriaAtual()">✕ Excluir Relatório</button>
+      ${podeEditarVistoria(v) ? `<button class="btn ghost" onclick="editarVistoriaAtual()">✏️ Editar</button>` : ''}
+      ${podeExcluirVistoria() ? `<button class="btn ghost danger" onclick="deletarVistoriaAtual()">✕ Excluir Relatório</button>` : ''}
       <button class="btn primary" onclick="window.print()">🖨️ Imprimir PDF</button>
     </div>
   </div>
@@ -8676,6 +8699,40 @@ window.apagarDefinitivo = async function(id) {
    ambiente), o app segue funcionando e o sino simplesmente não
    acende — notificação nunca pode derrubar o fluxo de campo.
    ============================================================ */
+/* ============================================================
+   PERFIL DE ACESSO (Fase 3)
+   O banco já isola tudo por RLS. Isto existe para a interface
+   não OFERECER o que o cliente não pode fazer — ele não deve
+   descobrir a restrição tentando e recebendo erro.
+   Degrada para equipe se a consulta falhar: pior caso, alguém
+   vê um botão que o banco recusa. O inverso seria esconder
+   funções da equipe em campo, que é bem pior.
+   ============================================================ */
+async function carregarPerfil() {
+  if (!_supabase || !navigator.onLine) return;
+  try {
+    const { data, error } = await _supabase.from('perfis')
+      .select('papel, cliente_id').maybeSingle();
+    if (error || !data) return;
+    state.papel = data.papel || null;
+    state.clienteId = data.cliente_id || null;
+  } catch (e) { /* offline ou sem perfil: segue como equipe */ }
+}
+
+const ehCliente = () => state.papel === 'cliente';
+const ehEquipe  = () => state.papel === 'admin' || state.papel === 'colaborador' || state.papel === null;
+const ehAdmin   = () => state.papel === 'admin';
+
+/* Vistoria que o cliente pode editar: só as que ele mesmo criou.
+   Espelha a policy vis_cliente_editar — se divergir, o botão aparece e o
+   banco recusa, que é o modo de falha aceitável. */
+function podeEditarVistoria(v) {
+  if (!v) return false;
+  if (!ehCliente()) return true;
+  return v.origem === 'cliente' && v.criadoPorUid === state.usuarioId;
+}
+function podeExcluirVistoria() { return !ehCliente(); }
+
 async function carregarNotificacoes() {
   if (!_supabase || !navigator.onLine || state.modoOffline) return;
   try {
@@ -8749,6 +8806,9 @@ function bindNotificacoes() {
 window.alternarLixeira = function() { state.verLixeira = !state.verLixeira; state.buscaLixeira = ''; render(); };
 
 function abasHistorico() {
+  // Lixeira é instrumento de auditoria da consultoria: o cliente não a vê.
+  // O RLS também já filtra vistoria excluída da leitura dele.
+  if (ehCliente()) return '';
   const n = (state.lixeira || []).length;
   return `<div class="seg-tabs no-print">
     <button class="seg-tab ${!state.verLixeira ? 'ativa' : ''}" onclick="if(state.verLixeira) alternarLixeira()">📋 Check-lists</button>
@@ -9312,7 +9372,9 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
 
 async function iniciarApp() {
   showToast('Carregando dados da nuvem...');
-  // Fila de avisos carrega em paralelo: nunca atrasa nem bloqueia o boot.
+  /* Perfil ANTES de qualquer render: o menu depende dele. As notificações,
+     não — vão em paralelo. */
+  await carregarPerfil();
   carregarNotificacoes();
   const syncOk = await syncGlobalNuvem();
   
