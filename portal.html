@@ -436,7 +436,7 @@
       </section>
     </div>
 
-    <p class="versao">portal 2026.08.07-k</p>
+    <p class="versao">portal 2026.08.07-l</p>
   </main>
 </div>
 
@@ -527,8 +527,28 @@ async function precisaTrocarSenha() {
 
 async function boot() {
   const tipo = tipoDoLink();
+  const h = (location.hash || '').replace(/^#/, '');
+  const erroNoLink = new URLSearchParams(h).get('error_description');
+
   try {
     const { data } = await sb.auth.getSession();
+
+    /* Link trazia token mas nenhuma sessão se formou: expirado, já usado, ou o
+       Supabase devolveu erro no próprio fragmento. Sem este ramo o usuário
+       cairia na tela de senha sem sessão e o salvamento falharia sem explicar
+       nada — foi o tipo de beco sem saída que queremos evitar com cliente. */
+    if ((tipo || erroNoLink) && !(data && data.session)) {
+      history.replaceState(null, '', location.pathname);
+      ver('login');
+      const e = $('erro');
+      e.textContent = erroNoLink
+        ? 'O link expirou ou já foi utilizado. Entre com e-mail e senha, ou peça um novo acesso à MapaBase.'
+        : 'Não foi possível validar o link de acesso. Entre com e-mail e senha, ou peça um novo à MapaBase.';
+      e.style.display = 'block';
+      setTimeout(() => $('email').focus(), 120);
+      return;
+    }
+
     if (data && data.session) {
       if (tipo || await precisaTrocarSenha()) {
         if (!tipo) {
