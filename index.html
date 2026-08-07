@@ -1495,7 +1495,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-b';
+const APP_VERSION = '2026.08.07-c';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -5378,10 +5378,9 @@ function render() {
     <button class="navbtn ${state.view === m.id ? 'active' : ''}" onclick="setView('${m.id}')">
       <span class="ic">${svgIc[m.id] || ''}</span><span class="nav-longo">${m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span><span class="nav-curto">${m.curto || m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span>
     </button>
-  `).join('') + `
-    <a class="navbtn externo" href="./monitoramento.html" onclick="return exigirInternet(event);">
-      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v5.5L5.5 17A2.5 2.5 0 0 0 7.8 21h8.4a2.5 2.5 0 0 0 2.3-4L14 8.5V3"/><path d="M7.5 14h9"/></svg></span><span class="nav-longo">Monitoramentos</span><span class="nav-curto">Monitor.</span>
-    </a>`;
+  `).join('');
+  // Monitoramentos saiu daqui em 07/08/2026: agora mora na aba Gestão
+  // Ambiental do Portal. Inspeções é campo; Gestão é escritório.
 
   atualizarStatusSync();
   atualizarStatusBiblioteca();
