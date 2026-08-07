@@ -1495,7 +1495,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-c';
+const APP_VERSION = '2026.08.07-d';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -9444,24 +9444,35 @@ async function checkAuth() {
   const appInstalado = (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
                        || navigator.standalone === true;
 
+  /* Trava anti-laço. Sem ela existia este pingue-pongue: o Portal manda para
+     ./index.html?m=1; se getSession() falhar aqui (renovação de token,
+     oscilação de rede, corrida de inicialização), o index devolvia para o
+     Portal; o Portal lê a sessão do cache local, mostra os módulos, e o
+     clique seguinte repetia tudo — sem nunca abrir as Inspeções.
+     Duas defesas: quem veio do Portal NUNCA é redirecionado de volta, e o
+     index só pode devolver ao Portal uma vez por aba. */
+  let jaVoltou = false;
+  try { jaVoltou = sessionStorage.getItem('mb:bounce') === '1'; } catch (e) {}
+  const podeIrAoPortal = navigator.onLine && !veioDoPortal && !appInstalado && !jaVoltou;
+  const irAoPortal = () => {
+    try { sessionStorage.setItem('mb:bounce', '1'); } catch (e) {}
+    location.replace('./portal.html');
+  };
+
   if (session) {
     state.usuarioId = (session.user && session.user.id) || null;
     await marcarAcessoValido(session.user && session.user.email);
-    if (navigator.onLine && !veioDoPortal && !appInstalado) {
-      location.replace('./portal.html');
-      return;
-    }
+    if (podeIrAoPortal) { irAoPortal(); return; }
     state.modoOffline = false;
     loginScreen.style.display = 'none';
     iniciarApp(); 
     return;
   }
 
-  // Sem sessao e com internet: quem faz login e o Portal.
-  if (navigator.onLine && !appInstalado) {
-    location.replace('./portal.html');
-    return;
-  }
+  /* Sem sessão e com internet: o Portal é quem faz login — mas só se ainda
+     não tentamos. Esgotadas as tentativas, o próprio login daqui atende,
+     que é o caminho que sempre funcionou. */
+  if (podeIrAoPortal) { irAoPortal(); return; }
 
   // Sem sessão E sem rede: entra em modo offline se houve acesso recente.
   if (!navigator.onLine) {
