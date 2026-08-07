@@ -1477,7 +1477,8 @@
     <div class="sidebar-foot">
       <div id="status-sync">Verificando...</div>
       <div id="status-biblioteca" style="font-size:11px;line-height:1.4;margin-top:5px;"></div>
-      <button class="btn ghost sm" id="btn-logout" style="margin-top:12px; width:100%; color: var(--ink-soft); border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
+      <a class="btn ghost sm" href="./portal.html" style="margin-top:12px; width:100%; justify-content:center; color: var(--ink-soft); border:1px solid rgba(255,255,255,0.1); text-decoration:none;">&larr; Portal MapaBase</a>
+      <button class="btn ghost sm" id="btn-logout" style="margin-top:8px; width:100%; color: var(--ink-soft); border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
     </div>
   </aside>
   <div id="main">
@@ -1495,7 +1496,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-d';
+const APP_VERSION = '2026.08.07-e';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -1519,6 +1520,10 @@ const _supabase = (window.supabase && SUPABASE_URL)
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: false,
+        /* Esta chave precisa ser IDÊNTICA no portal.html. O supabase-js
+           guarda a sessão sob ela; chaves diferentes são gavetas diferentes —
+           o portal salvava numa, o app procurava na outra, e o cliente era
+           obrigado a fazer login duas vezes. Corrigido em 07/08/2026. */
         storageKey: 'mapabase-auth'
       }
     })
@@ -5378,9 +5383,13 @@ function render() {
     <button class="navbtn ${state.view === m.id ? 'active' : ''}" onclick="setView('${m.id}')">
       <span class="ic">${svgIc[m.id] || ''}</span><span class="nav-longo">${m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span><span class="nav-curto">${m.curto || m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span>
     </button>
-  `).join('');
-  // Monitoramentos saiu daqui em 07/08/2026: agora mora na aba Gestão
-  // Ambiental do Portal. Inspeções é campo; Gestão é escritório.
+  `).join('') + `
+    <a class="navbtn externo" href="./portal.html" title="Voltar ao Portal MapaBase">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="nav-longo">Portal</span><span class="nav-curto">Portal</span>
+    </a>`;
+  /* Monitoramentos saiu daqui em 07/08/2026 (mora na aba Gestão do Portal) e
+     entrou a volta ao Portal. No celular a .sidebar-foot está oculta, então
+     ESTE é o único caminho de volta — por isso vive no menu, não no rodapé. */
 
   atualizarStatusSync();
   atualizarStatusBiblioteca();

@@ -7,195 +7,246 @@
 <link rel="icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
      PORTAL MAPABASE
-     Tipografia: IBM Plex Sans — a face de identidade corporativa
-     da IBM, desenhada para engenharia. Tem autoridade sem ser
-     genérica (Inter está em todo lugar) e é da mesma família do
-     IBM Plex Mono que o sistema já usa nos dados: coerência real,
-     não coincidência.
-     Escala pensada no DESKTOP: a maioria dos clientes entra pelo
-     computador, então o corpo é 17px e o título 46px.
-     Contraste alto — tinta forte sobre papel, cinza só onde é
-     secundário de verdade.
+     Ponto de partida: o login que o cliente já aprovou — campo
+     marinho cheio, cartão branco centrado, logo grande. Mesmas
+     fontes do app (Barlow Condensed + Inter + Plex Mono), para o
+     portal e as Inspeções falarem o mesmo idioma.
+     O que foi elevado: profundidade no fundo (vinheta + curvas de
+     nível, o vocabulário do próprio ofício), tipografia maior e
+     com mais contraste, e estados vivos — foco, hover, entrada
+     em sequência, botão que responde ao envio.
      ============================================================ */
   :root {
-    --tinta:   #0F1419;
-    --tinta-2: #414B55;
-    --tinta-3: #6B747D;
-    --papel:   #FFFFFF;
-    --papel-2: #F5F6F4;
-    --regua:   #DDE1DC;
-    --regua-2: #C4CAC3;
-    --marinho: #1B2838;
-    --verde:   #2E5E20;
-    --sinal:   #6FA83C;
-    --ui:   "IBM Plex Sans", system-ui, -apple-system, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --marinho-esc: #16202E;
+    --marinho:     #22314A;
+    --marinho-cl:  #2E4159;
+    --papel:       #FFFFFF;
+    --papel-2:     #F4F6F8;
+    --linha:       #DCE2EA;
+    --linha-2:     #C3CCD8;
+    --tinta:       #14202E;
+    --tinta-2:     #48566A;
+    --tinta-3:     #7A8798;
+    --acento:      #78B448;
+    --acento-esc:  #3B6D11;
+    --display: "Barlow Condensed", sans-serif;
+    --corpo:   "Inter", system-ui, -apple-system, sans-serif;
+    --mono:    "IBM Plex Mono", ui-monospace, monospace;
+    --raio: 16px;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; font-family: var(--ui); font-size: 17px; color: var(--tinta);
-    background: var(--papel); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; font-family: var(--corpo); font-size: 16px;
+    color: var(--tinta); background: var(--papel-2);
+    -webkit-font-smoothing: antialiased; }
   a { color: inherit; text-decoration: none; }
-  :focus-visible { outline: 2px solid var(--sinal); outline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
 
-  .rot { font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--tinta-3); margin: 0; }
+  .rot { font-family: var(--mono); font-size: 11.5px; letter-spacing: .16em;
+    text-transform: uppercase; margin: 0; }
 
-  /* Lockup da marca: o logo manda, o resto obedece. */
-  .lockup { display: flex; align-items: center; gap: 16px; }
-  .lockup img { display: block; }
-  .lockup .div { width: 1px; background: var(--regua-2); align-self: stretch; }
-  .lockup .txt { font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--tinta-3); line-height: 1.4; }
+  /* ===================== LOGIN ===================== */
+  #login { display: none; position: fixed; inset: 0; overflow: auto;
+    background: var(--marinho-esc);
+    align-items: center; justify-content: center; padding: 28px 20px; }
+  #login.on { display: flex; }
 
-  /* ======================= LOGIN ======================= */
-  #login { display: none; min-height: 100vh; min-height: 100dvh; }
-  #login.on { display: grid; grid-template-columns: 1fr; place-items: center;
-    padding: 48px 24px; }
-  .faixa-topo { position: fixed; top: 0; left: 0; right: 0; height: 4px;
-    background: var(--marinho); }
-  .faixa-topo::after { content: ''; position: absolute; inset: 0 auto 0 0;
-    width: 28%; background: var(--sinal); }
-  .lg { width: 100%; max-width: 456px; }
-  .lg .lockup { justify-content: center; margin-bottom: 44px; }
-  .lg .lockup img { height: 76px; }
-  .lg .lockup .div { height: 46px; align-self: center; }
-  .lg h1 { font-size: 42px; font-weight: 600; letter-spacing: -.028em;
-    line-height: 1.12; margin: 0 0 12px; text-align: center; }
-  .lg .sub { font-size: 17px; line-height: 1.6; color: var(--tinta-2);
-    margin: 0 0 40px; text-align: center; }
-  .lg .form { border-top: 1px solid var(--regua); padding-top: 32px; }
-  .lg label { display: block; font-size: 14px; font-weight: 500;
-    color: var(--tinta-2); margin: 0 0 8px; }
-  .lg .campo + .campo { margin-top: 20px; }
-  .lg input {
-    width: 100%; padding: 15px 16px; font-family: inherit; font-size: 17px;
-    color: var(--tinta); background: var(--papel);
-    border: 1px solid var(--regua-2); border-radius: 8px;
-    transition: border-color .14s, box-shadow .14s;
-  }
-  .lg input::placeholder { color: var(--tinta-3); }
-  .lg input:focus { outline: none; border-color: var(--marinho);
-    box-shadow: 0 0 0 3px rgba(27,40,56,.10); }
-  .lg .entrar {
-    width: 100%; margin-top: 30px; padding: 16px;
-    border: 0; border-radius: 8px; cursor: pointer;
-    background: var(--marinho); color: #fff;
-    font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: -.008em;
-    transition: background .14s;
-  }
-  .lg .entrar:hover { background: #101A26; }
-  .lg .entrar:disabled { opacity: .5; cursor: wait; }
-  .lg .erro { display: none; margin-top: 20px; padding: 14px 16px;
-    border-left: 3px solid #C0392B; background: #FDF0EE;
-    font-size: 15px; line-height: 1.55; color: #9B2C1F; }
-  .lg .pe { margin: 36px 0 0; padding-top: 24px; border-top: 1px solid var(--regua);
-    font-size: 14px; line-height: 1.65; color: var(--tinta-3); text-align: center; }
+  /* Profundidade: vinheta radial + curvas de nível. O logo da MapaBase é um
+     telhado de curvas; repeti-las no fundo é usar o vocabulário da casa. */
+  .fundo { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .fundo .glow { position: absolute; width: 900px; height: 900px;
+    top: -260px; left: 50%; transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(120,180,72,.13) 0%, rgba(120,180,72,0) 62%); }
+  .fundo svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .fundo path { fill: none; stroke: #78B448; stroke-width: 1.1; }
 
-  /* ======================= APP ======================= */
-  #app { display: none; }
+  .lbox { position: relative; width: 100%; max-width: 428px;
+    background: var(--papel); border-radius: var(--raio);
+    padding: 44px 40px 36px; text-align: center;
+    box-shadow: 0 26px 64px rgba(6,12,22,.42), 0 2px 6px rgba(6,12,22,.20);
+    animation: sobe .5s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes sobe { from { opacity: 0; transform: translateY(14px); } }
+
+  .lbox .logo { display: block; width: 214px; max-width: 76%;
+    height: auto; margin: 0 auto 18px; }
+  .lbox .selo { display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--acento-esc);
+    background: rgba(120,180,72,.11); border-radius: 999px;
+    padding: 6px 14px; margin-bottom: 26px; }
+  .lbox .selo .pt { width: 6px; height: 6px; border-radius: 50%;
+    background: var(--acento); }
+  .lbox h1 { font-family: var(--display); text-transform: uppercase;
+    font-size: 40px; font-weight: 700; letter-spacing: .015em; line-height: .98;
+    margin: 0 0 12px; color: var(--tinta); }
+  .lbox h1 .v { color: var(--acento-esc); }
+  .lbox .sub { font-size: 15px; line-height: 1.6; color: var(--tinta-2);
+    margin: 0 auto 30px; max-width: 30ch; }
+
+  .campo { text-align: left; }
+  .campo + .campo { margin-top: 18px; }
+  .campo label { display: block; font-size: 13px; font-weight: 600;
+    color: var(--tinta-2); margin-bottom: 7px; }
+  .campo .env { position: relative; display: flex; align-items: center; }
+  .campo .env svg { position: absolute; left: 14px; width: 18px; height: 18px;
+    color: var(--tinta-3); pointer-events: none; transition: color .16s; }
+  .campo input { width: 100%; padding: 14px 15px 14px 43px;
+    font-family: inherit; font-size: 16px; color: var(--tinta);
+    background: var(--papel-2); border: 1.5px solid var(--linha);
+    border-radius: 11px; transition: border-color .16s, background .16s, box-shadow .16s; }
+  .campo input::placeholder { color: var(--tinta-3); }
+  .campo input:hover { border-color: var(--linha-2); }
+  .campo input:focus { outline: none; background: var(--papel);
+    border-color: var(--acento); box-shadow: 0 0 0 4px rgba(120,180,72,.15); }
+  .campo .env:focus-within svg { color: var(--acento-esc); }
+
+  .entrar { width: 100%; margin-top: 28px; padding: 15px;
+    border: 0; border-radius: 11px; cursor: pointer;
+    background: var(--acento-esc); color: #fff;
+    font-family: inherit; font-size: 16px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    box-shadow: 0 6px 16px rgba(59,109,17,.26);
+    transition: background .16s, transform .08s, box-shadow .16s; }
+  .entrar:hover { background: #2F5A0D; box-shadow: 0 8px 22px rgba(59,109,17,.32); }
+  .entrar:active { transform: translateY(1px); }
+  .entrar:disabled { background: var(--tinta-3); box-shadow: none; cursor: wait; }
+  .entrar .sp { width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+    animation: gira .7s linear infinite; display: none; }
+  .entrar.carregando .sp { display: block; }
+  .entrar.carregando .tx { opacity: .85; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+
+  .erro { display: none; margin-top: 18px; padding: 13px 15px; text-align: left;
+    border-left: 3px solid #C0392B; background: #FDF1EF; border-radius: 6px;
+    font-size: 14px; line-height: 1.55; color: #97291C; }
+  .pe { margin: 28px 0 0; padding-top: 22px; border-top: 1px solid var(--linha);
+    font-size: 13px; line-height: 1.65; color: var(--tinta-3); }
+
+  /* ===================== APP ===================== */
+  #app { display: none; min-height: 100vh; }
   #app.on { display: block; }
 
-  .top { border-bottom: 1px solid var(--regua); background: var(--papel);
-    position: sticky; top: 0; z-index: 10; }
-  .top .in { max-width: 1000px; margin: 0 auto; padding: 20px 32px;
+  .top { background: var(--marinho-esc); color: #fff;
+    position: sticky; top: 0; z-index: 10;
+    border-bottom: 3px solid var(--acento); }
+  .top .in { max-width: 1020px; margin: 0 auto; padding: 16px 32px;
     display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-  .top .lockup img { height: 46px; }
-  .top .lockup .div { height: 30px; align-self: center; }
-  .top .dir { display: flex; align-items: center; gap: 22px; min-width: 0; }
-  .top .quem { font-family: var(--mono); font-size: 13px; color: var(--tinta-2);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sair { background: none; border: 1px solid var(--regua-2); border-radius: 8px;
-    cursor: pointer; padding: 9px 18px; font-family: var(--ui); font-size: 15px;
-    font-weight: 500; color: var(--tinta-2); flex: none;
-    transition: border-color .14s, color .14s; }
-  .sair:hover { border-color: var(--marinho); color: var(--tinta); }
+  .top .logo { height: 48px; width: auto; display: block;
+    background: #fff; border-radius: 8px; padding: 6px 10px; }
+  .top .dir { display: flex; align-items: center; gap: 20px; min-width: 0; }
+  .top .quem { font-family: var(--mono); font-size: 12.5px;
+    color: rgba(255,255,255,.66); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .sair { background: none; border: 1px solid rgba(255,255,255,.28);
+    border-radius: 9px; cursor: pointer; padding: 9px 18px;
+    font-family: var(--corpo); font-size: 14.5px; font-weight: 500; color: #fff;
+    flex: none; transition: border-color .16s, background .16s; }
+  .sair:hover { border-color: var(--acento); background: rgba(120,180,72,.16); }
 
-  .corpo { max-width: 1000px; margin: 0 auto; padding: 60px 32px 100px; }
-  .corpo h1 { font-size: 46px; font-weight: 600; letter-spacing: -.03em;
-    line-height: 1.1; margin: 14px 0 16px; }
-  .corpo .tese { font-size: 19px; line-height: 1.6; color: var(--tinta-2);
+  .capa { background: var(--marinho); color: #fff; position: relative; overflow: hidden; }
+  .capa .in { max-width: 1020px; margin: 0 auto; padding: 44px 32px 40px; position: relative; }
+  .capa .rot { color: var(--acento); }
+  .capa h1 { font-family: var(--display); text-transform: uppercase;
+    font-size: 46px; font-weight: 700; letter-spacing: .015em; line-height: 1;
+    margin: 12px 0 12px; }
+  .capa p { font-size: 16.5px; line-height: 1.6; color: rgba(255,255,255,.76);
     max-width: 60ch; margin: 0; }
+  .capa svg.curvas { position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; }
+  .capa svg.curvas path { fill: none; stroke: #78B448; stroke-width: 1.1; }
 
-  .abas { display: flex; gap: 36px; margin: 48px 0 0;
-    border-bottom: 1px solid var(--regua); }
-  .aba { background: none; border: 0; cursor: pointer; padding: 0 0 16px;
-    font-family: var(--ui); font-size: 18px; font-weight: 500; letter-spacing: -.01em;
-    color: var(--tinta-3); position: relative; transition: color .14s; }
+  .corpo { max-width: 1020px; margin: 0 auto; padding: 0 32px 96px; }
+
+  .abas { display: flex; gap: 8px; margin: 0; padding: 0;
+    transform: translateY(-1px); }
+  .aba { background: var(--papel-2); border: 1px solid var(--linha);
+    border-bottom: 0; border-radius: 12px 12px 0 0; cursor: pointer;
+    padding: 15px 26px; font-family: var(--corpo);
+    font-size: 15.5px; font-weight: 600; color: var(--tinta-3);
+    transition: color .16s, background .16s; }
   .aba:hover { color: var(--tinta-2); }
-  .aba.on { color: var(--tinta); font-weight: 600; }
-  .aba.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
-    height: 2px; background: var(--marinho); }
+  .aba.on { background: var(--papel); color: var(--tinta); }
 
-  .painel { padding-top: 40px; }
+  .folha { background: var(--papel); border: 1px solid var(--linha);
+    border-radius: 0 12px 12px 12px; padding: 34px 32px 36px; }
+  .folha > .rot { color: var(--tinta-3); }
 
-  .acao { display: inline-flex; align-items: center; gap: 12px;
-    padding: 15px 26px; border-radius: 8px;
-    background: var(--marinho); color: #fff;
-    font-size: 17px; font-weight: 600; letter-spacing: -.008em;
-    transition: background .14s; }
-  .acao:hover { background: #101A26; }
-  .acao .fl { font-family: var(--mono); opacity: .6; }
-  .acao-linha { display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-    margin-bottom: 52px; }
-  .acao-nota { font-size: 15px; color: var(--tinta-2); }
+  .destaque { display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    background: var(--papel-2); border: 1px solid var(--linha);
+    border-left: 4px solid var(--acento); border-radius: 12px;
+    padding: 22px 24px; margin-bottom: 34px; }
+  .destaque .tx { flex: 1; min-width: 210px; }
+  .destaque h2 { font-family: var(--display); text-transform: uppercase;
+    font-size: 25px; font-weight: 600; letter-spacing: .02em; margin: 0 0 5px; }
+  .destaque p { font-size: 14.5px; color: var(--tinta-2); line-height: 1.55; margin: 0; }
+  .acao { display: inline-flex; align-items: center; gap: 10px; flex: none;
+    padding: 14px 26px; border-radius: 10px;
+    background: var(--acento-esc); color: #fff;
+    font-size: 15.5px; font-weight: 600;
+    box-shadow: 0 5px 14px rgba(59,109,17,.24);
+    transition: background .16s, transform .1s, box-shadow .16s; }
+  .acao:hover { background: #2F5A0D; transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(59,109,17,.30); }
 
-  .razao { border-top: 1px solid var(--regua); margin-top: 18px; }
-  .item { display: grid; grid-template-columns: 1fr auto; gap: 8px 28px;
-    align-items: baseline; padding: 24px 6px 24px 22px;
-    border-bottom: 1px solid var(--regua); position: relative;
-    transition: background .14s; }
+  .razao { border-top: 1px solid var(--linha); margin-top: 14px; }
+  .item { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 16px;
+    align-items: center; padding: 20px 6px; border-bottom: 1px solid var(--linha);
+    border-radius: 8px; transition: background .16s, padding .16s; }
   a.item:hover { background: var(--papel-2); }
-  .item::before { content: ''; position: absolute; left: 0; top: 32px;
-    width: 7px; height: 7px; border-radius: 50%; background: var(--regua-2); }
-  .item.viva::before { background: var(--sinal); }
-  .item .nm { font-size: 19px; font-weight: 600; letter-spacing: -.014em; }
-  a.item .nm { color: var(--verde); }
-  .item .st { font-family: var(--mono); font-size: 12px; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--tinta-3); white-space: nowrap; }
-  .item .ds { grid-column: 1 / -1; font-size: 16px; line-height: 1.6;
-    color: var(--tinta-2); max-width: 66ch; margin: 0; }
+  .item .pt { width: 9px; height: 9px; border-radius: 50%;
+    background: var(--acento); grid-row: 1 / span 2; align-self: start;
+    margin-top: 7px; }
+  .item.mudo .pt { background: var(--linha-2); }
+  .item .nm { font-family: var(--display); text-transform: uppercase;
+    font-size: 21px; font-weight: 600; letter-spacing: .025em; }
+  a.item .nm { color: var(--acento-esc); }
   .item.mudo .nm { color: var(--tinta-3); }
+  .item .st { font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--tinta-3); white-space: nowrap; }
+  .item .ds { grid-column: 2 / -1; font-size: 15px; line-height: 1.6;
+    color: var(--tinta-2); max-width: 68ch; margin: 0; }
   .item.mudo .ds { color: var(--tinta-3); }
 
-  .nota-rodape { margin-top: 40px; font-size: 15px; line-height: 1.65;
-    color: var(--tinta-2); max-width: 62ch; }
-  .versao { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--regua);
-    font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
-    text-transform: uppercase; color: var(--tinta-3); }
+  .nota { margin-top: 30px; padding: 15px 18px; background: var(--papel-2);
+    border-radius: 10px; font-size: 14px; line-height: 1.6; color: var(--tinta-2); }
+  .versao { margin-top: 28px; font-family: var(--mono); font-size: 11.5px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); }
 
-  #carregando { display: none; min-height: 100vh; min-height: 100dvh;
-    align-items: center; justify-content: center; background: var(--papel);
-    font-family: var(--mono); font-size: 13px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--tinta-3); }
+  #carregando { display: none; position: fixed; inset: 0;
+    align-items: center; justify-content: center; background: var(--marinho-esc);
+    font-family: var(--mono); font-size: 12px; letter-spacing: .16em;
+    text-transform: uppercase; color: rgba(255,255,255,.45); }
   #carregando.on { display: flex; }
 
-  @media (max-width: 720px) {
-    body { font-size: 16px; }
-    .lg .lockup img { height: 60px; }
-    .lg h1 { font-size: 32px; }
-    .lg .sub { font-size: 16px; }
-    .top .in { padding: 14px 20px; gap: 12px; }
-    .top .lockup img { height: 36px; }
-    .top .lockup .div, .top .quem { display: none; }
-    .sair { padding: 8px 14px; font-size: 14px; }
-    .corpo { padding: 34px 20px 72px; }
-    .corpo h1 { font-size: 32px; }
-    .corpo .tese { font-size: 16.5px; }
-    .abas { gap: 24px; }
-    .aba { font-size: 16px; padding-bottom: 13px; }
-    .painel { padding-top: 30px; }
-    .item { padding: 20px 4px 20px 18px; }
-    .item .nm { font-size: 17px; }
-    .item .ds { font-size: 15px; }
-    .item .st { grid-row: 1; }
+  @media (max-width: 760px) {
+    .lbox { padding: 34px 24px 28px; }
+    .lbox .logo { width: 178px; }
+    .lbox h1 { font-size: 32px; }
+    .lbox .sub { font-size: 14.5px; }
+    .top .in { padding: 12px 18px; gap: 12px; }
+    .top .logo { height: 38px; }
+    .top .quem { display: none; }
+    .capa .in { padding: 30px 18px 28px; }
+    .capa h1 { font-size: 33px; }
+    .capa p { font-size: 15px; }
+    .corpo { padding: 0 18px 76px; }
+    .abas { gap: 5px; }
+    .aba { flex: 1; padding: 13px 8px; font-size: 14px; text-align: center; }
+    .folha { padding: 24px 18px 26px; border-radius: 0 0 12px 12px; }
+    .destaque { padding: 18px; }
     .acao { width: 100%; justify-content: center; }
+    .item .nm { font-size: 18px; }
+    .item .ds { font-size: 14px; }
+    .item .st { grid-column: 3; grid-row: 1; }
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
@@ -204,30 +255,41 @@
 
 <!-- ===================== LOGIN ===================== -->
 <div id="login">
-  <div class="faixa-topo"></div>
-  <div class="lg">
-    <div class="lockup">
-      <img src="./LOGO_VERT.png" alt="MapaBase — Engenharia Agrícola e Ambiental">
-      <span class="div"></span>
-      <span class="txt">Engenharia<br>Agrícola e Ambiental</span>
-    </div>
-    <h1>Portal de Gestão Ambiental</h1>
+  <div class="fundo">
+    <div class="glow"></div>
+    <svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path d="M-60,700 C220,600 380,780 620,690 C860,600 1000,760 1260,660" opacity=".14"/>
+      <path d="M-60,764 C240,664 400,844 640,754 C880,664 1020,824 1260,724" opacity=".10"/>
+      <path d="M-60,828 C260,728 420,908 660,818 C900,728 1040,888 1260,788" opacity=".07"/>
+      <path d="M-60,140 C200,210 420,80 660,150 C900,220 1040,110 1260,180" opacity=".09"/>
+    </svg>
+  </div>
+
+  <div class="lbox">
+    <img class="logo" src="./LOGO_VERT.png" alt="MapaBase — Engenharia Agrícola e Ambiental">
+    <span class="selo"><span class="pt"></span> Portal do Cliente</span>
+    <h1>Gestão <span class="v">Ambiental</span></h1>
     <p class="sub">A conformidade do seu empreendimento, do campo ao relatório.</p>
 
-    <div class="form">
-      <div class="campo">
-        <label for="email">E-mail</label>
+    <div class="campo">
+      <label for="email">E-mail</label>
+      <span class="env">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="m3 7 9 6 9-6"/></svg>
         <input type="email" id="email" autocomplete="username" placeholder="seu@email.com">
-      </div>
-      <div class="campo">
-        <label for="senha">Senha</label>
-        <input type="password" id="senha" autocomplete="current-password" placeholder="Digite sua senha">
-      </div>
-      <button class="entrar" id="entrar">Entrar</button>
-      <div class="erro" id="erro"></div>
-      <p class="pe">Em campo, sem internet? Abra o aplicativo de Inspeções
-        instalado no aparelho — ele funciona offline.</p>
+      </span>
     </div>
+    <div class="campo">
+      <label for="senha">Senha</label>
+      <span class="env">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+        <input type="password" id="senha" autocomplete="current-password" placeholder="Digite sua senha">
+      </span>
+    </div>
+
+    <button class="entrar" id="entrar"><span class="sp"></span><span class="tx">Entrar no Portal</span></button>
+    <div class="erro" id="erro"></div>
+    <p class="pe">Em campo, sem internet? Abra o aplicativo de Inspeções
+      instalado no aparelho — ele funciona offline.</p>
   </div>
 </div>
 
@@ -235,11 +297,7 @@
 <div id="app">
   <header class="top">
     <div class="in">
-      <div class="lockup">
-        <img src="./LOGO_VERT.png" alt="MapaBase">
-        <span class="div"></span>
-        <span class="txt">Portal de<br>Gestão Ambiental</span>
-      </div>
+      <img class="logo" src="./LOGO_VERT.png" alt="MapaBase">
       <div class="dir">
         <span class="quem" id="quem"></span>
         <button class="sair" id="sair">Sair</button>
@@ -247,97 +305,136 @@
     </div>
   </header>
 
-  <main class="corpo">
-    <p class="rot">Portal MapaBase</p>
-    <h1>Gestão Ambiental</h1>
-    <p class="tese">O que está em conformidade, o que está em atendimento e como
-      o empreendimento evoluiu — com o registro de cada verificação.</p>
+  <div class="capa">
+    <svg class="curvas" viewBox="0 0 1200 260" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path d="M-60,190 C220,120 420,240 660,170 C900,110 1040,220 1260,160" opacity=".16"/>
+      <path d="M-60,238 C240,168 440,288 680,218 C920,158 1060,268 1260,208" opacity=".10"/>
+    </svg>
+    <div class="in">
+      <p class="rot">Portal MapaBase</p>
+      <h1>Gestão Ambiental</h1>
+      <p>O que está em conformidade, o que está em atendimento e como o
+        empreendimento evoluiu — com o registro de cada verificação.</p>
+    </div>
+  </div>
 
+  <main class="corpo">
     <div class="abas" role="tablist">
       <button class="aba on" id="ab-i" role="tab" onclick="aba('i')">Inspeções Ambientais</button>
       <button class="aba" id="ab-g" role="tab" onclick="aba('g')">Gestão Ambiental</button>
     </div>
 
-    <!-- INSPEÇÕES -->
-    <section class="painel" id="pn-i">
-      <div class="acao-linha">
-        <a class="acao" href="./index.html?m=1">Abrir Inspeções <span class="fl">&rarr;</span></a>
-        <span class="acao-nota">Funciona offline no aparelho — feito para o campo.</span>
-      </div>
+    <div class="folha">
+      <!-- INSPEÇÕES -->
+      <section id="pn-i">
+        <div class="destaque">
+          <div class="tx">
+            <h2>Inspeções Ambientais</h2>
+            <p>Check-lists de conformidade no campo. Funciona offline no aparelho.</p>
+          </div>
+          <a class="acao" href="./index.html?m=1">Abrir Inspeções &rarr;</a>
+        </div>
 
-      <p class="rot">No módulo</p>
-      <div class="razao">
-        <div class="item viva">
-          <span class="nm">Check-list de conformidade</span>
-          <span class="st">Disponível</span>
-          <p class="ds">Sua equipe registra a verificação das estruturas do
-            empreendimento, com foto e localização em cada item.</p>
+        <p class="rot">No módulo</p>
+        <div class="razao">
+          <div class="item">
+            <span class="pt"></span>
+            <span class="nm">Check-list de conformidade</span>
+            <span class="st">Disponível</span>
+            <p class="ds">Sua equipe registra a verificação das estruturas do
+              empreendimento, com foto e localização em cada item.</p>
+          </div>
+          <div class="item">
+            <span class="pt"></span>
+            <span class="nm">Inspeções da MapaBase</span>
+            <span class="st">Disponível</span>
+            <p class="ds">As vistorias da nossa equipe técnica, com as não
+              conformidades apontadas e a recomendação de cada uma.</p>
+          </div>
+          <div class="item">
+            <span class="pt"></span>
+            <span class="nm">Evolução e pontos de atenção</span>
+            <span class="st">Disponível</span>
+            <p class="ds">Como os indicadores caminharam entre campanhas, onde o
+              empreendimento está sólido e o que exige ação.</p>
+          </div>
+          <div class="item">
+            <span class="pt"></span>
+            <span class="nm">Registro e rastreabilidade</span>
+            <span class="st">Disponível</span>
+            <p class="ds">Cada verificação documentada com autor, data e
+              evidência — pronta para apresentar ao órgão ambiental.</p>
+          </div>
         </div>
-        <div class="item viva">
-          <span class="nm">Inspeções da MapaBase</span>
-          <span class="st">Disponível</span>
-          <p class="ds">As vistorias conduzidas pela nossa equipe técnica, com as
-            não conformidades apontadas e a recomendação de cada uma.</p>
-        </div>
-        <div class="item viva">
-          <span class="nm">Evolução e pontos de atenção</span>
-          <span class="st">Disponível</span>
-          <p class="ds">Como os indicadores caminharam entre campanhas, onde o
-            empreendimento está sólido e o que exige ação.</p>
-        </div>
-        <div class="item viva">
-          <span class="nm">Registro e rastreabilidade</span>
-          <span class="st">Disponível</span>
-          <p class="ds">Cada verificação documentada com autor, data e evidência —
-            pronta para apresentar ao órgão ambiental.</p>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- GESTÃO -->
-    <section class="painel" id="pn-g" style="display:none;">
-      <p class="rot">No módulo</p>
-      <div class="razao">
-        <div class="item mudo">
-          <span class="nm">Atendimentos</span>
-          <span class="st">Em breve</span>
-          <p class="ds">O que já foi atendido e o que está em atendimento,
-            condicionante por condicionante, com prazo e responsável.</p>
+      <!-- GESTÃO -->
+      <section id="pn-g" style="display:none;">
+        <div class="destaque">
+          <div class="tx">
+            <h2>Gestão Ambiental</h2>
+            <p>A situação do empreendimento fora do campo. Requer conexão.</p>
+          </div>
+          <a class="acao" href="./monitoramento.html">Abrir Monitoramentos &rarr;</a>
         </div>
-        <a class="item viva" href="./monitoramento.html">
-          <span class="nm">Monitoramentos</span>
-          <span class="st">Disponível &nbsp;&rarr;</span>
-          <p class="ds">Campanhas de qualidade do ar avaliadas contra o padrão
-            legal vigente na data da coleta.</p>
-        </a>
-        <div class="item mudo">
-          <span class="nm">Documentos</span>
-          <span class="st">Em breve</span>
-          <p class="ds">Licenças, laudos e relatórios organizados por categoria,
-            com acesso controlado por usuário.</p>
-        </div>
-        <div class="item mudo">
-          <span class="nm">Áreas do empreendimento</span>
-          <span class="st">Em breve</span>
-          <p class="ds">Poligonais, áreas licenciadas e mapas — a geografia da
-            operação em um só lugar.</p>
-        </div>
-      </div>
-      <p class="nota-rodape">A Gestão Ambiental exige conexão: os dados são
-        consultados no momento em que você abre a tela.</p>
-    </section>
 
-    <p class="versao">portal 2026.08.07-f</p>
+        <p class="rot">No módulo</p>
+        <div class="razao">
+          <div class="item mudo">
+            <span class="pt"></span>
+            <span class="nm">Atendimentos</span>
+            <span class="st">Em breve</span>
+            <p class="ds">O que já foi atendido e o que está em atendimento,
+              condicionante por condicionante, com prazo e responsável.</p>
+          </div>
+          <a class="item" href="./monitoramento.html">
+            <span class="pt"></span>
+            <span class="nm">Monitoramentos</span>
+            <span class="st">Disponível &nbsp;&rarr;</span>
+            <p class="ds">Campanhas de qualidade do ar avaliadas contra o padrão
+              legal vigente na data da coleta.</p>
+          </a>
+          <div class="item mudo">
+            <span class="pt"></span>
+            <span class="nm">Documentos</span>
+            <span class="st">Em breve</span>
+            <p class="ds">Licenças, laudos e relatórios organizados por
+              categoria, com acesso controlado por usuário.</p>
+          </div>
+          <div class="item mudo">
+            <span class="pt"></span>
+            <span class="nm">Áreas do empreendimento</span>
+            <span class="st">Em breve</span>
+            <p class="ds">Poligonais, áreas licenciadas e mapas — a geografia da
+              operação em um só lugar.</p>
+          </div>
+        </div>
+        <p class="nota">A Gestão Ambiental consulta os dados no momento em que
+          você abre a tela, por isso precisa de internet.</p>
+      </section>
+    </div>
+
+    <p class="versao">portal 2026.08.07-g</p>
   </main>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// A anon key é pública por design — o que protege os dados é o RLS no banco.
-// É a MESMA do index.html: a sessão criada aqui vale lá, sem segundo login.
+/* MESMA URL, MESMA CHAVE e — o ponto crítico — MESMA storageKey do
+   index.html. O supabase-js guarda a sessão sob essa chave: se as duas
+   páginas usam chaves diferentes, cada uma tem sua própria gaveta e o
+   cliente é obrigado a fazer login duas vezes. Foi exatamente o bug
+   relatado em 07/08/2026. NÃO ALTERAR sem alterar o index junto. */
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    storageKey: 'mapabase-auth'
+  }
+});
 
 const $ = id => document.getElementById(id);
 const ver = tela => {
@@ -355,18 +452,29 @@ async function boot() {
     if (data && data.session) { abrir(data.session.user); return; }
   } catch (e) { /* sem rede: o service worker devolve as Inspeções offline */ }
   ver('login');
+  const e = $('email'); if (e) setTimeout(() => e.focus(), 120);
 }
 $('entrar').onclick = async () => {
-  const email = $('email').value.trim(), senha = $('senha').value, erro = $('erro');
+  const email = $('email').value.trim(), senha = $('senha').value;
+  const erro = $('erro'), btn = $('entrar');
   erro.style.display = 'none';
   if (!email || !senha) { erro.textContent = 'Informe o e-mail e a senha.'; erro.style.display = 'block'; return; }
-  $('entrar').disabled = true;
+  btn.disabled = true; btn.classList.add('carregando');
+  btn.querySelector('.tx').textContent = 'Entrando…';
   const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
-  $('entrar').disabled = false;
-  if (error) { erro.textContent = 'E-mail ou senha incorretos.'; erro.style.display = 'block'; return; }
+  btn.disabled = false; btn.classList.remove('carregando');
+  btn.querySelector('.tx').textContent = 'Entrar no Portal';
+  if (error) {
+    erro.textContent = 'E-mail ou senha incorretos. Verifique e tente novamente.';
+    erro.style.display = 'block';
+    $('senha').focus(); $('senha').select();
+    return;
+  }
   abrir(data.user);
 };
-$('senha').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar').click(); });
+['email','senha'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); id === 'email' ? $('senha').focus() : $('entrar').click(); }
+}));
 $('sair').onclick = async () => { await sb.auth.signOut(); ver('login'); };
 window.aba = function(q) {
   $('ab-i').classList.toggle('on', q === 'i');
