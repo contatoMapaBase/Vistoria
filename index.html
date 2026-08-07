@@ -1450,7 +1450,10 @@
     <div style="margin-bottom: 24px;">
       <img src="./LOGO_VERT.png" alt="MapaBase" style="max-width:210px; width:70%; height:auto; margin:0 auto; display:block;">
     </div>
-    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:24px;">Portal MapaBase · Inspeções Ambientais</p>
+    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:6px;">Inspeções Ambientais · Acesso direto</p>
+    <p id="login-dica-portal" style="font-size:12.5px;color:var(--ink-faint);margin-bottom:22px;display:none;">
+      Com internet, entre pelo <a href="./portal.html" style="color:var(--accent);font-weight:600;">Portal MapaBase</a>.
+    </p>
     <div class="field" style="text-align:left;">
       <label class="field-label">E-mail Corporativo</label>
       <input type="email" id="login-email" placeholder="nome@mapabase.com.br">
@@ -1496,7 +1499,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-i';
+const APP_VERSION = '2026.08.07-j';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -9545,6 +9548,13 @@ async function checkAuth() {
     location.replace('./portal.html');
   };
 
+  // Se esta tela aparecer com internet, aponta o caminho certo em vez de
+  // competir com o Portal.
+  try {
+    const dica = document.getElementById('login-dica-portal');
+    if (dica && navigator.onLine) dica.style.display = 'block';
+  } catch (e) {}
+
   if (session) {
     state.usuarioId = (session.user && session.user.id) || null;
     await marcarAcessoValido(session.user && session.user.email);
@@ -9620,10 +9630,14 @@ async function revalidarSessao() {
 }
 
 document.getElementById('btn-logout').onclick = async () => {
-  if (_supabase) { 
-    await _supabase.auth.signOut(); 
-    window.location.reload(); 
-  }
+  if (!_supabase) return;
+  await _supabase.auth.signOut();
+  /* A tela de login DESTA página é só o último recurso offline. Sair leva ao
+     Portal, que é a porta única da plataforma. Limpo a marca anti-laço, senão
+     ela suprimiria o desvio logo depois do logout. */
+  try { sessionStorage.removeItem('mb:bounce'); } catch (e) {}
+  if (navigator.onLine) { window.location.replace('./portal.html'); return; }
+  window.location.reload();   // offline: cai no acesso offline desta página
 };
 
 /* ============================================================

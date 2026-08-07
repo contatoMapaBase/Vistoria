@@ -4635,6 +4635,13 @@ async function checkAuth() {
     return;
   }
 
+  /* Sem sessão: quem faz login é o Portal. Esta página é online-only, então não
+     há caso offline a atender aqui — e manter uma terceira tela de login
+     significava três telas para o mesmo sistema, cada uma envelhecendo por
+     conta própria. */
+  window.location.replace('./portal.html');
+  return;
+
   document.getElementById('btn-entrar').onclick = async () => {
     const email = document.getElementById('login-email').value;
     const pass = document.getElementById('login-pass').value;
@@ -4650,7 +4657,11 @@ async function checkAuth() {
 }
 
 document.getElementById('btn-logout').onclick = async () => {
-  if (_supabase) { await _supabase.auth.signOut(); window.location.href = './index.html'; }
+  if (!_supabase) return;
+  await _supabase.auth.signOut();
+  // Sair leva ao Portal, não ao módulo de Inspeções nem à tela de login local.
+  try { sessionStorage.removeItem('mb:bounce'); } catch (e) {}
+  window.location.replace('./portal.html');
 };
 
 // Fecha qualquer dropdown aberto ao clicar fora dele.
