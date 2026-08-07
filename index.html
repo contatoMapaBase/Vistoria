@@ -1450,7 +1450,7 @@
     <div style="margin-bottom: 24px;">
       <img src="./LOGO_VERT.png" alt="MapaBase" style="max-width:210px; width:70%; height:auto; margin:0 auto; display:block;">
     </div>
-    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:24px;">Acesso restrito · Equipe de inspeção</p>
+    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:24px;">Portal MapaBase · Inspeções Ambientais</p>
     <div class="field" style="text-align:left;">
       <label class="field-label">E-mail Corporativo</label>
       <input type="email" id="login-email" placeholder="nome@mapabase.com.br">
@@ -1495,7 +1495,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-a';
+const APP_VERSION = '2026.08.07-b';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -9436,12 +9436,31 @@ async function checkAuth() {
     console.warn('getSession falhou (provavelmente sem rede):', e);
   }
   
+  /* O Portal e a porta de entrada da plataforma; o index e o MODULO de
+     Inspecoes. Tres excecoes mantem o campo intocado:
+       - app instalado (PWA): abre direto nas Inspecoes, como sempre;
+       - offline: portal e online-only, o fluxo offline continua aqui;
+       - veio do portal (?m=1): ja passou pelas abas, entra direto. */
+  const veioDoPortal = new URLSearchParams(location.search).has('m');
+  const appInstalado = (window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+                       || navigator.standalone === true;
+
   if (session) {
     state.usuarioId = (session.user && session.user.id) || null;
     await marcarAcessoValido(session.user && session.user.email);
+    if (navigator.onLine && !veioDoPortal && !appInstalado) {
+      location.replace('./portal.html');
+      return;
+    }
     state.modoOffline = false;
     loginScreen.style.display = 'none';
     iniciarApp(); 
+    return;
+  }
+
+  // Sem sessao e com internet: quem faz login e o Portal.
+  if (navigator.onLine && !appInstalado) {
+    location.replace('./portal.html');
     return;
   }
 

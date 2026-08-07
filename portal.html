@@ -102,6 +102,29 @@
     color: var(--ink-soft);
   }
   .sair:hover { border-color: var(--ink-faint); }
+  .abas {
+    display: flex; gap: 4px; padding: 4px;
+    background: var(--surface-2); border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .aba {
+    flex: 1; border: 0; cursor: pointer; border-radius: 999px;
+    padding: 10px 14px; font-family: var(--font-body);
+    font-size: 13.5px; font-weight: 600; color: var(--ink-soft);
+    background: transparent; transition: background .12s, color .12s;
+  }
+  .aba.ativa { background: var(--surface); color: var(--ink);
+    box-shadow: 0 1px 3px rgba(20,30,45,.10); }
+  .modulo.destaque { border-color: var(--accent); }
+  .tag-modo {
+    display: inline-block; margin-top: 12px;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em;
+    border-radius: 999px; padding: 3px 10px; text-transform: uppercase;
+  }
+  .tag-modo.online-off { background: #eef7e6; color: #3B6D11; }
+  .aviso-online {
+    margin: 16px 0 0; font-size: 12px; color: var(--ink-faint); text-align: center;
+  }
   #tela-modulos, #carregando { display: none; }
   #carregando { text-align: center; color: #fff; font-size: 14px; }
 </style>
@@ -122,27 +145,55 @@
   <div class="erro" id="erro"></div>
 </div>
 
-<!-- MÓDULOS -->
+<!-- MÓDULOS: duas abas fixas da plataforma -->
 <div class="caixa larga" id="tela-modulos">
   <img class="logo" src="./LOGO_VERT.png" alt="MapaBase" style="max-width:160px;">
   <p class="ola">Bem-vindo, <strong id="quem">…</strong></p>
-  <div class="modulos">
-    <a class="modulo" href="./index.html">
-      <div class="ic">📋</div>
-      <h2>Inspeções Ambientais</h2>
-      <p>Check-lists de campo, histórico, ranking IGD, mapa e evolução.
-         Funciona offline no aparelho da equipe.</p>
-    </a>
-    <div class="modulo desativado" aria-disabled="true">
-      <div class="ic">🗂</div>
-      <h2>Gestão Ambiental</h2>
-      <p>Monitoramentos em andamento, documentos, geometrias e mapas
-         do seu empreendimento.</p>
-      <span class="tag-breve">Em desenvolvimento</span>
-    </div>
+
+  <div class="abas" role="tablist">
+    <button class="aba ativa" id="aba-insp" role="tab" onclick="trocarAba('insp')">📋 Inspeções Ambientais</button>
+    <button class="aba" id="aba-gest" role="tab" onclick="trocarAba('gest')">🗂 Gestão Ambiental</button>
   </div>
+
+  <!-- ABA 1: Inspeções — módulo de campo, funciona offline -->
+  <div class="painel" id="painel-insp">
+    <a class="modulo destaque" href="./index.html?m=1">
+      <div class="ic">📋</div>
+      <h2>Abrir Inspeções</h2>
+      <p>Check-lists de campo, histórico, lixeira com auditoria, ranking IGD,
+         mapa com poligonais e evolução do desempenho.</p>
+      <span class="tag-modo online-off">Funciona offline no aparelho da equipe</span>
+    </a>
+  </div>
+
+  <!-- ABA 2: Gestão — módulo de escritório, apenas online -->
+  <div class="painel" id="painel-gest" style="display:none;">
+    <div class="modulos">
+      <a class="modulo" href="./monitoramento.html">
+        <div class="ic">📈</div>
+        <h2>Monitoramentos</h2>
+        <p>Campanhas de qualidade do ar, resultados avaliados contra o padrão
+           legal vigente e importação de laudos.</p>
+      </a>
+      <div class="modulo desativado" aria-disabled="true">
+        <div class="ic">📄</div>
+        <h2>Documentos</h2>
+        <p>Licenças, laudos e relatórios do seu empreendimento, organizados
+           por categoria.</p>
+        <span class="tag-breve">Em desenvolvimento</span>
+      </div>
+      <div class="modulo desativado" aria-disabled="true">
+        <div class="ic">🗺</div>
+        <h2>Geometrias e Mapas</h2>
+        <p>Poligonais (KML), áreas licenciadas e mapas do empreendimento.</p>
+        <span class="tag-breve">Em desenvolvimento</span>
+      </div>
+    </div>
+    <p class="aviso-online">A Gestão Ambiental funciona apenas com internet.</p>
+  </div>
+
   <div class="rodape">
-    <span class="versao" id="versao">portal 2026.08.07-a</span>
+    <span class="versao" id="versao">portal 2026.08.07-b</span>
     <button class="sair" id="sair">Sair</button>
   </div>
 </div>
@@ -204,6 +255,13 @@ $('senha').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar')
 $('sair').onclick = async () => {
   await sb.auth.signOut();
   mostrar('login');
+};
+
+window.trocarAba = function(qual) {
+  document.getElementById('aba-insp').classList.toggle('ativa', qual === 'insp');
+  document.getElementById('aba-gest').classList.toggle('ativa', qual === 'gest');
+  document.getElementById('painel-insp').style.display = qual === 'insp' ? 'block' : 'none';
+  document.getElementById('painel-gest').style.display = qual === 'gest' ? 'block' : 'none';
 };
 
 boot();
