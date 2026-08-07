@@ -3,315 +3,307 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portal MapaBase — Gestão Ambiental</title>
+<title>Portal MapaBase</title>
 <link rel="icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
-     PORTAL MAPABASE — escrito para quem paga a conta: o gestor
-     ambiental do cliente (agro, mineração, indústria). Ele quer
-     saber o que consegue FAZER e o que consegue VER — não como o
-     sistema é construído. Linhas de aplicação, não cartões de
-     slide. Mobile primeiro: tudo empilha sem perder hierarquia.
+     PORTAL MAPABASE
+     Direção: o documento técnico. Compliance ambiental é registro
+     — então o portal se parece com um documento bem composto, não
+     com um slide: tinta sobre papel, réguas de 1px em vez de
+     caixas, monoespaçada reservada a dado e status.
+     Sem caixa-alta condensada. Sem ícone em quadrado tingido.
+     Sem bullet com check. O verde aparece uma vez, como ponto.
      ============================================================ */
   :root {
-    --noite:   #1B2838;
-    --noite-2: #22314A;
-    --papel:   #F4F6F3;
-    --surface: #FFFFFF;
-    --linha:   #DFE5E0;
-    --acento:  #78B448;
-    --musgo:   #3B6D11;
-    --tinta:   #1C2735;
-    --tinta-2: #4E5C71;
-    --tinta-3: #8892A2;
-    --display: "Barlow Condensed", sans-serif;
-    --corpo:   "Inter", system-ui, sans-serif;
-    --mono:    "IBM Plex Mono", monospace;
+    --tinta:   #14181C;
+    --tinta-2: #5A6570;
+    --tinta-3: #949CA4;
+    --papel:   #FBFBFA;
+    --papel-2: #F3F4F2;
+    --regua:   #E4E6E4;
+    --regua-2: #D2D6D2;
+    --breu:    #101418;   /* login */
+    --verde:   #2E5E20;   /* ações e texto de destaque */
+    --sinal:   #78B448;   /* SÓ o ponto de status */
+    --ui:   "Inter", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; font-family: var(--corpo); color: var(--tinta); background: var(--papel);
-    -webkit-font-smoothing: antialiased; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; font-family: var(--ui); color: var(--tinta);
+    background: var(--papel); -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility; }
   a { color: inherit; text-decoration: none; }
-  :focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  :focus-visible { outline: 1.5px solid var(--verde); outline-offset: 3px; }
 
-  /* ---------------- LOGIN ---------------- */
-  #tela-login { display: none; min-height: 100vh; min-height: 100dvh; }
-  #tela-login.on { display: grid; grid-template-columns: 1.1fr 1fr; }
+  .rot { font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em;
+    text-transform: uppercase; }
 
-  .marca {
-    position: relative; overflow: hidden;
-    background: linear-gradient(160deg, var(--noite-2) 0%, var(--noite) 60%);
-    color: #fff; display: flex; flex-direction: column; justify-content: space-between;
-    padding: clamp(24px, 4.5vw, 56px);
+  /* ======================= LOGIN ======================= */
+  #login { display: none; min-height: 100vh; min-height: 100dvh;
+    background: var(--breu); color: #EDEEEC;
+    align-items: center; justify-content: center; padding: 32px 24px; }
+  #login.on { display: flex; }
+  .lg { width: 100%; max-width: 348px; }
+  .lg-marca { display: flex; align-items: center; gap: 9px; margin-bottom: 52px; }
+  .lg-marca img { height: 26px; filter: brightness(0) invert(1); opacity: .92; }
+  .lg-marca .pt { width: 5px; height: 5px; border-radius: 50%; background: var(--sinal); }
+  .lg-marca .nm { font-size: 12.5px; font-weight: 500; letter-spacing: -.005em;
+    color: rgba(237,238,236,.55); }
+  .lg h1 { font-size: 25px; font-weight: 550; letter-spacing: -.026em;
+    line-height: 1.25; margin: 0 0 8px; }
+  .lg .sub { font-size: 13.5px; line-height: 1.6; color: rgba(237,238,236,.48);
+    margin: 0 0 34px; }
+  .lg label { display: block; font-size: 12px; font-weight: 500;
+    color: rgba(237,238,236,.62); margin: 0 0 7px; }
+  .lg .campo + .campo { margin-top: 16px; }
+  .lg input {
+    width: 100%; padding: 11px 13px; font-family: inherit; font-size: 16px;
+    color: #EDEEEC; background: rgba(255,255,255,.035);
+    border: 1px solid rgba(255,255,255,.13); border-radius: 7px;
+    transition: border-color .14s, background .14s;
   }
-  .curvas { position: absolute; inset: 0; pointer-events: none; }
-  .curvas path { fill: none; stroke: var(--acento); stroke-width: 1.2; }
-  .marca .topo img { height: 44px; width: auto; display: block;
-    filter: brightness(0) invert(1); opacity: .95; }
-  .marca h1 {
-    font-family: var(--display); font-weight: 700; text-transform: uppercase;
-    font-size: clamp(40px, 6vw, 76px); line-height: .95; letter-spacing: .01em; margin: 0;
+  .lg input::placeholder { color: rgba(237,238,236,.26); }
+  .lg input:focus { outline: none; border-color: rgba(120,180,72,.6);
+    background: rgba(255,255,255,.06); }
+  .lg .entrar {
+    width: 100%; margin-top: 26px; padding: 12px;
+    border: 0; border-radius: 7px; cursor: pointer;
+    background: #EDEEEC; color: var(--breu);
+    font-family: inherit; font-size: 14px; font-weight: 550; letter-spacing: -.006em;
+    transition: opacity .14s;
   }
-  .marca h1 .fina { display: block; font-weight: 500; font-size: .4em;
-    letter-spacing: .18em; color: rgba(255,255,255,.55); margin-bottom: 10px; }
-  .marca h1 .verde { color: var(--acento); }
-  .marca .frase { margin: 16px 0 0; max-width: 42ch;
-    font-size: 14.5px; line-height: 1.65; color: rgba(255,255,255,.72); }
-  .marca .pe { font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
-    color: rgba(255,255,255,.35); }
+  .lg .entrar:hover { opacity: .88; }
+  .lg .entrar:disabled { opacity: .45; cursor: wait; }
+  .lg .erro { display: none; margin-top: 16px; padding: 10px 12px;
+    border-left: 2px solid #E06A5C; background: rgba(224,106,92,.09);
+    font-size: 12.5px; line-height: 1.55; color: #F0B3AA; }
+  .lg .pe { margin: 40px 0 0; padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,.09);
+    font-size: 12px; line-height: 1.6; color: rgba(237,238,236,.34); }
 
-  .painel-form { display: flex; align-items: center; justify-content: center;
-    padding: clamp(28px, 6vw, 48px) 22px; }
-  .form-caixa { width: 100%; max-width: 380px; }
-  .cume { font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--musgo); margin: 0 0 6px; }
-  .form-caixa h2 { font-family: var(--display); text-transform: uppercase;
-    letter-spacing: .03em; font-size: 34px; font-weight: 600; margin: 0 0 24px; }
-  label { display: block; font-size: 12.5px; font-weight: 600; color: var(--tinta-2); margin: 16px 0 6px; }
-  input { width: 100%; padding: 13px 15px; font-family: inherit; font-size: 16px;
-    border: 1px solid var(--linha); border-radius: 10px;
-    background: var(--surface); color: var(--tinta);
-    transition: border-color .15s, box-shadow .15s; }
-  input:focus { outline: none; border-color: var(--acento); box-shadow: 0 0 0 3px rgba(120,180,72,.15); }
-  .btn { width: 100%; margin-top: 24px; padding: 14px;
-    border: 0; border-radius: 10px; cursor: pointer;
-    background: var(--acento); color: #fff;
-    font-family: inherit; font-size: 15px; font-weight: 600;
-    transition: background .12s, transform .06s; }
-  .btn:hover { background: var(--musgo); }
-  .btn:active { transform: translateY(1px); }
-  .btn:disabled { opacity: .6; cursor: wait; }
-  .erro { display: none; margin-top: 16px; padding: 12px 14px;
-    background: #fdecea; color: #b3261e; border-radius: 10px;
-    font-size: 13px; line-height: 1.5; }
-  .nota-offline { margin-top: 22px; font-size: 12px; color: var(--tinta-3); line-height: 1.6; }
+  /* ======================= APP ======================= */
+  #app { display: none; }
+  #app.on { display: block; }
 
-  /* ---------------- APP (pós-login) ---------------- */
-  #tela-modulos { display: none; min-height: 100vh; }
-  #tela-modulos.on { display: block; }
-
-  .barra { background: var(--noite); color: #fff;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 12px clamp(16px, 4vw, 40px);
+  .top { border-bottom: 1px solid var(--regua); background: var(--papel);
     position: sticky; top: 0; z-index: 10; }
-  .barra img { height: 32px; filter: brightness(0) invert(1); }
-  .barra .dir { display: flex; align-items: center; gap: 12px; min-width: 0; }
-  .barra .quem { font-family: var(--mono); font-size: 11.5px; color: rgba(255,255,255,.6);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42vw; }
-  .sair { background: none; border: 1px solid rgba(255,255,255,.25); border-radius: 8px;
-    color: #fff; padding: 6px 14px; font-family: inherit; font-size: 12px;
-    cursor: pointer; transition: border-color .12s, background .12s; flex: none; }
-  .sair:hover { border-color: var(--acento); background: rgba(120,180,72,.12); }
+  .top .in { max-width: 760px; margin: 0 auto; padding: 15px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .top .esq { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .top img { height: 22px; }
+  .top .pt { width: 5px; height: 5px; border-radius: 50%; background: var(--sinal); flex: none; }
+  .top .quem { font-family: var(--mono); font-size: 11px; color: var(--tinta-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sair { background: none; border: 0; cursor: pointer; padding: 4px 0;
+    font-family: var(--ui); font-size: 12.5px; color: var(--tinta-2);
+    border-bottom: 1px solid var(--regua-2); transition: color .14s, border-color .14s; }
+  .sair:hover { color: var(--tinta); border-color: var(--tinta); }
 
-  /* Faixa de contexto: o nome da casa, com as curvas da marca. */
-  .faixa { position: relative; overflow: hidden;
-    background: linear-gradient(150deg, var(--noite-2), var(--noite));
-    color: #fff; padding: clamp(22px, 4vw, 36px) clamp(16px, 4vw, 40px); }
-  .faixa .cume { color: var(--acento); }
-  .faixa h1 { font-family: var(--display); text-transform: uppercase;
-    font-size: clamp(28px, 4.5vw, 40px); font-weight: 700; letter-spacing: .02em; margin: 0; }
-  .faixa p { margin: 8px 0 0; font-size: 13px; color: rgba(255,255,255,.65);
-    max-width: 60ch; line-height: 1.6; }
+  .corpo { max-width: 760px; margin: 0 auto; padding: 52px 24px 88px; }
+  .corpo > .rot { color: var(--tinta-3); }
+  .corpo h1 { font-size: 30px; font-weight: 550; letter-spacing: -.028em;
+    line-height: 1.2; margin: 10px 0 10px; }
+  .corpo .tese { font-size: 15px; line-height: 1.65; color: var(--tinta-2);
+    max-width: 56ch; margin: 0; }
 
-  .conteudo { max-width: 860px; margin: 0 auto; padding: 22px 16px 64px; }
+  /* Abas: régua com marcador, não pílula. */
+  .abas { display: flex; gap: 26px; margin: 40px 0 0;
+    border-bottom: 1px solid var(--regua); }
+  .aba { background: none; border: 0; cursor: pointer; padding: 0 0 13px;
+    font-family: var(--ui); font-size: 14px; font-weight: 500; letter-spacing: -.008em;
+    color: var(--tinta-3); position: relative; transition: color .14s; }
+  .aba:hover { color: var(--tinta-2); }
+  .aba.on { color: var(--tinta); font-weight: 550; }
+  .aba.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 1.5px; background: var(--tinta); }
 
-  .abas { display: flex; gap: 4px; padding: 4px;
-    background: #E6EBE4; border-radius: 12px; margin-bottom: 8px; }
-  .aba { flex: 1; border: 0; cursor: pointer; border-radius: 9px;
-    padding: 11px 10px; font-family: inherit;
-    font-size: 13.5px; font-weight: 600; color: var(--tinta-2);
-    background: transparent; transition: background .12s, color .12s; }
-  .aba.ativa { background: var(--surface); color: var(--tinta);
-    box-shadow: 0 1px 3px rgba(20,30,45,.12); }
+  .painel { padding-top: 30px; }
+  .painel .rot { color: var(--tinta-3); }
 
-  .intro { font-size: 13px; color: var(--tinta-2); line-height: 1.6;
-    margin: 14px 2px 18px; }
+  /* Ação primária: preta. Verde não é cor de botão. */
+  .acao { display: inline-flex; align-items: center; gap: 9px;
+    margin: 16px 0 42px; padding: 11px 18px; border-radius: 7px;
+    background: var(--tinta); color: var(--papel);
+    font-size: 13.5px; font-weight: 500; letter-spacing: -.006em;
+    transition: opacity .14s; }
+  .acao:hover { opacity: .86; }
+  .acao .fl { font-family: var(--mono); opacity: .55; }
+  .acao-nota { display: block; margin: -30px 0 42px;
+    font-size: 12px; color: var(--tinta-3); }
 
-  /* Linha de recurso: lê como aplicação, não como slide. */
-  .lista { display: flex; flex-direction: column; gap: 10px; }
-  .linha { display: flex; align-items: center; gap: 14px;
-    background: var(--surface); border: 1px solid var(--linha); border-radius: 12px;
-    padding: 15px 16px; transition: border-color .12s, box-shadow .12s; }
-  a.linha:hover { border-color: var(--acento); box-shadow: 0 6px 18px rgba(20,30,45,.08); }
-  .linha .icone { flex: none; width: 42px; height: 42px; border-radius: 10px;
-    background: rgba(120,180,72,.13); color: var(--musgo);
-    display: flex; align-items: center; justify-content: center; }
-  .linha .icone svg { width: 22px; height: 22px; }
-  .linha .tx { min-width: 0; flex: 1; }
-  .linha h3 { font-family: var(--display); text-transform: uppercase;
-    letter-spacing: .04em; font-size: 18px; font-weight: 600; margin: 0; }
-  .linha p { margin: 3px 0 0; font-size: 12.5px; color: var(--tinta-2); line-height: 1.5; }
-  .linha .seta { flex: none; color: var(--musgo); font-weight: 700; }
-  .linha.desativada { background: transparent; }
-  .linha.desativada .icone { background: #E6EBE4; color: var(--tinta-3); }
-  .linha.desativada h3 { color: var(--tinta-3); }
-  .linha.desativada p { color: var(--tinta-3); }
-  .chip { flex: none; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
-    text-transform: uppercase; border-radius: 999px; padding: 4px 10px;
-    background: #E6EBE4; color: var(--tinta-2); }
+  /* O livro-razão: réguas, não caixas. */
+  .razao { border-top: 1px solid var(--regua); }
+  .item { display: grid; grid-template-columns: 1fr auto; gap: 6px 20px;
+    align-items: baseline; padding: 19px 4px 19px 16px;
+    border-bottom: 1px solid var(--regua); position: relative;
+    transition: background .14s; }
+  a.item:hover { background: var(--papel-2); }
+  .item::before { content: ''; position: absolute; left: 0; top: 50%;
+    transform: translateY(-50%); width: 5px; height: 5px; border-radius: 50%;
+    background: var(--regua-2); }
+  .item.viva::before { background: var(--sinal); }
+  .item .nm { font-size: 14.5px; font-weight: 500; letter-spacing: -.01em; }
+  a.item .nm { color: var(--verde); }
+  .item .st { font-family: var(--mono); font-size: 10px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--tinta-3); white-space: nowrap; }
+  .item .ds { grid-column: 1 / -1; font-size: 13px; line-height: 1.6;
+    color: var(--tinta-2); max-width: 62ch; margin: 0; }
+  .item.mudo .nm { color: var(--tinta-3); }
+  .item.mudo .ds { color: var(--tinta-3); }
 
-  /* O que o cliente encontra lá dentro: afirmações na voz dele. */
-  .capacidades { margin-top: 18px; display: grid; gap: 8px 22px; }
-  @media (min-width: 620px) { .capacidades { grid-template-columns: 1fr 1fr; } }
-  .cap { display: flex; gap: 10px; align-items: flex-start;
-    font-size: 13px; color: var(--tinta-2); line-height: 1.55; }
-  .cap svg { flex: none; width: 16px; height: 16px; color: var(--acento); margin-top: 2px; }
+  .nota-rodape { margin-top: 34px; font-size: 12.5px; line-height: 1.65;
+    color: var(--tinta-3); max-width: 58ch; }
+  .versao { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--regua);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--tinta-3); }
 
-  .rodape-versao { margin-top: 44px; font-family: var(--mono);
-    font-size: 11px; color: var(--tinta-3); }
-
-  #carregando { display: none; min-height: 100vh; align-items: center; justify-content: center;
-    background: var(--noite); color: rgba(255,255,255,.6); font-size: 14px; }
+  #carregando { display: none; min-height: 100vh; min-height: 100dvh;
+    align-items: center; justify-content: center; background: var(--breu);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .13em;
+    text-transform: uppercase; color: rgba(237,238,236,.4); }
   #carregando.on { display: flex; }
 
-  /* ---------------- MOBILE ---------------- */
-  @media (max-width: 820px) {
-    #tela-login.on { grid-template-columns: 1fr; }
-    .marca { min-height: 0; padding: 22px 20px; gap: 18px; }
-    .marca h1 { font-size: clamp(34px, 10vw, 48px); }
-    .marca .frase { font-size: 13px; }
-    .marca .pe { display: none; }
-    .linha { align-items: flex-start; }
-    .linha .seta { align-self: center; }
+  @media (max-width: 640px) {
+    .corpo { padding: 36px 20px 72px; }
+    .corpo h1 { font-size: 25px; }
+    .corpo .tese { font-size: 14px; }
+    .top .in { padding: 13px 20px; }
+    .top .quem { max-width: 38vw; }
+    .abas { gap: 20px; }
+    .aba { font-size: 13.5px; }
+    .item { padding-left: 14px; }
+    .item .st { grid-row: 1; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 
-<div id="carregando" class="on">Verificando sessão…</div>
+<div id="carregando" class="on">Verificando acesso</div>
 
 <!-- ===================== LOGIN ===================== -->
-<div id="tela-login">
-  <section class="marca">
-    <svg class="curvas" viewBox="0 0 900 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <path d="M-40,700 C160,620 240,760 430,690 C620,620 700,740 940,660" opacity=".13"/>
-      <path d="M-40,760 C180,680 260,820 450,750 C640,680 720,800 940,720" opacity=".09"/>
-      <path d="M-40,820 C200,740 280,880 470,810 C660,740 740,860 940,780" opacity=".06"/>
-      <path d="M-40,120 C140,180 320,60 520,130 C700,190 800,90 940,150" opacity=".10"/>
-    </svg>
-    <div class="topo"><img src="./LOGO_VERT.png" alt="MapaBase"></div>
-    <div>
-      <h1><span class="fina">Portal MapaBase</span>Gestão <span class="verde">Ambiental</span></h1>
-      <p class="frase">A conformidade do seu empreendimento, documentada:
-        inspeções, monitoramentos, documentos e áreas — em um só lugar.</p>
+<div id="login">
+  <div class="lg">
+    <div class="lg-marca">
+      <img src="./LOGO_VERT.png" alt="MapaBase">
+      <span class="pt"></span>
+      <span class="nm">Portal</span>
     </div>
-    <p class="pe">GOIÁS · BRASIL — 16°40'S 49°15'W</p>
-  </section>
+    <h1>Gestão ambiental documentada.</h1>
+    <p class="sub">Conformidade do seu empreendimento, do campo ao relatório.</p>
 
-  <section class="painel-form">
-    <div class="form-caixa">
-      <p class="cume">Acesso restrito</p>
-      <h2>Entrar</h2>
+    <div class="campo">
       <label for="email">E-mail</label>
       <input type="email" id="email" autocomplete="username" placeholder="seu@email.com">
-      <label for="senha">Senha</label>
-      <input type="password" id="senha" autocomplete="current-password" placeholder="Digite a senha">
-      <button class="btn" id="entrar">Entrar no Portal</button>
-      <div class="erro" id="erro"></div>
-      <p class="nota-offline">Em campo, sem internet? Abra o aplicativo de
-        Inspeções instalado no aparelho — ele funciona offline.</p>
     </div>
-  </section>
+    <div class="campo">
+      <label for="senha">Senha</label>
+      <input type="password" id="senha" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="entrar" id="entrar">Entrar</button>
+    <div class="erro" id="erro"></div>
+    <p class="pe">Em campo, sem internet: abra o aplicativo de Inspeções
+      instalado no aparelho. Ele funciona offline.</p>
+  </div>
 </div>
 
 <!-- ===================== APP ===================== -->
-<div id="tela-modulos">
-  <header class="barra">
-    <img src="./LOGO_VERT.png" alt="MapaBase">
-    <div class="dir">
-      <span class="quem" id="quem"></span>
+<div id="app">
+  <header class="top">
+    <div class="in">
+      <div class="esq">
+        <img src="./LOGO_VERT.png" alt="MapaBase">
+        <span class="pt"></span>
+        <span class="quem" id="quem"></span>
+      </div>
       <button class="sair" id="sair">Sair</button>
     </div>
   </header>
 
-  <div class="faixa">
-    <svg class="curvas" viewBox="0 0 900 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-      <path d="M-40,220 C160,160 300,260 520,200 C700,150 800,240 940,190" opacity=".12"/>
-      <path d="M-40,260 C180,200 320,300 540,240 C720,190 820,280 940,230" opacity=".07"/>
-    </svg>
-    <p class="cume">Portal MapaBase</p>
-    <h1>Gestão Ambiental</h1>
-    <p>Acompanhe a conformidade do seu empreendimento: o que está em dia,
-       o que está em atendimento e a evolução ao longo do tempo.</p>
-  </div>
+  <main class="corpo">
+    <p class="rot">Portal MapaBase</p>
+    <h1>Gestão ambiental</h1>
+    <p class="tese">O que está em conformidade, o que está em atendimento e como
+      o empreendimento evoluiu — com o registro de cada verificação.</p>
 
-  <main class="conteudo">
     <div class="abas" role="tablist">
-      <button class="aba ativa" id="aba-insp" role="tab" onclick="trocarAba('insp')">Inspeções Ambientais</button>
-      <button class="aba" id="aba-gest" role="tab" onclick="trocarAba('gest')">Gestão Ambiental</button>
+      <button class="aba on" id="ab-i" role="tab" onclick="aba('i')">Inspeções</button>
+      <button class="aba" id="ab-g" role="tab" onclick="aba('g')">Gestão</button>
     </div>
 
-    <!-- ABA 1 — a voz do cliente: o que ele FAZ e o que ele VÊ -->
-    <div id="painel-insp">
-      <p class="intro">Check-lists de conformidade no campo — os seus e os da
-        equipe MapaBase — com todo o histórico documentado.</p>
-      <div class="lista">
-        <a class="linha" href="./index.html?m=1">
-          <span class="icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="m9 13 2 2 4-4"/></svg></span>
-          <span class="tx">
-            <h3>Abrir Inspeções</h3>
-            <p>Funciona offline no aparelho — ideal para o campo.</p>
-          </span>
-          <span class="seta">→</span>
+    <!-- INSPEÇÕES -->
+    <section class="painel" id="pn-i">
+      <a class="acao" href="./index.html?m=1">Abrir Inspeções <span class="fl">→</span></a>
+      <span class="acao-nota">Funciona offline no aparelho — feito para o campo.</span>
+
+      <p class="rot">No módulo</p>
+      <div class="razao" style="margin-top:14px;">
+        <div class="item viva">
+          <span class="nm">Check-list de conformidade</span>
+          <span class="st">Disponível</span>
+          <p class="ds">Sua equipe registra a verificação das estruturas do
+            empreendimento, com foto e localização em cada item.</p>
+        </div>
+        <div class="item viva">
+          <span class="nm">Inspeções da MapaBase</span>
+          <span class="st">Disponível</span>
+          <p class="ds">As vistorias conduzidas pela nossa equipe técnica,
+            com as não conformidades apontadas e a recomendação de cada uma.</p>
+        </div>
+        <div class="item viva">
+          <span class="nm">Evolução e pontos de atenção</span>
+          <span class="st">Disponível</span>
+          <p class="ds">Como os indicadores caminharam entre campanhas, onde o
+            empreendimento está sólido e o que exige ação.</p>
+        </div>
+        <div class="item viva">
+          <span class="nm">Registro e rastreabilidade</span>
+          <span class="st">Disponível</span>
+          <p class="ds">Cada verificação fica documentada com autor, data e
+            evidência — pronta para apresentar ao órgão ambiental.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- GESTÃO -->
+    <section class="painel" id="pn-g" style="display:none;">
+      <p class="rot">No módulo</p>
+      <div class="razao" style="margin-top:14px;">
+        <div class="item mudo">
+          <span class="nm">Atendimentos</span>
+          <span class="st">Em breve</span>
+          <p class="ds">O que já foi atendido e o que está em atendimento,
+            condicionante por condicionante, com prazo e responsável.</p>
+        </div>
+        <a class="item viva" href="./monitoramento.html">
+          <span class="nm">Monitoramentos</span>
+          <span class="st">Disponível &nbsp;→</span>
+          <p class="ds">Campanhas de qualidade do ar avaliadas contra o padrão
+            legal vigente na data da coleta.</p>
         </a>
+        <div class="item mudo">
+          <span class="nm">Documentos</span>
+          <span class="st">Em breve</span>
+          <p class="ds">Licenças, laudos e relatórios organizados por categoria,
+            com acesso controlado por usuário.</p>
+        </div>
+        <div class="item mudo">
+          <span class="nm">Áreas do empreendimento</span>
+          <span class="st">Em breve</span>
+          <p class="ds">Poligonais, áreas licenciadas e mapas — a geografia da
+            operação em um só lugar.</p>
+        </div>
       </div>
-      <div class="capacidades">
-        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
-          Realize o check-list interno de conformidade das suas estruturas</div>
-        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
-          Acompanhe as inspeções realizadas pela equipe MapaBase</div>
-        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
-          Veja a evolução do empreendimento, pontos fortes e pontos de atenção</div>
-        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
-          Tudo documentado: fotos, localização e histórico de cada verificação</div>
-      </div>
-    </div>
+      <p class="nota-rodape">A Gestão exige conexão: os dados são consultados
+        no momento em que você abre a tela.</p>
+    </section>
 
-    <!-- ABA 2 — Gestão: o que foi atendido, o que está em atendimento -->
-    <div id="painel-gest" style="display:none;">
-      <p class="intro">A situação do seu empreendimento fora do campo: o que já
-        foi atendido, o que está em atendimento, documentos e áreas.</p>
-      <div class="lista">
-        <div class="linha desativada" aria-disabled="true">
-          <span class="icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="m3 6 1 1 2-2"/><path d="m3 12 1 1 2-2"/><circle cx="4" cy="18" r="1.2"/></svg></span>
-          <span class="tx">
-            <h3>Atendimentos</h3>
-            <p>O que já foi atendido e o que está em atendimento, item a item.</p>
-          </span>
-          <span class="chip">Em desenvolvimento</span>
-        </div>
-        <a class="linha" href="./monitoramento.html">
-          <span class="icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg></span>
-          <span class="tx">
-            <h3>Monitoramentos</h3>
-            <p>Qualidade do ar campanha a campanha, avaliada contra o padrão legal.</p>
-          </span>
-          <span class="seta">→</span>
-        </a>
-        <div class="linha desativada" aria-disabled="true">
-          <span class="icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
-          <span class="tx">
-            <h3>Documentos</h3>
-            <p>Licenças, laudos e relatórios do empreendimento, por categoria.</p>
-          </span>
-          <span class="chip">Em desenvolvimento</span>
-        </div>
-        <div class="linha desativada" aria-disabled="true">
-          <span class="icone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 3 5.5v15L9 18l6 2.5 6-2.5v-15L15 5.5 9 3Z"/><path d="M9 3v15M15 5.5v15"/></svg></span>
-          <span class="tx">
-            <h3>Áreas do Empreendimento</h3>
-            <p>Poligonais, áreas licenciadas e mapas — a geografia da sua operação.</p>
-          </span>
-          <span class="chip">Em desenvolvimento</span>
-        </div>
-      </div>
-    </div>
-
-    <p class="rodape-versao">portal 2026.08.07-d</p>
+    <p class="versao">portal 2026.08.07-e</p>
   </main>
 </div>
 
@@ -324,41 +316,39 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = id => document.getElementById(id);
-const mostrar = tela => {
+const ver = tela => {
   $('carregando').classList.remove('on');
-  $('tela-login').classList.toggle('on', tela === 'login');
-  $('tela-modulos').classList.toggle('on', tela === 'modulos');
+  $('login').classList.toggle('on', tela === 'login');
+  $('app').classList.toggle('on', tela === 'app');
 };
-function abrirModulos(user) {
+function abrir(user) {
   $('quem').textContent = (user && user.email) || '';
-  mostrar('modulos');
+  ver('app');
 }
 async function boot() {
   try {
     const { data } = await sb.auth.getSession();
-    if (data && data.session) { abrirModulos(data.session.user); return; }
+    if (data && data.session) { abrir(data.session.user); return; }
   } catch (e) { /* sem rede: o service worker devolve as Inspeções offline */ }
-  mostrar('login');
+  ver('login');
 }
 $('entrar').onclick = async () => {
-  const email = $('email').value.trim();
-  const senha = $('senha').value;
-  const erro = $('erro');
+  const email = $('email').value.trim(), senha = $('senha').value, erro = $('erro');
   erro.style.display = 'none';
-  if (!email || !senha) { erro.textContent = 'Preencha e-mail e senha.'; erro.style.display = 'block'; return; }
+  if (!email || !senha) { erro.textContent = 'Informe o e-mail e a senha.'; erro.style.display = 'block'; return; }
   $('entrar').disabled = true;
   const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
   $('entrar').disabled = false;
-  if (error) { erro.textContent = 'Falha no login. Verifique o e-mail e a senha.'; erro.style.display = 'block'; return; }
-  abrirModulos(data.user);
+  if (error) { erro.textContent = 'E-mail ou senha incorretos.'; erro.style.display = 'block'; return; }
+  abrir(data.user);
 };
 $('senha').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar').click(); });
-$('sair').onclick = async () => { await sb.auth.signOut(); mostrar('login'); };
-window.trocarAba = function(qual) {
-  $('aba-insp').classList.toggle('ativa', qual === 'insp');
-  $('aba-gest').classList.toggle('ativa', qual === 'gest');
-  $('painel-insp').style.display = qual === 'insp' ? 'block' : 'none';
-  $('painel-gest').style.display = qual === 'gest' ? 'block' : 'none';
+$('sair').onclick = async () => { await sb.auth.signOut(); ver('login'); };
+window.aba = function(q) {
+  $('ab-i').classList.toggle('on', q === 'i');
+  $('ab-g').classList.toggle('on', q === 'g');
+  $('pn-i').style.display = q === 'i' ? 'block' : 'none';
+  $('pn-g').style.display = q === 'g' ? 'block' : 'none';
 };
 boot();
 </script>
