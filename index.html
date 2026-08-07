@@ -1499,7 +1499,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-k';
+const APP_VERSION = '2026.08.07-o';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -1539,7 +1539,9 @@ const _supabase = (window.supabase && SUPABASE_URL)
       const req = indexedDB.open('MapaBaseDB', 1);
       req.onupgradeneeded = e => e.target.result.createObjectStore('store');
       req.onsuccess = e => { this.db = e.target.result; resolve(); };
-      req.onerror = e => reject(e);
+      /* Rejeitar com Error, não com o evento: o evento não tem .message, e era
+         daí que vinha a mensagem "Falha ao carregar: undefined". */
+      req.onerror = e => reject(new Error('IndexedDB open: ' + ((e.target && e.target.error && e.target.error.message) || 'indisponível')));
     });
   },
   async get(key) {
@@ -1549,7 +1551,7 @@ const _supabase = (window.supabase && SUPABASE_URL)
         const tx = this.db.transaction('store', 'readonly');
         const req = tx.objectStore('store').get(key);
         req.onsuccess = () => resolve(req.result);
-        req.onerror = e => reject(e);
+        req.onerror = () => reject(new Error('IndexedDB get: ' + ((req.error && req.error.message) || 'falhou')));
       });
     } catch(e) { return null; }
   },
@@ -1560,8 +1562,8 @@ const _supabase = (window.supabase && SUPABASE_URL)
         const tx = this.db.transaction('store', 'readwrite');
         tx.objectStore('store').put(val, key);
         tx.oncomplete = () => resolve(true);
-        tx.onerror = e => reject(e);
-        tx.onabort = e => reject(e);
+        tx.onerror = () => reject(new Error('IndexedDB put: ' + ((tx.error && tx.error.message) || 'falhou')));
+        tx.onabort  = () => reject(new Error('IndexedDB put abortado: ' + ((tx.error && tx.error.message) || 'cota cheia?')));
       });
     } catch(e) { return false; }
   },
@@ -1572,7 +1574,7 @@ const _supabase = (window.supabase && SUPABASE_URL)
         const tx = this.db.transaction('store', 'readwrite');
         tx.objectStore('store').delete(key);
         tx.oncomplete = () => resolve(true);
-        tx.onerror = e => reject(e);
+        tx.onerror = () => reject(new Error('IndexedDB delete: ' + ((tx.error && tx.error.message) || 'falhou')));
       });
     } catch(e) { return false; }
   }
@@ -5665,7 +5667,15 @@ async function loadVistoria(id) {
 
     if (_supabase && navigator.onLine) {
       const { data, error } = await _supabase.from('vistorias').select('*').eq('id', id).single();
-      
+
+      /* Guarda o motivo da falha para quem chamou poder mostrar na tela. Sem
+         isto, permissão negada e registro ausente eram indistinguíveis — e
+         ambos terminavam num console.warn que ninguém vê no celular. */
+      if (error) {
+        window._ultimoErroVistoria = error.message || error.code || 'erro desconhecido';
+        console.error('loadVistoria falhou para', id, error);
+      }
+
       if (!error && data) {
         let itensParsed = typeof data.itens === 'string' ? JSON.parse(data.itens) : data.itens;
         let gpsParsed  = typeof data.gps  === 'string' ? JSON.parse(data.gps)  : data.gps;
@@ -5689,7 +5699,13 @@ async function loadVistoria(id) {
           syncStatus: 'synced'
         };
         
-        await storageSet('vistoria:' + id, v);  
+        /* Guardar em cache é conveniência offline, NÃO requisito para exibir.
+           Antes, uma falha do IndexedDB (cota cheia, modo privado, aba em
+           outro contexto) derrubava a abertura do relatório mesmo com o dado
+           já em mãos — e a mensagem saía como "undefined", porque o
+           IndexedDB rejeita com um EVENTO, não com um Error. */
+        try { await storageSet('vistoria:' + id, v); }
+        catch (eCache) { console.warn('Cache local indisponível para', id, eCache); }
         return v;
       }
     }
@@ -5701,7 +5717,8 @@ async function loadVistoria(id) {
   } catch(e) {
     const local = await storageGet('vistoria:' + id);
     if (local) return local;
-    showToast('Falha ao carregar: ' + e.message);
+    showToast('Falha ao carregar: ' + (e && (e.message || e.code || e.name) || 'motivo desconhecido'));
+    console.error('loadVistoria catch:', id, e);
   }
   
   return null;
@@ -8442,10 +8459,22 @@ window.abrirVistoria = async function(id) {
     } else if (v) {
       showToast('O relatório foi baixado, mas a lista de perguntas está vazia.');
     } else {
-      console.warn('Ação interrompida: vistoria retornou null.');
+      // Antes isto era um console.warn: o toque no cartão simplesmente não
+      // fazia nada, sem explicação. Agora o motivo aparece.
+      const motivo = window._ultimoErroVistoria;
+      window._ultimoErroVistoria = null;
+      if (!navigator.onLine) {
+        showToast('Sem internet: este relatório não está guardado neste aparelho.');
+      } else if (motivo) {
+        showToast('Não foi possível abrir o relatório: ' + motivo);
+      } else {
+        showToast('Relatório não encontrado. Recarregue a página e tente de novo.');
+      }
+      console.warn('abrirVistoria: loadVistoria retornou null.', { id, motivo });
     }
   } catch (e) {
     showToast('Erro ao abrir tela: ' + e.message);
+    console.error('abrirVistoria:', e);
   }
 }
 
