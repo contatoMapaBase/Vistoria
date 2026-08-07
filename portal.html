@@ -301,9 +301,9 @@
   </div>
   <div class="lbox">
     <img class="logo" src="./LOGO_VERT.png" alt="MapaBase">
-    <span class="selo"><span class="pt"></span> Primeiro acesso</span>
+    <span class="selo"><span class="pt"></span> <span id="selo-senha">Primeiro acesso</span></span>
     <h1>Defina sua senha</h1>
-    <p class="sub">Escolha uma senha para entrar no Portal nas próximas vezes.</p>
+    <p class="sub" id="sub-senha">Escolha uma senha pessoal para entrar no Portal.</p>
 
     <div class="campo">
       <label for="np1">Nova senha</label>
@@ -436,7 +436,7 @@
       </section>
     </div>
 
-    <p class="versao">portal 2026.08.07-j</p>
+    <p class="versao">portal 2026.08.07-k</p>
   </main>
 </div>
 
@@ -499,6 +499,10 @@ $('salvar-senha').onclick = async () => {
     erro.style.display = 'block';
     return;
   }
+  /* Desmarca a senha provisória por FUNÇÃO, nunca por update direto em
+     `perfis`: uma policy de UPDATE ali permitiria ao cliente alterar o próprio
+     papel para admin. */
+  try { await sb.rpc('marcar_senha_definida'); } catch (e) {}
   // Limpa o token da URL para o link não ficar reutilizável no histórico.
   history.replaceState(null, '', location.pathname);
   abrir((data && data.user) || null);
@@ -507,13 +511,33 @@ function abrir(user) {
   $('quem').textContent = (user && user.email) || '';
   ver('app');
 }
+/* Duas portas levam à tela de senha:
+   1. link de convite/recuperação (token na URL);
+   2. perfis.senha_provisoria = true — o login foi criado manualmente por um
+      admin e a pessoa ainda não trocou. Este é o caminho principal, porque
+      não depende de e-mail funcionando. */
+async function precisaTrocarSenha() {
+  try {
+    const { data, error } = await sb.from('perfis')
+      .select('senha_provisoria').maybeSingle();
+    if (error) return false;              // sem perfil ainda: não bloqueia
+    return !!(data && data.senha_provisoria);
+  } catch (e) { return false; }
+}
+
 async function boot() {
   const tipo = tipoDoLink();
   try {
     const { data } = await sb.auth.getSession();
     if (data && data.session) {
-      // Veio de convite/recuperação: senha primeiro, portal depois.
-      if (tipo) { ver('senha'); setTimeout(() => $('np1').focus(), 150); return; }
+      if (tipo || await precisaTrocarSenha()) {
+        if (!tipo) {
+          $('selo-senha').textContent = 'Troca obrigatória';
+          $('sub-senha').textContent = 'A senha atual foi definida pela MapaBase. '
+            + 'Escolha uma senha pessoal para continuar.';
+        }
+        ver('senha'); setTimeout(() => $('np1').focus(), 150); return;
+      }
       abrir(data.session.user); return;
     }
   } catch (e) { /* sem rede: o service worker devolve as Inspeções offline */ }
@@ -535,6 +559,12 @@ $('entrar').onclick = async () => {
     erro.style.display = 'block';
     $('senha').focus(); $('senha').select();
     return;
+  }
+  if (await precisaTrocarSenha()) {
+    $('selo-senha').textContent = 'Troca obrigatória';
+    $('sub-senha').textContent = 'A senha atual foi definida pela MapaBase. '
+      + 'Escolha uma senha pessoal para continuar.';
+    ver('senha'); setTimeout(() => $('np1').focus(), 150); return;
   }
   abrir(data.user);
 };
