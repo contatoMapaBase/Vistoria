@@ -7,7 +7,7 @@
 <link rel="icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* ============================================================
      PORTAL MAPABASE
@@ -33,7 +33,7 @@
     --tinta-3:     #7A8798;
     --acento:      #78B448;
     --acento-esc:  #3B6D11;
-    --display: "Barlow Condensed", sans-serif;
+    --display: "Archivo", "Inter", sans-serif;
     --corpo:   "Inter", system-ui, -apple-system, sans-serif;
     --mono:    "IBM Plex Mono", ui-monospace, monospace;
     --raio: 16px;
@@ -80,8 +80,8 @@
     padding: 6px 14px; margin-bottom: 26px; }
   .lbox .selo .pt { width: 6px; height: 6px; border-radius: 50%;
     background: var(--acento); }
-  .lbox h1 { font-family: var(--display); text-transform: uppercase;
-    font-size: 40px; font-weight: 700; letter-spacing: .015em; line-height: .98;
+  .lbox h1 { font-family: var(--display);
+    font-size: 34px; font-weight: 600; letter-spacing: -.022em; line-height: 1.1;
     margin: 0 0 12px; color: var(--tinta); }
   .lbox h1 .v { color: var(--acento-esc); }
   .lbox .sub { font-size: 15px; line-height: 1.6; color: var(--tinta-2);
@@ -136,8 +136,8 @@
     border-bottom: 3px solid var(--acento); }
   .top .in { max-width: 1020px; margin: 0 auto; padding: 16px 32px;
     display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-  .top .logo { height: 48px; width: auto; display: block;
-    background: #fff; border-radius: 8px; padding: 6px 10px; }
+  .top .logo { height: 68px; width: auto; display: block;
+    background: #fff; border-radius: 10px; padding: 8px 14px; }
   .top .dir { display: flex; align-items: center; gap: 20px; min-width: 0; }
   .top .quem { font-family: var(--mono); font-size: 12.5px;
     color: rgba(255,255,255,.66); overflow: hidden;
@@ -149,11 +149,9 @@
   .sair:hover { border-color: var(--acento); background: rgba(120,180,72,.16); }
 
   .capa { background: var(--marinho); color: #fff; position: relative; overflow: hidden; }
-  .capa .in { max-width: 1020px; margin: 0 auto; padding: 44px 32px 40px; position: relative; }
+  .capa .in { max-width: 1020px; margin: 0 auto; padding: 30px 32px 28px; position: relative; }
   .capa .rot { color: var(--acento); }
-  .capa h1 { font-family: var(--display); text-transform: uppercase;
-    font-size: 46px; font-weight: 700; letter-spacing: .015em; line-height: 1;
-    margin: 12px 0 12px; }
+
   .capa p { font-size: 16.5px; line-height: 1.6; color: rgba(255,255,255,.76);
     max-width: 60ch; margin: 0; }
   .capa svg.curvas { position: absolute; inset: 0; width: 100%; height: 100%;
@@ -181,8 +179,8 @@
     border-left: 4px solid var(--acento); border-radius: 12px;
     padding: 22px 24px; margin-bottom: 34px; }
   .destaque .tx { flex: 1; min-width: 210px; }
-  .destaque h2 { font-family: var(--display); text-transform: uppercase;
-    font-size: 25px; font-weight: 600; letter-spacing: .02em; margin: 0 0 5px; }
+  .destaque h2 { font-family: var(--display);
+    font-size: 22px; font-weight: 600; letter-spacing: -.018em; margin: 0 0 5px; }
   .destaque p { font-size: 14.5px; color: var(--tinta-2); line-height: 1.55; margin: 0; }
   .acao { display: inline-flex; align-items: center; gap: 10px; flex: none;
     padding: 14px 26px; border-radius: 10px;
@@ -202,8 +200,8 @@
     background: var(--acento); grid-row: 1 / span 2; align-self: start;
     margin-top: 7px; }
   .item.mudo .pt { background: var(--linha-2); }
-  .item .nm { font-family: var(--display); text-transform: uppercase;
-    font-size: 21px; font-weight: 600; letter-spacing: .025em; }
+  .item .nm { font-family: var(--display);
+    font-size: 18.5px; font-weight: 600; letter-spacing: -.016em; }
   a.item .nm { color: var(--acento-esc); }
   .item.mudo .nm { color: var(--tinta-3); }
   .item .st { font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
@@ -229,10 +227,9 @@
     .lbox h1 { font-size: 32px; }
     .lbox .sub { font-size: 14.5px; }
     .top .in { padding: 12px 18px; gap: 12px; }
-    .top .logo { height: 38px; }
+    .top .logo { height: 50px; }
     .top .quem { display: none; }
-    .capa .in { padding: 30px 18px 28px; }
-    .capa h1 { font-size: 33px; }
+    .capa .in { padding: 22px 18px 20px; }
     .capa p { font-size: 15px; }
     .corpo { padding: 0 18px 76px; }
     .abas { gap: 5px; }
@@ -312,9 +309,9 @@
     </svg>
     <div class="in">
       <p class="rot">Portal MapaBase</p>
-      <h1>Gestão Ambiental</h1>
-      <p>O que está em conformidade, o que está em atendimento e como o
-        empreendimento evoluiu — com o registro de cada verificação.</p>
+      <p style="margin-top:10px;">O que está em conformidade, o que está em
+        atendimento e como o empreendimento evoluiu — com o registro de cada
+        verificação.</p>
     </div>
   </div>
 
@@ -414,7 +411,7 @@
       </section>
     </div>
 
-    <p class="versao">portal 2026.08.07-g</p>
+    <p class="versao">portal 2026.08.07-h</p>
   </main>
 </div>
 
