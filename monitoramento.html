@@ -1421,7 +1421,7 @@
     </div>
     <nav class="mainnav" id="mainnav"></nav>
     <div class="sidebar-foot">
-      <a class="link-app" href="./index.html">‹ Voltar às inspeções</a>
+      <a class="link-app" href="./portal.html">‹ Portal MapaBase</a>
       <div id="status-sync" style="margin-top:4px;">Verificando...</div>
       <button class="btn ghost sm" id="btn-logout" style="margin-top:12px;width:100%;color:var(--ink-soft);border:1px solid rgba(255,255,255,0.1);">Sair do Sistema</button>
     </div>
@@ -1443,7 +1443,18 @@
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
-const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const _supabase = (window.supabase && SUPABASE_URL) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    /* MESMA storageKey do portal.html e do index.html — obrigatório. Sem
+       ela, esta página guarda a sessão numa gaveta própria e o cliente que
+       entrou pelo Portal é obrigado a logar de novo aqui. Corrigido em
+       07/08/2026. NÃO alterar sem alterar as três páginas juntas. */
+    storageKey: 'mapabase-auth'
+  }
+}) : null;
 
 const SCHEMA_ACEITO = 'mapabase.monitoramento.v1';
 
@@ -4548,7 +4559,11 @@ function render() {
          <span class="ic">${ic[k] || ''}</span> ${VIEWS[k].label}</button>`
     : '';
   document.getElementById('mainnav').innerHTML = NAV_GRUPOS
-    .map(g => `<div class="nav-grupo">${esc(g.titulo)}</div>${g.abas.map(btn).join('')}`).join('');
+    .map(g => `<div class="nav-grupo">${esc(g.titulo)}</div>${g.abas.map(btn).join('')}`).join('')
+    /* Volta ao Portal no MENU: no celular a sidebar-foot está oculta, então
+       sem este item não existe caminho de volta. Mesma correção do index. */
+    + `<a class="navbtn" href="./portal.html" title="Voltar ao Portal MapaBase">
+         <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span> Portal</a>`;
 
   const mats = matrizesExistentes();
   if (state.matriz === null) state.matriz = mats.length === 1 ? mats[0] : '';
