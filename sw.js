@@ -23,7 +23,7 @@
    você não mexe em nada aqui.
    ============================================================ */
 
-const CACHE_VERSION = 'mapabase-v6';
+const CACHE_VERSION = 'mapabase-v7';
 
 /* Cache de tiles de satélite da aba Mapa. Deliberadamente SEM versão no nome:
    ele precisa sobreviver às publicações. Se os tiles ficassem no cache
@@ -86,7 +86,7 @@ function ehSupabase(url) {
    para uso offline). O aparelho do inspetor em campo nunca baixa esses
    arquivos: eles não estão em CORE_ASSETS e o service worker sai do caminho.
    Para acrescentar outra página de escritório no futuro, é só incluir aqui. */
-const PAGINAS_ESCRITORIO = ['/monitoramento.html'];
+const PAGINAS_ESCRITORIO = ['/monitoramento.html', '/portal.html'];
 
 function ehPaginaEscritorio(url) {
   return PAGINAS_ESCRITORIO.some(p => url.pathname.endsWith(p));

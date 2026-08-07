@@ -1302,6 +1302,41 @@
     /* A etiqueta de local nunca quebra no meio da sigla do estado. */
     .badge-local { white-space: nowrap; }
 
+    /* ===== ABAS DO HISTÓRICO (Check-lists | Lixeira) =======================
+       A lixeira deixou de ser um botão escondido no canto e virou aba visível:
+       auditoria de exclusão é recurso do produto, não porão. */
+    .seg-tabs {
+      display: inline-flex; gap: 4px; padding: 4px;
+      background: var(--surface-2); border-radius: 999px;
+      margin-bottom: 16px;
+    }
+    .seg-tab {
+      border: 0; cursor: pointer; border-radius: 999px;
+      padding: 8px 18px; font-family: var(--font-body);
+      font-size: 13.5px; font-weight: 600; color: var(--ink-soft);
+      background: transparent; display: inline-flex; align-items: center; gap: 7px;
+      transition: background .12s, color .12s;
+    }
+    .seg-tab.ativa { background: var(--surface); color: var(--ink);
+      box-shadow: 0 1px 3px rgba(20,30,45,.10); }
+    .seg-badge {
+      font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+      background: var(--brand); color: #fff; border-radius: 999px;
+      padding: 1px 8px; min-width: 20px; text-align: center;
+    }
+    .seg-tab.ativa .seg-badge { background: var(--accent); }
+
+    /* Contador de não lidas no item Notificações do menu. */
+    .nav-badge {
+      font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+      background: var(--nc, #C0392B); color: #fff; border-radius: 999px;
+      padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+    }
+
+    .notif-item { border-left: 3px solid transparent; }
+    .notif-item.nao-lida { border-left-color: var(--accent); background: var(--surface); }
+    .notif-item .quando { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+
     /* ===== EDITOR DE ESTRUTURA: cabeçalho do item ==========================
        O número do item é a POSIÇÃO na lista, não um campo gravado. Por isso é
        um input: digitar 2 move o item para a segunda posição e empurra os
@@ -1460,7 +1495,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.06-c';
+const APP_VERSION = '2026.08.07-a';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -3408,6 +3443,9 @@ const state = {
   bibliotecaSincronizadaEm: null,
   ultimoEnvioEm: null,
   verLixeira: false,
+  buscaLixeira: '',
+  notificacoes: [],
+  usuarioId: null,
   lixeira: [],
   evoCategoria: '',
   mapa: mapaEstadoInicial()
@@ -5318,7 +5356,8 @@ function render() {
     ncs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.5 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.5a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
     evolucao: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>',
     empreendimentos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01"/><path d="M10 21v-3.5h4V21"/></svg>',
-    estruturas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/></svg>'
+    estruturas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/></svg>',
+    notificacoes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
   };
   // O rótulo curto existe só para a barra inferior do celular: "Não
   // Conformidades" em item de 66px quebra em duas linhas e desalinha a fila.
@@ -5329,14 +5368,15 @@ function render() {
     { id: 'ncs',             label: 'Não Conformidades',  curto: 'NCs' },
     { id: 'evolucao',        label: 'Evolução',           curto: 'Evolução' },
     { id: 'empreendimentos', label: 'Empreendimentos',    curto: 'Empreend.' },
-    { id: 'estruturas',      label: 'Estruturas',         curto: 'Estruturas' }
+    { id: 'estruturas',      label: 'Estruturas',         curto: 'Estruturas' },
+    { id: 'notificacoes',    label: 'Notifica\u00e7\u00f5es',       curto: 'Avisos' }
   ];
   // Aba Mapa só existe se houver KML anexado a algum empreendimento.
   if (empsComPoligono().length) menu.splice(5, 0, { id: 'mapa', label: 'Mapa', curto: 'Mapa' });
   
   nav.innerHTML = menu.map(m => `
     <button class="navbtn ${state.view === m.id ? 'active' : ''}" onclick="setView('${m.id}')">
-      <span class="ic">${svgIc[m.id] || ''}</span><span class="nav-longo">${m.label}</span><span class="nav-curto">${m.curto || m.label}</span>
+      <span class="ic">${svgIc[m.id] || ''}</span><span class="nav-longo">${m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span><span class="nav-curto">${m.curto || m.label}${m.id === 'notificacoes' && notifNaoLidas() ? `<span class="nav-badge">${notifNaoLidas()}</span>` : ''}</span>
     </button>
   `).join('') + `
     <a class="navbtn externo" href="./monitoramento.html" onclick="return exigirInternet(event);">
@@ -5350,6 +5390,7 @@ function render() {
     'dashboard': { html: viewDashboard, bind: bindDashboard },
     'ranking': { html: viewRanking, bind: bindRanking },
     'vistorias': { html: viewVistorias, bind: bindVistorias },
+    'notificacoes': { html: viewNotificacoes, bind: bindNotificacoes },
     'vistoria-detalhe': { html: () => viewVistoriaDetalhe(), bind: bindVistoriaDetalhe },
     'ncs': { html: viewNcs, bind: bindNcs },
     'evolucao': { html: viewEvolucao, bind: bindEvolucao },
@@ -5686,7 +5727,14 @@ window.sincronizarPendentes = async function() {
         p.atualizadoEm = v.atualizadoEm || p.atualizadoEm;
 
         await storageSet('vistoria:' + v.id, v);
-        if (novoStatus === 'synced') successCount++;
+        if (novoStatus === 'synced') {
+          successCount++;
+          // Gatilho definido em reuni\u00e3o: aviso a cada check-list que chega \u00e0 nuvem.
+          criarNotificacao('vistoria_enviada',
+            `${v.estruturaNome || 'Check-list'} \u2014 ${v.empreendimentoNome || ''}`,
+            `Enviado \u00e0 nuvem com ${v.itens.length} itens${v.itens.filter(i => i.status === 'nc').length ? ` (${v.itens.filter(i => i.status === 'nc').length} NC)` : ''}.`,
+            v.id);
+        }
       }
     }
   }
@@ -8037,13 +8085,29 @@ function viewLixeira(lista) {
     const h = (Date.now() - new Date(iso)) / 36e5;
     return h < 1 ? 'há menos de 1 h' : h < 24 ? `há ${Math.floor(h)} h` : `há ${Math.floor(h/24)} dia(s)`;
   };
+  // Busca em memória: a lixeira raramente passa de dezenas de itens, então
+  // filtrar o array já carregado responde a "quem excluiu o quê e quando"
+  // sem nenhuma ida ao banco.
+  const busca = (state.buscaLixeira || '').trim().toLowerCase();
+  const filtrada = !busca ? ord : ord.filter(v =>
+    [v.estruturaNome, v.empreendimentoNome, v.excluidoPor, v.motivoExclusao,
+     fmtDate(v.excluidaEm), fmtDate(v.dataHora)]
+      .some(campo => campo && String(campo).toLowerCase().includes(busca)));
+
   return `
   <div class="view-head no-print">
     <div>
       <div class="eyebrow">Histórico</div>
       <h1 class="view-title">Lixeira</h1>
     </div>
-    <button class="btn ghost" onclick="alternarLixeira()">← Voltar ao histórico</button>
+  </div>
+  ${abasHistorico()}
+
+  <div class="card card-pad no-print" style="margin-bottom:16px;">
+    <input type="text" id="busca-lixeira" placeholder="Buscar por estrutura, empreendimento, quem excluiu, motivo ou data…"
+           value="${esc(state.buscaLixeira || '')}"
+           oninput="filtrarLixeira(this.value)" style="width:100%;box-sizing:border-box;">
+    ${busca ? `<div style="font-size:12px;color:var(--ink-soft);margin-top:8px;">${filtrada.length} de ${ord.length} registro(s) — <a href="#" onclick="filtrarLixeira('');return false;">limpar busca</a></div>` : ''}
   </div>
 
   <div class="card card-pad" style="margin-bottom:16px;border-left:3px solid var(--alta);">
@@ -8055,9 +8119,9 @@ function viewLixeira(lista) {
     </div>
   </div>
 
-  ${!ord.length ? `<div class="empty card"><div class="ic">🗑</div>A lixeira está vazia.</div>` : `
+  ${!filtrada.length ? `<div class="empty card"><div class="ic">🗑</div>${busca ? 'Nada na lixeira corresponde à busca.' : 'A lixeira está vazia.'}</div>` : `
   <div class="grid cols-2">
-    ${ord.map(v => `
+    ${filtrada.map(v => `
       <div class="visual-card">
         <div class="visual-card-body">
           <h3 class="visual-card-title">${esc(v.estruturaNome || 'Check-list')}</h3>
@@ -8096,11 +8160,11 @@ function viewVistorias() {
     </div>
     <div class="rowflex">
       ${temPendentes ? `<button class="btn ghost danger" onclick="sincronizarPendentes()">⏳ Sincronizar Pendentes</button>` : ''}
-      ${naLixeira.length ? `<button class="btn ghost" onclick="alternarLixeira()">🗑 Lixeira (${naLixeira.length})</button>` : ''}
       <button class="btn ghost" onclick="exportarBackup()">💾 Baixar backup</button>
       <label class="btn ghost" style="cursor:pointer;">↥ Restaurar backup<input type="file" id="backup-file" accept="application/json,.json" style="display:none;"></label>
     </div>
   </div>
+  ${abasHistorico()}
   ${renderFilterBar('hist')}`;
 
   if(filtradas.length === 0) {
@@ -8517,6 +8581,14 @@ window.deletarVistoriaAtual = async function() {
     const { error } = await _supabase.from('vistorias')
       .update({ excluida_em: quando, excluido_por: quem, motivo_exclusao: motivo.trim() }).eq('id', id);
     enviado = !error;
+    if (enviado) {
+      // Aviso local para quem excluiu. Quando `perfis` existir (funda\u00e7\u00e3o
+      // multi-cliente), um trigger no banco avisa tamb\u00e9m os administradores.
+      criarNotificacao('vistoria_excluida',
+        `${aberta.estruturaNome || 'Check-list'} \u2014 ${aberta.empreendimentoNome || ''}`,
+        `Exclu\u00edda por ${quem || 'usu\u00e1rio n\u00e3o identificado'}. Motivo: ${motivo.trim()}`,
+        id);
+    }
   }
   // Sem sinal, a exclusão fica pendente de envio. Sem esta marca, o merge da
   // nuvem devolveria a vistoria ao histórico na sincronização seguinte.
@@ -8580,7 +8652,104 @@ window.apagarDefinitivo = async function(id) {
   showToast('Apagado definitivamente.');
 };
 
-window.alternarLixeira = function() { state.verLixeira = !state.verLixeira; render(); };
+/* ============================================================
+   NOTIFICAÇÕES (v1: central no app + registro no banco)
+   A tabela `notificacoes` guarda o aviso por usuário; o e-mail
+   sai depois por Edge Function que lê email_status='pendente'.
+   Tudo aqui degrada em silêncio: sem rede ou sem a tabela (outro
+   ambiente), o app segue funcionando e o sino simplesmente não
+   acende — notificação nunca pode derrubar o fluxo de campo.
+   ============================================================ */
+async function carregarNotificacoes() {
+  if (!_supabase || !navigator.onLine || state.modoOffline) return;
+  try {
+    const { data, error } = await _supabase.from('notificacoes')
+      .select('id, tipo, titulo, corpo, referencia, lida_em, criada_em')
+      .order('criada_em', { ascending: false }).limit(80);
+    if (error) throw error;
+    state.notificacoes = data || [];
+    render();
+  } catch (e) { /* tabela ausente ou sem rede: sino fica quieto */ }
+}
+
+function notifNaoLidas() {
+  return (state.notificacoes || []).filter(n => !n.lida_em).length;
+}
+
+async function criarNotificacao(tipo, titulo, corpo, referencia) {
+  try {
+    if (!_supabase || !state.usuarioId || !navigator.onLine) return;
+    const { data, error } = await _supabase.from('notificacoes')
+      .insert({ user_id: state.usuarioId, tipo, titulo, corpo: corpo || null, referencia: referencia || null })
+      .select('id, tipo, titulo, corpo, referencia, lida_em, criada_em').single();
+    if (!error && data) { state.notificacoes.unshift(data); }
+  } catch (e) { /* nunca interrompe o fluxo por causa de aviso */ }
+}
+
+window.marcarNotificacoesLidas = async function() {
+  const ids = (state.notificacoes || []).filter(n => !n.lida_em).map(n => n.id);
+  if (!ids.length) return;
+  const agora = new Date().toISOString();
+  state.notificacoes.forEach(n => { if (!n.lida_em) n.lida_em = agora; });
+  render();
+  try {
+    if (_supabase && navigator.onLine) {
+      await _supabase.from('notificacoes').update({ lida_em: agora }).in('id', ids);
+    }
+  } catch (e) {}
+};
+
+function viewNotificacoes() {
+  const lista = state.notificacoes || [];
+  const rotuloTipo = { vistoria_enviada: '\u2705 Check-list enviado', vistoria_excluida: '\ud83d\uddd1 Vistoria exclu\u00edda' };
+  return `
+  <div class="view-head no-print">
+    <div>
+      <div class="eyebrow">Central</div>
+      <h1 class="view-title">Notifica\u00e7\u00f5es</h1>
+    </div>
+    ${notifNaoLidas() ? `<button class="btn ghost" onclick="marcarNotificacoesLidas()">Marcar todas como lidas</button>` : ''}
+  </div>
+  ${!lista.length ? `<div class="empty card"><div class="ic">\ud83d\udd14</div>Nenhuma notifica\u00e7\u00e3o por aqui ainda.<br>
+      <span style="font-size:12.5px;color:var(--ink-faint);">Envios de check-list e exclus\u00f5es aparecem nesta central.</span></div>` : `
+  <div class="card">
+    ${lista.map(n => `
+      <div class="notif-item ${n.lida_em ? '' : 'nao-lida'}" style="padding:14px 18px;border-bottom:1px solid var(--surface-2);">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <strong style="font-size:14px;">${rotuloTipo[n.tipo] || esc(n.tipo)}</strong>
+          <span class="quando">${fmtDate(n.criada_em)}</span>
+        </div>
+        <div style="font-size:13.5px;margin-top:4px;">${esc(n.titulo)}</div>
+        ${n.corpo ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5;">${esc(n.corpo)}</div>` : ''}
+      </div>`).join('')}
+  </div>`}`;
+}
+
+function bindNotificacoes() {
+  // Abrir a central j\u00e1 silencia o contador: quem olhou, viu.
+  if (notifNaoLidas()) marcarNotificacoesLidas();
+}
+
+window.alternarLixeira = function() { state.verLixeira = !state.verLixeira; state.buscaLixeira = ''; render(); };
+
+function abasHistorico() {
+  const n = (state.lixeira || []).length;
+  return `<div class="seg-tabs no-print">
+    <button class="seg-tab ${!state.verLixeira ? 'ativa' : ''}" onclick="if(state.verLixeira) alternarLixeira()">📋 Check-lists</button>
+    <button class="seg-tab ${state.verLixeira ? 'ativa' : ''}" onclick="if(!state.verLixeira) alternarLixeira()">🗑 Lixeira <span class="seg-badge">${n}</span></button>
+  </div>`;
+}
+
+/* Re-renderizar a cada tecla destruiria o input e o foco junto. O truque:
+   redesenha e devolve o cursor para o fim do campo no mesmo frame. */
+window.filtrarLixeira = function(valor) {
+  state.buscaLixeira = valor;
+  render();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('busca-lixeira');
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
+};
 
 window.editarVistoriaAtual = function() {
   try {
@@ -9127,6 +9296,8 @@ window.exportarExcel = async function(tipo = 'total', valor = '', empNome = '') 
 
 async function iniciarApp() {
   showToast('Carregando dados da nuvem...');
+  // Fila de avisos carrega em paralelo: nunca atrasa nem bloqueia o boot.
+  carregarNotificacoes();
   const syncOk = await syncGlobalNuvem();
   
   // "Sabemos o que existe?" é diferente de "está vazio". Se a nuvem falhou E o
@@ -9266,6 +9437,7 @@ async function checkAuth() {
   }
   
   if (session) {
+    state.usuarioId = (session.user && session.user.id) || null;
     await marcarAcessoValido(session.user && session.user.email);
     state.modoOffline = false;
     loginScreen.style.display = 'none';
@@ -9299,11 +9471,12 @@ async function checkAuth() {
 
     if (!navigator.onLine) { alert('Sem conexão. O primeiro acesso neste aparelho precisa de internet.'); return; }
     
-    const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
+    const { data: authData, error } = await _supabase.auth.signInWithPassword({ email, password: pass });
     
     if (error) {
       alert('Falha no login. Verifique as credenciais.');
     } else { 
+      state.usuarioId = (authData && authData.user && authData.user.id) || null;
       await marcarAcessoValido(email);
       state.modoOffline = false;
       loginScreen.style.display = 'none'; 
@@ -9319,6 +9492,7 @@ async function revalidarSessao() {
   try {
     const { data } = await _supabase.auth.getSession();
     if (data && data.session) {
+      state.usuarioId = (data.session.user && data.session.user.id) || null;
       await marcarAcessoValido(data.session.user && data.session.user.email);
       state.modoOffline = false;
       return true;

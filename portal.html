@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal MapaBase</title>
+<link rel="icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Mesma paleta e mesmas fontes do app de campo: o portal é a porta da
+     mesma casa, não um prédio novo. */
+  :root {
+    --brand-deep: #22314A;
+    --brand: #2E4159;
+    --accent: #78B448;
+    --surface: #FFFFFF;
+    --surface-2: #E6EBF1;
+    --line: #DCE2EA;
+    --ink: #1C2735;
+    --ink-soft: #4E5C71;
+    --ink-faint: #8892A2;
+    --font-display: "Barlow Condensed", sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--brand-deep);
+    font-family: var(--font-body); color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .caixa {
+    width: 100%; max-width: 420px;
+    background: var(--surface); border-radius: 18px;
+    padding: 34px 30px; box-shadow: 0 18px 50px rgba(10,18,30,.35);
+  }
+  .caixa.larga { max-width: 640px; }
+  .logo { max-width: 200px; width: 66%; display: block; margin: 0 auto 6px; }
+  .sub {
+    text-align: center; font-family: var(--font-display);
+    text-transform: uppercase; letter-spacing: .14em;
+    font-size: 13px; color: var(--ink-faint); margin: 0 0 26px;
+  }
+  label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 12px 14px; font-family: inherit; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+    color: var(--ink); transition: border-color .15s;
+  }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(120,180,72,.16); }
+  .btn {
+    width: 100%; margin-top: 22px; padding: 13px;
+    border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: #fff;
+    font-family: inherit; font-size: 15px; font-weight: 600;
+    transition: filter .12s;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:disabled { opacity: .6; cursor: wait; }
+  .erro {
+    display: none; margin-top: 14px; padding: 11px 13px;
+    background: #fdecea; color: #b3261e; border-radius: 10px;
+    font-size: 13px; line-height: 1.5;
+  }
+  /* ---- módulos ---- */
+  .ola { font-size: 14px; color: var(--ink-soft); margin: 0 0 20px; text-align: center; }
+  .ola strong { color: var(--ink); }
+  .modulos { display: grid; gap: 14px; }
+  @media (min-width: 560px) { .modulos { grid-template-columns: 1fr 1fr; } }
+  .modulo {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 20px; background: var(--surface);
+    transition: border-color .12s, transform .12s, box-shadow .12s;
+  }
+  .modulo:hover { border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(20,30,45,.10); }
+  .modulo .ic { font-size: 30px; }
+  .modulo h2 {
+    font-family: var(--font-display); text-transform: uppercase;
+    letter-spacing: .05em; font-size: 21px; margin: 10px 0 6px;
+  }
+  .modulo p { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 0; }
+  .modulo.desativado { opacity: .55; pointer-events: none; position: relative; }
+  .tag-breve {
+    display: inline-block; margin-top: 10px;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em;
+    background: var(--surface-2); color: var(--ink-soft);
+    border-radius: 999px; padding: 3px 10px; text-transform: uppercase;
+  }
+  .rodape {
+    margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--surface-2);
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  }
+  .versao { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); }
+  .sair {
+    background: none; border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 14px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .sair:hover { border-color: var(--ink-faint); }
+  #tela-modulos, #carregando { display: none; }
+  #carregando { text-align: center; color: #fff; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="carregando">Verificando sessão…</div>
+
+<!-- LOGIN — mesmo desenho do app de campo, mesma sessão -->
+<div class="caixa" id="tela-login" style="display:none;">
+  <img class="logo" src="./LOGO_VERT.png" alt="MapaBase">
+  <p class="sub">Portal do Cliente</p>
+  <label for="email">E-mail</label>
+  <input type="email" id="email" autocomplete="username" placeholder="seu@email.com">
+  <label for="senha">Senha</label>
+  <input type="password" id="senha" autocomplete="current-password" placeholder="Digite a senha">
+  <button class="btn" id="entrar">Entrar no Portal</button>
+  <div class="erro" id="erro"></div>
+</div>
+
+<!-- MÓDULOS -->
+<div class="caixa larga" id="tela-modulos">
+  <img class="logo" src="./LOGO_VERT.png" alt="MapaBase" style="max-width:160px;">
+  <p class="ola">Bem-vindo, <strong id="quem">…</strong></p>
+  <div class="modulos">
+    <a class="modulo" href="./index.html">
+      <div class="ic">📋</div>
+      <h2>Inspeções Ambientais</h2>
+      <p>Check-lists de campo, histórico, ranking IGD, mapa e evolução.
+         Funciona offline no aparelho da equipe.</p>
+    </a>
+    <div class="modulo desativado" aria-disabled="true">
+      <div class="ic">🗂</div>
+      <h2>Gestão Ambiental</h2>
+      <p>Monitoramentos em andamento, documentos, geometrias e mapas
+         do seu empreendimento.</p>
+      <span class="tag-breve">Em desenvolvimento</span>
+    </div>
+  </div>
+  <div class="rodape">
+    <span class="versao" id="versao">portal 2026.08.07-a</span>
+    <button class="sair" id="sair">Sair</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* A MESMA URL e a MESMA chave do app de campo. É isso que faz o login valer
+   nos dois: o supabase-js guarda a sessão no localStorage sob uma chave
+   derivada do projeto, e index.html a encontra ali e pula a tela de login.
+   Um login, uma sessão, dois módulos. */
+const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';
+// A anon key é pública por design — o que protege os dados é o RLS no
+// banco, nunca o segredo da chave. É a MESMA do index.html, por isso a
+// sessão criada aqui vale lá.
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+const mostrar = tela => {
+  $('carregando').style.display = 'none';
+  $('tela-login').style.display = tela === 'login' ? 'block' : 'none';
+  $('tela-modulos').style.display = tela === 'modulos' ? 'block' : 'none';
+};
+
+function abrirModulos(user) {
+  $('quem').textContent = (user && user.email) || '';
+  mostrar('modulos');
+}
+
+async function boot() {
+  $('carregando').style.display = 'block';
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) { abrirModulos(data.session.user); return; }
+  } catch (e) { /* sem rede: portal é online-only, cai no login */ }
+  mostrar('login');
+}
+
+$('entrar').onclick = async () => {
+  const email = $('email').value.trim();
+  const senha = $('senha').value;
+  const erro = $('erro');
+  erro.style.display = 'none';
+  if (!email || !senha) { erro.textContent = 'Preencha e-mail e senha.'; erro.style.display = 'block'; return; }
+  $('entrar').disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  $('entrar').disabled = false;
+  if (error) {
+    erro.textContent = 'Falha no login. Verifique as credenciais.';
+    erro.style.display = 'block';
+    return;
+  }
+  abrirModulos(data.user);
+};
+
+$('senha').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar').click(); });
+
+$('sair').onclick = async () => {
+  await sb.auth.signOut();
+  mostrar('login');
+};
+
+boot();
+</script>
+</body>
+</html>
