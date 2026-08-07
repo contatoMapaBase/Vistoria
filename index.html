@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>MapaBase — Gestão de Inspeções Ambientais</title>
+  <title>MapaBase — Gestão Ambiental</title>
 
   <!-- PWA / uso offline -->
   <link rel="manifest" href="./manifest.webmanifest">
@@ -1496,7 +1496,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-e';
+const APP_VERSION = '2026.08.07-g';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -1749,7 +1749,15 @@ async function subirFotosDaVistoria(v) {
       if (typeof f === 'string' && f.startsWith('data:')) {
         try {
           const blob = base64ParaBlob(f);
-          const path = `${v.id}/${it.id}-${i}-${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
+          /* O caminho começa pelo EMPREENDIMENTO porque é o único dono que já
+             existe no banco neste instante: a foto sobe antes do upsert da
+             vistoria. Com a vistoria como primeira pasta (formato até
+             07/08/2026), a policy do Storage não tinha como saber de quem é o
+             arquivo e o bucket ficava aberto entre clientes. As fotos antigas
+             seguem legíveis: foto_empreendimento() resolve os dois formatos. */
+          const dono = v.empreendimentoId || idDoEmpPorNome(v.empreendimentoNome);
+          if (!dono) console.warn('Foto sem empreendimento resolvido; ficará visível só para a equipe:', v.id);
+          const path = `${dono || 'sem-empreendimento'}/${v.id}/${it.id}-${i}-${Date.now()}-${Math.random().toString(36).slice(2,8)}.jpg`;
           const { error } = await _supabase.storage.from(FOTOS_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
           if (error) { console.error('Falha upload foto:', error); todas = false; }
           else { it.fotos[i] = 'spath:' + path; }
