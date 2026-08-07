@@ -50,6 +50,10 @@
     text-transform: uppercase; margin: 0; }
 
   /* ===================== LOGIN ===================== */
+  #senha-nova { display: none; position: fixed; inset: 0; overflow: auto;
+    background: var(--marinho-esc);
+    align-items: center; justify-content: center; padding: 28px 20px; }
+  #senha-nova.on { display: flex; }
   #login { display: none; position: fixed; inset: 0; overflow: auto;
     background: var(--marinho-esc);
     align-items: center; justify-content: center; padding: 28px 20px; }
@@ -290,6 +294,38 @@
   </div>
 </div>
 
+<!-- ============= DEFINIR SENHA (convite / recuperação) ============= -->
+<div id="senha-nova">
+  <div class="fundo">
+    <div class="glow"></div>
+  </div>
+  <div class="lbox">
+    <img class="logo" src="./LOGO_VERT.png" alt="MapaBase">
+    <span class="selo"><span class="pt"></span> Primeiro acesso</span>
+    <h1>Defina sua senha</h1>
+    <p class="sub">Escolha uma senha para entrar no Portal nas próximas vezes.</p>
+
+    <div class="campo">
+      <label for="np1">Nova senha</label>
+      <span class="env">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+        <input type="password" id="np1" autocomplete="new-password" placeholder="Mínimo de 8 caracteres">
+      </span>
+    </div>
+    <div class="campo">
+      <label for="np2">Repita a senha</label>
+      <span class="env">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+        <input type="password" id="np2" autocomplete="new-password" placeholder="Digite novamente">
+      </span>
+    </div>
+
+    <button class="entrar" id="salvar-senha"><span class="sp"></span><span class="tx">Salvar e entrar</span></button>
+    <div class="erro" id="erro-senha"></div>
+    <p class="pe">Sua senha é pessoal. A MapaBase não tem acesso a ela.</p>
+  </div>
+</div>
+
 <!-- ===================== APP ===================== -->
 <div id="app">
   <header class="top">
@@ -309,9 +345,8 @@
     </svg>
     <div class="in">
       <p class="rot">Portal MapaBase</p>
-      <p style="margin-top:10px;">O que está em conformidade, o que está em
-        atendimento e como o empreendimento evoluiu — com o registro de cada
-        verificação.</p>
+      <p style="margin-top:10px;">Onde o empreendimento está em conformidade,
+        o que exige ação e como isso evoluiu.</p>
     </div>
   </div>
 
@@ -326,41 +361,35 @@
       <section id="pn-i">
         <div class="destaque">
           <div class="tx">
-            <h2>Inspeções Ambientais</h2>
-            <p>Check-lists de conformidade no campo. Funciona offline no aparelho.</p>
+            <h2>Saiba onde seu empreendimento está exposto</h2>
+            <p>Vistorias de conformidade nas estruturas da operação, conduzidas
+              pela nossa equipe técnica ou pela sua. Cada apontamento com foto,
+              localização e criticidade.</p>
           </div>
           <a class="acao" href="./index.html?m=1">Abrir Inspeções &rarr;</a>
         </div>
 
-        <p class="rot">No módulo</p>
         <div class="razao">
           <div class="item">
             <span class="pt"></span>
-            <span class="nm">Check-list de conformidade</span>
+            <span class="nm">Prioridades claras</span>
             <span class="st">Disponível</span>
-            <p class="ds">Sua equipe registra a verificação das estruturas do
-              empreendimento, com foto e localização em cada item.</p>
+            <p class="ds">As não conformidades ordenadas por criticidade: você
+              resolve primeiro o que mais expõe.</p>
           </div>
           <div class="item">
             <span class="pt"></span>
-            <span class="nm">Inspeções da MapaBase</span>
+            <span class="nm">Evolução comprovada</span>
             <span class="st">Disponível</span>
-            <p class="ds">As vistorias da nossa equipe técnica, com as não
-              conformidades apontadas e a recomendação de cada uma.</p>
+            <p class="ds">A comparação entre vistorias mostra o que melhorou e o
+              que persiste.</p>
           </div>
           <div class="item">
             <span class="pt"></span>
-            <span class="nm">Evolução e pontos de atenção</span>
+            <span class="nm">Evidência para o órgão</span>
             <span class="st">Disponível</span>
-            <p class="ds">Como os indicadores caminharam entre campanhas, onde o
-              empreendimento está sólido e o que exige ação.</p>
-          </div>
-          <div class="item">
-            <span class="pt"></span>
-            <span class="nm">Registro e rastreabilidade</span>
-            <span class="st">Disponível</span>
-            <p class="ds">Cada verificação documentada com autor, data e
-              evidência — pronta para apresentar ao órgão ambiental.</p>
+            <p class="ds">Foto, data, autor e localização em cada item, prontos
+              para apresentar.</p>
           </div>
         </div>
       </section>
@@ -369,49 +398,45 @@
       <section id="pn-g" style="display:none;">
         <div class="destaque">
           <div class="tx">
-            <h2>Gestão Ambiental</h2>
-            <p>A situação do empreendimento fora do campo. Requer conexão.</p>
+            <h2>Acompanhe o que a licença exige</h2>
+            <p>Condicionantes, monitoramentos e documentos do empreendimento —
+              reunidos e atualizados pela nossa equipe.</p>
           </div>
           <a class="acao" href="./monitoramento.html">Abrir Monitoramentos &rarr;</a>
         </div>
 
-        <p class="rot">No módulo</p>
         <div class="razao">
           <div class="item mudo">
             <span class="pt"></span>
-            <span class="nm">Atendimentos</span>
+            <span class="nm">Condicionantes e prazos</span>
             <span class="st">Em breve</span>
-            <p class="ds">O que já foi atendido e o que está em atendimento,
-              condicionante por condicionante, com prazo e responsável.</p>
+            <p class="ds">O que está em dia, o que está em atendimento e o que
+              vence primeiro.</p>
           </div>
           <a class="item" href="./monitoramento.html">
             <span class="pt"></span>
             <span class="nm">Monitoramentos</span>
             <span class="st">Disponível &nbsp;&rarr;</span>
-            <p class="ds">Campanhas de qualidade do ar avaliadas contra o padrão
-              legal vigente na data da coleta.</p>
+            <p class="ds">Resultados avaliados contra o padrão legal vigente na
+              data da coleta.</p>
           </a>
           <div class="item mudo">
             <span class="pt"></span>
-            <span class="nm">Documentos</span>
+            <span class="nm">Licenças e laudos</span>
             <span class="st">Em breve</span>
-            <p class="ds">Licenças, laudos e relatórios organizados por
-              categoria, com acesso controlado por usuário.</p>
+            <p class="ds">Os documentos do empreendimento reunidos num só lugar.</p>
           </div>
           <div class="item mudo">
             <span class="pt"></span>
-            <span class="nm">Áreas do empreendimento</span>
+            <span class="nm">Áreas licenciadas</span>
             <span class="st">Em breve</span>
-            <p class="ds">Poligonais, áreas licenciadas e mapas — a geografia da
-              operação em um só lugar.</p>
+            <p class="ds">Poligonais e limites da operação sobre o mapa.</p>
           </div>
         </div>
-        <p class="nota">A Gestão Ambiental consulta os dados no momento em que
-          você abre a tela, por isso precisa de internet.</p>
       </section>
     </div>
 
-    <p class="versao">portal 2026.08.07-h</p>
+    <p class="versao">portal 2026.08.07-j</p>
   </main>
 </div>
 
@@ -428,7 +453,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    /* TRUE aqui, e somente aqui. O Portal é a página que recebe os links de
+       convite e de recuperação de senha, e sem isto o supabase-js ignora o
+       token que vem na URL — foi o que fez um convite "entrar direto" sem
+       nunca pedir senha (07/08/2026). O index.html mantém false: ele nunca
+       recebe link de autenticação. */
+    detectSessionInUrl: true,
+    flowType: 'implicit',
     storageKey: 'mapabase-auth'
   }
 });
@@ -438,15 +469,53 @@ const ver = tela => {
   $('carregando').classList.remove('on');
   $('login').classList.toggle('on', tela === 'login');
   $('app').classList.toggle('on', tela === 'app');
+  $('senha-nova').classList.toggle('on', tela === 'senha');
+};
+
+/* O link de convite e o de recuperação chegam com o tipo no fragmento da URL
+   (#access_token=...&type=invite). Nesses casos o usuário está autenticado
+   pelo token mas NÃO tem senha que conheça — então a senha vem antes de
+   qualquer outra coisa. */
+function tipoDoLink() {
+  const h = (location.hash || '').replace(/^#/, '');
+  const q = new URLSearchParams(h);
+  const t = q.get('type');
+  return (t === 'invite' || t === 'recovery' || t === 'signup') ? t : null;
+}
+
+$('salvar-senha').onclick = async () => {
+  const a = $('np1').value, b = $('np2').value;
+  const erro = $('erro-senha'), btn = $('salvar-senha');
+  erro.style.display = 'none';
+  if (a.length < 8) { erro.textContent = 'A senha precisa ter ao menos 8 caracteres.'; erro.style.display = 'block'; return; }
+  if (a !== b)      { erro.textContent = 'As duas senhas não coincidem.'; erro.style.display = 'block'; $('np2').focus(); return; }
+  btn.disabled = true; btn.classList.add('carregando');
+  btn.querySelector('.tx').textContent = 'Salvando…';
+  const { data, error } = await sb.auth.updateUser({ password: a });
+  btn.disabled = false; btn.classList.remove('carregando');
+  btn.querySelector('.tx').textContent = 'Salvar e entrar';
+  if (error) {
+    erro.textContent = 'Não foi possível salvar a senha. O link pode ter expirado — peça um novo à MapaBase.';
+    erro.style.display = 'block';
+    return;
+  }
+  // Limpa o token da URL para o link não ficar reutilizável no histórico.
+  history.replaceState(null, '', location.pathname);
+  abrir((data && data.user) || null);
 };
 function abrir(user) {
   $('quem').textContent = (user && user.email) || '';
   ver('app');
 }
 async function boot() {
+  const tipo = tipoDoLink();
   try {
     const { data } = await sb.auth.getSession();
-    if (data && data.session) { abrir(data.session.user); return; }
+    if (data && data.session) {
+      // Veio de convite/recuperação: senha primeiro, portal depois.
+      if (tipo) { ver('senha'); setTimeout(() => $('np1').focus(), 150); return; }
+      abrir(data.session.user); return;
+    }
   } catch (e) { /* sem rede: o service worker devolve as Inspeções offline */ }
   ver('login');
   const e = $('email'); if (e) setTimeout(() => e.focus(), 120);
