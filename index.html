@@ -1496,7 +1496,7 @@
 /* Selo da versão publicada. Serve para responder, olhando o aparelho, qual
    código está rodando ali — sem isso, "publiquei e não mudou" é adivinhação.
    Trocar a cada entrega. Aparece no cartão do Painel Geral. */
-const APP_VERSION = '2026.08.07-g';
+const APP_VERSION = '2026.08.07-h';
 
 const SUPABASE_URL = 'https://rbqrinldrtkwzxqopygv.supabase.co';const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJicXJpbmxkcnRrd3p4cW9weWd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MTUxNTcsImV4cCI6MjEwMDE5MTE1N30.INUHsxh-H8Z0jTQy9CGAaFBjytCktR4NhoWLTWZh5Rs';
 
@@ -9468,11 +9468,18 @@ async function checkAuth() {
      clique seguinte repetia tudo — sem nunca abrir as Inspeções.
      Duas defesas: quem veio do Portal NUNCA é redirecionado de volta, e o
      index só pode devolver ao Portal uma vez por aba. */
+  /* Marca COM VALIDADE, não booleana. A versão booleana travava para sempre:
+     um único desvio na aba desligava o redirecionamento ao Portal pelo resto
+     da sessão, e a raiz passava a abrir sempre as Inspeções. Dez segundos
+     bastam para barrar um laço e não estorvam a navegação normal. */
   let jaVoltou = false;
-  try { jaVoltou = sessionStorage.getItem('mb:bounce') === '1'; } catch (e) {}
+  try {
+    const t = parseInt(sessionStorage.getItem('mb:bounce') || '0', 10);
+    jaVoltou = Number.isFinite(t) && (Date.now() - t) < 10000;
+  } catch (e) {}
   const podeIrAoPortal = navigator.onLine && !veioDoPortal && !appInstalado && !jaVoltou;
   const irAoPortal = () => {
-    try { sessionStorage.setItem('mb:bounce', '1'); } catch (e) {}
+    try { sessionStorage.setItem('mb:bounce', String(Date.now())); } catch (e) {}
     location.replace('./portal.html');
   };
 
