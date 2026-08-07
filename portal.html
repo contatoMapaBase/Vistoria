@@ -436,7 +436,7 @@
       </section>
     </div>
 
-    <p class="versao">portal 2026.08.07-l</p>
+    <p class="versao">portal 2026.08.07-m</p>
   </main>
 </div>
 
@@ -503,6 +503,7 @@ $('salvar-senha').onclick = async () => {
      `perfis`: uma policy de UPDATE ali permitiria ao cliente alterar o próprio
      papel para admin. */
   try { await sb.rpc('marcar_senha_definida'); } catch (e) {}
+  if (PAPEL === null) await carregarPerfil();
   // Limpa o token da URL para o link não ficar reutilizável no histórico.
   history.replaceState(null, '', location.pathname);
   abrir((data && data.user) || null);
@@ -510,19 +511,54 @@ $('salvar-senha').onclick = async () => {
 function abrir(user) {
   $('quem').textContent = (user && user.email) || '';
   ver('app');
+  ajustarGestaoPorPapel();
 }
 /* Duas portas levam à tela de senha:
    1. link de convite/recuperação (token na URL);
    2. perfis.senha_provisoria = true — o login foi criado manualmente por um
       admin e a pessoa ainda não trocou. Este é o caminho principal, porque
       não depende de e-mail funcionando. */
-async function precisaTrocarSenha() {
+let PAPEL = null;   // 'admin' | 'colaborador' | 'cliente' | null
+
+async function carregarPerfil() {
   try {
     const { data, error } = await sb.from('perfis')
-      .select('senha_provisoria').maybeSingle();
-    if (error) return false;              // sem perfil ainda: não bloqueia
-    return !!(data && data.senha_provisoria);
-  } catch (e) { return false; }
+      .select('papel, senha_provisoria').maybeSingle();
+    if (error || !data) return { trocar: false };
+    PAPEL = data.papel || null;
+    return { trocar: !!data.senha_provisoria };
+  } catch (e) { return { trocar: false }; }
+}
+const clienteNoPortal = () => PAPEL === 'cliente';
+
+/* A Gestão Ambiental ainda não foi entregue ao cliente: a integração com o
+   Trello é trabalho de meses. Para o cliente ela aparece inteira como "em
+   confecção", sem link ativo — coerente com o banco, onde os recursos
+   gestao_* não estão concedidos a nenhum login de cliente. A equipe MapaBase
+   segue com Monitoramentos aberto. */
+function ajustarGestaoPorPapel() {
+  if (!clienteNoPortal()) return;
+  const painel = document.getElementById('pn-g');
+  if (!painel) return;
+
+  const destaque = painel.querySelector('.destaque');
+  if (destaque) {
+    const acao = destaque.querySelector('.acao');
+    if (acao) acao.remove();
+    const p = destaque.querySelector('p');
+    if (p) p.textContent = 'Estamos preparando esta área para o seu empreendimento.';
+  }
+
+  // O item de Monitoramentos deixa de ser link e passa a "em breve".
+  const linkMon = painel.querySelector('a.item[href="./monitoramento.html"]');
+  if (linkMon) {
+    const div = document.createElement('div');
+    div.className = 'item mudo';
+    div.innerHTML = linkMon.innerHTML;
+    const st = div.querySelector('.st');
+    if (st) st.textContent = 'Em breve';
+    linkMon.replaceWith(div);
+  }
 }
 
 async function boot() {
@@ -550,7 +586,8 @@ async function boot() {
     }
 
     if (data && data.session) {
-      if (tipo || await precisaTrocarSenha()) {
+      const perfil = await carregarPerfil();
+      if (tipo || perfil.trocar) {
         if (!tipo) {
           $('selo-senha').textContent = 'Troca obrigatória';
           $('sub-senha').textContent = 'A senha atual foi definida pela MapaBase. '
@@ -580,7 +617,8 @@ $('entrar').onclick = async () => {
     $('senha').focus(); $('senha').select();
     return;
   }
-  if (await precisaTrocarSenha()) {
+  const perfilPos = await carregarPerfil();
+  if (perfilPos.trocar) {
     $('selo-senha').textContent = 'Troca obrigatória';
     $('sub-senha').textContent = 'A senha atual foi definida pela MapaBase. '
       + 'Escolha uma senha pessoal para continuar.';
